@@ -16,6 +16,7 @@ from report_service.services.report_formatter import format_report
 from report_service.services.report_generator import generate_report_data
 from shared.log_codes import REPORT_COMPLETED, REPORT_FAILED, REPORT_PROCESSING
 from shared.observability import get_logger
+from shared.observability.prometheus import reports_generated_total
 from shared.schemas.report import ReportJobMessage, ReportStatus
 
 logger = get_logger(__name__)
@@ -77,6 +78,7 @@ async def _execute_job(job: ReportJobMessage) -> None:
                 )
                 await session.commit()
 
+                reports_generated_total.labels(format=str(job.format), status="completed").inc()
                 logger.info("Report completed", code=REPORT_COMPLETED)
 
             except Exception as exc:
@@ -84,6 +86,7 @@ async def _execute_job(job: ReportJobMessage) -> None:
                 span.set_status(trace.StatusCode.ERROR, str(exc))
                 span.record_exception(exc)
 
+                reports_generated_total.labels(format=str(job.format), status="failed").inc()
                 logger.error(
                     "Report generation failed",
                     code=REPORT_FAILED,

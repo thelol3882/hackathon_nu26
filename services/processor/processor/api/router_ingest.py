@@ -24,6 +24,12 @@ from processor.services.alert_evaluator import evaluate_alerts
 from processor.services.health_service import calculate_health
 from processor.services.ingestion_service import flatten_reading
 from shared.observability import get_logger
+from shared.observability.prometheus import (
+    alerts_fired_total,
+    health_index_calculated_total,
+    health_index_value,
+    telemetry_ingested_total,
+)
 from shared.schemas.telemetry import TelemetryReading
 from shared.utils import generate_id
 from shared.wire import encode as wire_encode
@@ -92,7 +98,16 @@ async def _process_single(
     # ── 5. Commit everything in one transaction ─────────────────────────
     await db.commit()
 
-    # ── 6. Publish to Redis async (fire-and-forget, non-blocking) ───────
+    # ── 6. Prometheus metrics ─────────────────────────────────────────────
+    telemetry_ingested_total.labels(locomotive_type=reading.locomotive_type.value).inc(len(reading.sensors))
+    health_index_calculated_total.inc()
+    health_index_value.labels(locomotive_id=loco_id, locomotive_type=reading.locomotive_type.value).set(
+        health.overall_score
+    )
+    for ae in alert_events:
+        alerts_fired_total.labels(severity=ae.severity.value, sensor_type=str(ae.sensor_type)).inc()
+
+    # ── 7. Publish to Redis async (fire-and-forget, non-blocking) ───────
     telemetry_payload = wire_encode(reading.model_dump(mode="json"))
     health_payload = wire_encode(health.model_dump(mode="json"))
     alert_payloads = [wire_encode(ae.model_dump(mode="json")) for ae in alert_events]

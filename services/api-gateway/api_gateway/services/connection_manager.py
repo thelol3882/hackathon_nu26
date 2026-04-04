@@ -25,6 +25,7 @@ from shared.log_codes import (
     WS_STALE_REMOVED,
 )
 from shared.observability import get_logger
+from shared.observability.prometheus import ws_connections_active
 from shared.wire import decode as wire_decode
 from shared.wire import is_binary as wire_is_binary
 
@@ -74,6 +75,7 @@ class _ChannelRelay:
             )
             self._clients[ws_id] = slot
             self._ws_map[ws_id] = ws
+            ws_connections_active.inc()
 
             if self._listener_task is None or self._listener_task.done():
                 self._listener_task = asyncio.create_task(self._listener_loop(), name=f"redis-listener-{self.channel}")
@@ -86,6 +88,7 @@ class _ChannelRelay:
             self._ws_map.pop(ws_id, None)
             if slot and slot.sender_task:
                 slot.sender_task.cancel()
+                ws_connections_active.dec()
 
             remaining = len(self._clients)
             if remaining == 0 and self._listener_task:

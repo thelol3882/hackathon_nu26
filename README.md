@@ -223,11 +223,29 @@ curl -O http://localhost/api/reports/{report_id}/download -H "Authorization: Bea
 
 ## Мониторинг
 
-| Сервис | URL |
-|--------|-----|
-| Jaeger UI | http://localhost:16686 |
-| RabbitMQ Management | http://localhost:15672 (locomotive / changeme) |
-| Swagger UI | http://localhost/api/docs |
+| Сервис | URL | Назначение |
+|--------|-----|------------|
+| Grafana | http://localhost:3001 (admin / admin) | Дашборд метрик (предустановленный) |
+| Prometheus | http://localhost:9090 | Хранилище метрик, PromQL-запросы |
+| Jaeger UI | http://localhost:16686 | Распределённые трассировки (OpenTelemetry) |
+| RabbitMQ Management | http://localhost:15672 (locomotive / changeme) | Очереди и потоки сообщений |
+| Swagger UI | http://localhost/api/docs | Интерактивная документация API |
+
+### Метрики (Prometheus)
+
+Каждый сервис экспортирует `/metrics` в формате Prometheus:
+
+| Метрика | Тип | Описание |
+|---------|-----|----------|
+| `http_requests_total` | Counter | Общее количество HTTP-запросов (service, method, path, status) |
+| `http_request_duration_seconds` | Histogram | Латентность запросов (p50, p95, p99) |
+| `http_requests_in_progress` | Gauge | Количество запросов в обработке |
+| `telemetry_ingested_total` | Counter | Количество принятых сенсорных показаний |
+| `health_index_calculated_total` | Counter | Количество расчётов индекса здоровья |
+| `health_index_value` | Gauge | Текущий индекс здоровья по локомотивам |
+| `alerts_fired_total` | Counter | Количество сработавших алертов (severity, sensor_type) |
+| `ws_connections_active` | Gauge | Активные WebSocket-подключения |
+| `reports_generated_total` | Counter | Сгенерированные отчёты (format, status) |
 
 ## Стек технологий
 

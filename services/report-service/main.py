@@ -6,10 +6,12 @@ from report_service.api.router_health_index import router as health_index_router
 from report_service.api.router_reports import router as reports_router
 from report_service.core.lifespan import lifespan
 from shared.observability import setup_observability
+from shared.observability.prometheus import setup_prometheus
 
 app = FastAPI(title="Locomotive Report Service", lifespan=lifespan)
 
 app.state.shutdown_otel = setup_observability(app, service_name="report-service")
+setup_prometheus(app, service_name="report-service")
 
 app.include_router(reports_router, prefix="/reports", tags=["reports"])
 app.include_router(health_index_router, prefix="/health-index", tags=["health-index"])

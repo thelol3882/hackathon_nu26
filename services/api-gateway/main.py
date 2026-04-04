@@ -14,6 +14,7 @@ from api_gateway.core.config import get_settings
 from api_gateway.core.lifespan import lifespan
 from api_gateway.core.middleware import UserContextMiddleware
 from shared.observability import setup_observability
+from shared.observability.prometheus import setup_prometheus
 
 app = FastAPI(
     title="Locomotive Digital Twin — API Gateway",
@@ -24,6 +25,7 @@ app = FastAPI(
 
 settings = get_settings()
 app.state.shutdown_otel = setup_observability(app, service_name="api-gateway")
+setup_prometheus(app, service_name="api-gateway")
 app.add_middleware(UserContextMiddleware)
 app.add_middleware(
     CORSMiddleware,

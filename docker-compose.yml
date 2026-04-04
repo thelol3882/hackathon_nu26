@@ -47,6 +47,33 @@ services:
       - "4317:4317"
       - "4318:4318"
 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - processor
+      - api-gateway
+      - report-service
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DATASOURCES_DEFAULT_NAME=Prometheus
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
   # ---- Services ----
   processor:
     build:
@@ -118,3 +145,5 @@ volumes:
   timescaledb_data:
   redis_data:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
