@@ -1,6 +1,7 @@
 'use client';
 
-import { Card, Loader, Progress, Text } from '@mantine/core';
+import { Card, Loader, Progress, Text, Group, Badge, Stack, ThemeIcon } from '@mantine/core';
+import { IconHeartbeat } from '@tabler/icons-react';
 import type { HealthIndex } from '@/features/health/types';
 import classes from './HealthIndexGauge.module.css';
 
@@ -31,8 +32,6 @@ const SENSOR_LABELS: Record<string, string> = {
 
 const CIRCUMFERENCE = 2 * Math.PI * 85;
 
-const TICK_POSITIONS = [0, 0.25, 0.5, 0.75, 1];
-
 function getColorVar(score: number): string {
     if (score >= 80) return 'var(--mantine-color-healthy-5)';
     if (score >= 50) return 'var(--mantine-color-ktzGold-5)';
@@ -58,31 +57,24 @@ function getProgressColor(score: number): string {
     return 'critical';
 }
 
-function buildTickMarks() {
-    const r = 85;
-    const cx = 100;
-    const cy = 100;
-    const innerR = r - 8;
-    const outerR = r + 8;
-
-    return TICK_POSITIONS.map((pct) => {
-        // Angle starts at top (-90deg) and goes clockwise
-        const angle = -90 + pct * 360;
-        const rad = (angle * Math.PI) / 180;
-        const x1 = cx + innerR * Math.cos(rad);
-        const y1 = cy + innerR * Math.sin(rad);
-        const x2 = cx + outerR * Math.cos(rad);
-        const y2 = cy + outerR * Math.sin(rad);
-        return <line key={pct} className={classes.tickMark} x1={x1} y1={y1} x2={x2} y2={y2} />;
-    });
+function getCategoryColor(category: string): string {
+    switch (category) {
+        case 'Норма': return 'green';
+        case 'Внимание': return 'yellow';
+        case 'Критично': return 'red';
+        default: return 'gray';
+    }
 }
 
 export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
     if (isLoading) {
         return (
-            <Card className="">
+            <Card>
                 <div className={classes.loaderWrap}>
-                    <Loader size="lg" />
+                    <Stack align="center" gap="sm">
+                        <Loader size="lg" color="ktzBlue" />
+                        <Text size="xs" c="dimmed">Загрузка индекса...</Text>
+                    </Stack>
                 </div>
             </Card>
         );
@@ -92,7 +84,12 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
         return (
             <Card>
                 <div className={classes.emptyState}>
-                    <Text c="dimmed">Нет данных</Text>
+                    <Stack align="center" gap="sm">
+                        <ThemeIcon size={48} variant="light" color="gray" radius="xl">
+                            <IconHeartbeat size={24} stroke={1.2} />
+                        </ThemeIcon>
+                        <Text c="dimmed" size="sm">Ожидание данных...</Text>
+                    </Stack>
                 </div>
             </Card>
         );
@@ -106,9 +103,31 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
 
     return (
         <Card className={glowClass}>
+            <Group gap={4} mb="xs">
+                <Text className="panel-label">ИНДЕКС ЗДОРОВЬЯ</Text>
+                <Badge
+                    size="sm"
+                    variant="filled"
+                    color={getCategoryColor(health.category)}
+                >
+                    {health.category}
+                </Badge>
+            </Group>
+
             <div className={classes.wrapper}>
                 <div className={classes.gaugeContainer}>
                     <svg viewBox="0 0 200 200" width="100%" height="100%">
+                        {/* Glow filter */}
+                        <defs>
+                            <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="4" result="blur" />
+                                <feMerge>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                        </defs>
+
                         {/* Background ring */}
                         <circle
                             cx={100}
@@ -116,13 +135,11 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             r={85}
                             fill="none"
                             stroke="var(--dashboard-border)"
-                            strokeWidth={12}
+                            strokeWidth={10}
+                            opacity={0.4}
                         />
 
-                        {/* Tick marks */}
-                        {buildTickMarks()}
-
-                        {/* Foreground ring */}
+                        {/* Foreground ring with glow */}
                         <circle
                             className={classes.ring}
                             cx={100}
@@ -130,48 +147,50 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             r={85}
                             fill="none"
                             stroke={colorVar}
-                            strokeWidth={12}
+                            strokeWidth={10}
                             strokeLinecap="round"
                             strokeDasharray={CIRCUMFERENCE}
                             strokeDashoffset={dashOffset}
                             transform="rotate(-90 100 100)"
+                            filter="url(#gaugeGlow)"
                         />
 
                         {/* Score number */}
                         <text
                             className={classes.score}
                             x={100}
-                            y={100}
+                            y={92}
                             textAnchor="middle"
                             dominantBaseline="central"
                             fill={colorVar}
                             fontFamily="var(--font-mono), monospace"
-                            fontSize={48}
+                            fontSize={52}
                             fontWeight="bold"
                         >
                             {Math.round(score)}
                         </text>
 
-                        {/* Category label */}
+                        {/* Label */}
                         <text
-                            className={classes.score}
                             x={100}
-                            y={130}
+                            y={122}
                             textAnchor="middle"
                             dominantBaseline="central"
-                            fill={colorVar}
-                            fontSize={14}
+                            fill="var(--dashboard-text-secondary)"
+                            fontSize={11}
                         >
-                            {health.category}
+                            из 100
                         </text>
                     </svg>
                 </div>
 
                 {factors.length > 0 && (
                     <div className={classes.factorsContainer}>
-                        <Text size="xs" c="dimmed" mb={8} ta="center">
-                            Влияющие факторы
-                        </Text>
+                        <Group gap={4} mb={8} justify="center">
+                            <Text size="xs" c="dimmed" fw={500}>
+                                Влияющие факторы
+                            </Text>
+                        </Group>
                         {factors.map((factor) => (
                             <div key={factor.sensor_type} className={classes.factorRow}>
                                 <span className={classes.factorLabel}>
@@ -179,12 +198,18 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                                 </span>
                                 <Progress
                                     className={classes.factorBar}
-                                    value={factor.contribution_pct}
+                                    value={Math.min(100, Math.abs(factor.contribution_pct))}
                                     color={getProgressColor(score)}
                                     size="sm"
                                     radius="xl"
                                 />
-                                <span className={classes.factorValue}>
+                                <span className={classes.factorValue} style={{
+                                    color: factor.deviation_pct > 20
+                                        ? 'var(--mantine-color-critical-5)'
+                                        : factor.deviation_pct > 10
+                                            ? 'var(--mantine-color-ktzGold-5)'
+                                            : undefined,
+                                }}>
                                     {factor.deviation_pct > 0 ? '+' : ''}
                                     {factor.deviation_pct.toFixed(1)}%
                                 </span>

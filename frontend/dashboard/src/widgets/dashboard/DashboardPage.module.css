@@ -1,7 +1,26 @@
+/* Status strip at top */
+.statusStrip {
+    background: var(--dashboard-surface);
+    border-bottom: 1px solid var(--dashboard-border);
+    margin: 0 calc(-1 * var(--mantine-spacing-md));
+    margin-top: calc(-1 * var(--mantine-spacing-md));
+    margin-bottom: var(--mantine-spacing-sm);
+}
+
+/* Empty state icon animation */
+.emptyIcon {
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
 .grid {
     display: grid;
     gap: var(--mantine-spacing-md);
-    padding: var(--mantine-spacing-md);
+    padding: 0 var(--mantine-spacing-xs);
     grid-template-columns: 1fr;
     grid-template-areas:
         "health"
