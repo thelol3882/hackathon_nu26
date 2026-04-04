@@ -9,7 +9,7 @@ from api_gateway.core.rabbitmq import close_rabbitmq, init_rabbitmq
 from api_gateway.core.redis_client import close_redis, get_redis, init_redis
 from api_gateway.services.alert_service import run_alert_persistence
 from api_gateway.services.connection_manager import ConnectionManager
-from api_gateway.services.health_service import init_health_config
+from api_gateway.services.health_service import init_health_config, run_health_cache
 from shared.observability import setup_observability
 
 
@@ -43,8 +43,15 @@ async def lifespan(app: FastAPI):
         name="alert-persistence",
     )
 
+    # Background: cache health index from processor via Redis pub/sub
+    health_task = asyncio.create_task(
+        run_health_cache(redis_client),
+        name="health-cache",
+    )
+
     yield
 
+    health_task.cancel()
     alert_task.cancel()
     await manager.shutdown()
     await close_rabbitmq()

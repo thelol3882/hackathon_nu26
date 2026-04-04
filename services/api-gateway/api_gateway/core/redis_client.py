@@ -51,3 +51,19 @@ async def subscribe_alerts():
     finally:
         await pubsub.unsubscribe()
         await pubsub.aclose()
+
+
+# --- Health index cache ---
+
+_HEALTH_CACHE_PREFIX = "health:cache"
+_HEALTH_CACHE_TTL = 60  # seconds
+
+
+async def cache_health(loco_id: str, data_json: str) -> None:
+    """Cache the latest HealthIndex JSON for a locomotive."""
+    await get_redis().set(f"{_HEALTH_CACHE_PREFIX}:{loco_id}", data_json, ex=_HEALTH_CACHE_TTL)
+
+
+async def get_cached_health(loco_id: str) -> str | None:
+    """Get cached HealthIndex JSON. Returns None if expired or missing."""
+    return await get_redis().get(f"{_HEALTH_CACHE_PREFIX}:{loco_id}")

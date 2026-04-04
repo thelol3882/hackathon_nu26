@@ -1,7 +1,8 @@
-"""Health Index computation with DB→Redis config caching."""
+"""Health Index: cache from processor pub/sub, fallback to DB computation."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime
 
@@ -11,8 +12,9 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api_gateway.core.redis_client import cache_health, get_cached_health
 from api_gateway.models.health_config_entity import HealthThreshold, HealthWeight
-from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS, HI_CATEGORY_NORMAL, HI_CATEGORY_WARNING
+from shared.constants import DEFAULT_THRESHOLDS, HEALTH_CHANNEL, HEALTH_WEIGHTS, HI_CATEGORY_NORMAL, HI_CATEGORY_WARNING
 from shared.log_codes import (
     HEALTH_CONFIG_SEEDED,
 )
@@ -98,6 +100,42 @@ async def _get_weights(redis_client: redis.Redis) -> dict[str, float]:
     return result or HEALTH_WEIGHTS
 
 
+# --- Background: cache health index from processor pub/sub ---
+
+
+async def run_health_cache(redis_client: redis.Redis) -> None:
+    """Subscribe to health:live:* and cache latest HealthIndex per locomotive."""
+    backoff = 1.0
+    while True:
+        pubsub = redis_client.pubsub()
+        try:
+            await pubsub.psubscribe(f"{HEALTH_CHANNEL}:*")
+            backoff = 1.0
+            logger.info("Health cache listener started")
+            async for message in pubsub.listen():
+                if message["type"] != "pmessage":
+                    continue
+                try:
+                    channel: str = message["channel"]
+                    # channel = "health:live:<loco_id>"
+                    loco_id = channel.rsplit(":", maxsplit=1)[-1]
+                    await cache_health(loco_id, message["data"])
+                except Exception:
+                    logger.exception("Failed to cache health index")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("Health cache listener error, reconnecting", backoff_s=backoff)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 30.0)
+        finally:
+            try:
+                await pubsub.punsubscribe()
+                await pubsub.aclose()
+            except Exception:
+                pass
+
+
 # --- Health Index computation ---
 
 
@@ -132,11 +170,20 @@ async def get_health_index(
     redis_client: redis.Redis,
     locomotive_id: str,
 ) -> HealthIndex:
-    """Compute health index from latest sensor values.
+    """Return health index for a locomotive.
 
-    Uses the simplified threshold-based approach.  The processor computes
-    the full HI formula in real-time; this is a fallback / on-demand endpoint.
+    Primary: read from Redis cache (populated by processor via health:live pub/sub).
+    Fallback: compute from raw_telemetry if cache is empty (processor not running).
     """
+    # Try cache first (populated by run_health_cache from processor pub/sub)
+    cached = await get_cached_health(locomotive_id)
+    if cached:
+        try:
+            return HealthIndex.model_validate_json(cached)
+        except Exception:
+            logger.warning("Failed to parse cached health index, falling back to DB", locomotive_id=locomotive_id)
+
+    # Fallback: compute from DB
     thresholds = await _get_thresholds(redis_client)
     weights = await _get_weights(redis_client)
 

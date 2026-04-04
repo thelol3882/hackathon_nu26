@@ -5,7 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from api_gateway.services.connection_manager import ConnectionManager
-from shared.constants import ALERT_CHANNEL, TELEMETRY_CHANNEL
+from shared.constants import ALERT_CHANNEL, HEALTH_CHANNEL, TELEMETRY_CHANNEL
+from shared.log_codes import WS_CONNECTED, WS_DISCONNECTED
+from shared.observability import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -23,12 +27,14 @@ async def ws_telemetry(ws: WebSocket, loco_id: str):
 
     channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
     await manager.subscribe(ws, channel)
+    logger.info("WS telemetry connected", code=WS_CONNECTED, loco_id=loco_id)
     try:
         while True:
-            await ws.receive_text()  # keep alive, detect disconnect
+            await ws.receive_text()
     except (WebSocketDisconnect, Exception):
         pass
     finally:
+        logger.info("WS telemetry disconnected", code=WS_DISCONNECTED, loco_id=loco_id)
         await manager.disconnect(ws)
 
 
@@ -40,34 +46,41 @@ async def ws_alerts(ws: WebSocket):
         return
 
     await manager.subscribe(ws, ALERT_CHANNEL)
+    logger.info("WS alerts connected", code=WS_CONNECTED)
     try:
         while True:
             await ws.receive_text()
     except (WebSocketDisconnect, Exception):
         pass
     finally:
+        logger.info("WS alerts disconnected", code=WS_DISCONNECTED)
         await manager.disconnect(ws)
 
 
 @router.websocket("/ws/live/{loco_id}")
 async def ws_live(ws: WebSocket, loco_id: str):
-    """Combined telemetry + alerts stream for a specific locomotive.
+    """Combined telemetry + alerts + health stream for a specific locomotive.
 
     Messages are wrapped in envelopes:
         {"type": "telemetry", "data": {...}}
         {"type": "alert", "data": {...}}
+        {"type": "health", "data": {...}}
     """
     manager = _get_manager(ws)
     if not await manager.accept(ws):
         return
 
     telemetry_channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
+    health_channel = f"{HEALTH_CHANNEL}:{loco_id}"
     await manager.subscribe(ws, telemetry_channel)
     await manager.subscribe(ws, ALERT_CHANNEL, filter_loco_id=loco_id)
+    await manager.subscribe(ws, health_channel)
+    logger.info("WS live connected", code=WS_CONNECTED, loco_id=loco_id)
     try:
         while True:
             await ws.receive_text()
     except (WebSocketDisconnect, Exception):
         pass
     finally:
+        logger.info("WS live disconnected", code=WS_DISCONNECTED, loco_id=loco_id)
         await manager.disconnect(ws)
