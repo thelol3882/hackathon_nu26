@@ -15,7 +15,8 @@ class AlertThreshold(BaseModel):
 class AlertEvent(BaseModel):
     id: UUID
     locomotive_id: UUID
-    sensor_type: SensorType
+    # str instead of SensorType enum so new sensor keys don't break deserialization
+    sensor_type: str
     severity: AlertSeverity
     value: float
     threshold_min: float

@@ -1,7 +1,7 @@
 import redis.asyncio as redis
 
 from processor.core.config import get_settings
-from shared.constants import ALERT_CHANNEL, TELEMETRY_CHANNEL
+from shared.constants import ALERT_CHANNEL, HEALTH_CHANNEL, TELEMETRY_CHANNEL
 
 _redis_pool: redis.Redis | None = None
 
@@ -28,8 +28,15 @@ def get_redis() -> redis.Redis:
 
 
 async def publish_telemetry(loco_id: str, payload: str) -> None:
+    """Publish raw telemetry JSON to the live telemetry channel."""
     await get_redis().publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
 
 
 async def publish_alert(payload: str) -> None:
+    """Publish an AlertEvent JSON to the global alert channel."""
     await get_redis().publish(ALERT_CHANNEL, payload)
+
+
+async def publish_health(loco_id: str, payload: str) -> None:
+    """Publish a HealthIndex JSON to the live health channel."""
+    await get_redis().publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)

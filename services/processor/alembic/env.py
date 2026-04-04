@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from processor.core.config import get_settings
 from processor.models.base import Base
-import processor.models.telemetry_entity  # noqa: F401 — register models
+import processor.models  # noqa: F401 — registers all ORM models
 
 config = context.config
 
