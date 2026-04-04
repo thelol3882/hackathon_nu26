@@ -10,13 +10,11 @@ from api_gateway.core.redis_client import close_redis, get_redis, get_redis_raw,
 from api_gateway.services.alert_service import run_alert_persistence
 from api_gateway.services.connection_manager import ConnectionManager
 from api_gateway.services.health_service import init_health_config, run_health_cache
-from shared.observability import setup_observability
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    shutdown_otel = setup_observability(app, service_name="api-gateway")
 
     await init_db_pool()
     await init_redis()
@@ -58,4 +56,4 @@ async def lifespan(app: FastAPI):
     await close_rabbitmq()
     await close_redis()
     await close_db_pool()
-    shutdown_otel()
+    app.state.shutdown_otel()

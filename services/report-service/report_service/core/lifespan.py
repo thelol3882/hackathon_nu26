@@ -6,14 +6,13 @@ from report_service.core.database import close_db_pool, init_db_pool
 from report_service.core.rabbitmq import close_rabbitmq, init_rabbitmq, start_consuming
 from report_service.services.report_worker import process_report_job
 from shared.log_codes import INFRA_SHUTDOWN, INFRA_STARTUP
-from shared.observability import get_logger, setup_observability
+from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    shutdown_otel = setup_observability(app, service_name="report-service")
     await init_db_pool()
     await init_rabbitmq()
     await start_consuming(process_report_job)
@@ -22,4 +21,4 @@ async def lifespan(app: FastAPI):
     logger.info("Report service shutting down", code=INFRA_SHUTDOWN)
     await close_rabbitmq()
     await close_db_pool()
-    shutdown_otel()
+    app.state.shutdown_otel()
