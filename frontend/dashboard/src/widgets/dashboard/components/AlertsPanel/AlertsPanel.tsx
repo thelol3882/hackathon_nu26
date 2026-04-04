@@ -1,7 +1,29 @@
 'use client';
 
-import { Card, Text, Group, Badge, Button, ScrollArea, Stack, ActionIcon } from '@mantine/core';
-import { IconCheck } from '@tabler/icons-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+    Card,
+    Text,
+    Group,
+    Badge,
+    Button,
+    ScrollArea,
+    Stack,
+    ActionIcon,
+    SegmentedControl,
+    Transition,
+    Tooltip,
+    ThemeIcon,
+} from '@mantine/core';
+import { showNotification } from '@mantine/notifications';
+import {
+    IconCheck,
+    IconAlertTriangle,
+    IconAlertCircle,
+    IconInfoCircle,
+    IconBell,
+    IconBellOff,
+} from '@tabler/icons-react';
 import type { AlertEvent } from '@/features/alerts/types';
 import { useAcknowledgeAlertMutation } from '@/features/alerts';
 import { getRelativeTime } from '@/shared/utils/date';
@@ -12,6 +34,8 @@ interface AlertsPanelProps {
     onClear: () => void;
 }
 
+type SeverityFilter = 'all' | 'emergency' | 'critical' | 'warning' | 'info';
+
 const severityClassMap: Record<string, string> = {
     info: classes.severityInfo,
     warning: classes.severityWarning,
@@ -19,77 +43,232 @@ const severityClassMap: Record<string, string> = {
     emergency: classes.severityEmergency,
 };
 
-function AlertItem({ alert }: { alert: AlertEvent }) {
+const severityIcons: Record<string, typeof IconInfoCircle> = {
+    info: IconInfoCircle,
+    warning: IconAlertTriangle,
+    critical: IconAlertCircle,
+    emergency: IconAlertCircle,
+};
+
+const severityColors: Record<string, string> = {
+    info: 'ktzBlue',
+    warning: 'ktzGold',
+    critical: 'critical',
+    emergency: 'critical',
+};
+
+const severityLabels: Record<string, string> = {
+    info: 'Инфо',
+    warning: 'Внимание',
+    critical: 'Критич.',
+    emergency: 'Авария',
+};
+
+function AlertItem({ alert, isNew }: { alert: AlertEvent; isNew: boolean }) {
     const [acknowledge, { isLoading }] = useAcknowledgeAlertMutation();
     const isEmergency = alert.severity === 'emergency';
+    const isCritical = alert.severity === 'critical';
+    const SeverityIcon = severityIcons[alert.severity] ?? IconInfoCircle;
 
     return (
-        <div className={`${classes.alertItem} ${isEmergency ? classes.alertEmergency : ''}`}>
-            <div
-                className={`${classes.severityStripe} ${severityClassMap[alert.severity] ?? ''}`}
-            />
-            <div className={classes.alertContent}>
-                <Stack gap={2}>
-                    <Text size="sm" lineClamp={2}>
-                        {alert.message}
-                    </Text>
-                    <Group gap="xs">
-                        <Badge size="xs" variant="light">
-                            {alert.sensor_type}
-                        </Badge>
-                        <Text size="xs" c="dimmed">
-                            {getRelativeTime(alert.timestamp)}
-                        </Text>
-                    </Group>
-                </Stack>
-            </div>
-            <div className={classes.alertAction}>
-                {!alert.acknowledged ? (
-                    <ActionIcon
-                        variant="subtle"
+        <Transition mounted={true} transition="slide-right" duration={300}>
+            {(style) => (
+                <div
+                    className={`${classes.alertItem} ${isEmergency ? classes.alertEmergency : ''} ${isNew ? classes.alertNew : ''}`}
+                    style={style}
+                >
+                    <div
+                        className={`${classes.severityStripe} ${severityClassMap[alert.severity] ?? ''}`}
+                    />
+                    <ThemeIcon
+                        variant="light"
+                        color={severityColors[alert.severity]}
                         size="sm"
-                        color="green"
-                        loading={isLoading}
-                        onClick={() => acknowledge(alert.id)}
-                        aria-label="Подтвердить"
+                        className={isEmergency || isCritical ? classes.iconPulse : ''}
                     >
-                        <IconCheck size={16} />
-                    </ActionIcon>
-                ) : (
-                    <IconCheck size={16} style={{ opacity: 0.35 }} />
-                )}
-            </div>
-        </div>
+                        <SeverityIcon size={14} />
+                    </ThemeIcon>
+                    <div className={classes.alertContent}>
+                        <Stack gap={2}>
+                            <Text size="sm" lineClamp={2} fw={isCritical || isEmergency ? 600 : 400}>
+                                {alert.message}
+                            </Text>
+                            <Group gap="xs">
+                                <Badge
+                                    size="xs"
+                                    variant="light"
+                                    color={severityColors[alert.severity]}
+                                >
+                                    {severityLabels[alert.severity] ?? alert.severity}
+                                </Badge>
+                                <Badge size="xs" variant="outline" color="gray">
+                                    {alert.sensor_type}
+                                </Badge>
+                                <Text size="xs" c="dimmed">
+                                    {getRelativeTime(alert.timestamp)}
+                                </Text>
+                            </Group>
+                        </Stack>
+                    </div>
+                    <div className={classes.alertAction}>
+                        {!alert.acknowledged ? (
+                            <Tooltip label="Подтвердить">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    color="green"
+                                    loading={isLoading}
+                                    onClick={() => acknowledge(alert.id)}
+                                    aria-label="Подтвердить"
+                                >
+                                    <IconCheck size={16} />
+                                </ActionIcon>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip label="Подтверждено">
+                                <IconCheck size={16} style={{ opacity: 0.35, color: 'var(--mantine-color-green-5)' }} />
+                            </Tooltip>
+                        )}
+                    </div>
+                </div>
+            )}
+        </Transition>
     );
 }
 
 export default function AlertsPanel({ alerts, onClear }: AlertsPanelProps) {
+    const [filter, setFilter] = useState<SeverityFilter>('all');
+    const [soundEnabled, setSoundEnabled] = useState(true);
+    const prevCountRef = useRef(alerts.length);
+
+    // Show notification for new critical/emergency alerts
+    useEffect(() => {
+        if (alerts.length > prevCountRef.current) {
+            const newAlerts = alerts.slice(0, alerts.length - prevCountRef.current);
+            for (const alert of newAlerts) {
+                if (alert.severity === 'critical' || alert.severity === 'emergency') {
+                    showNotification({
+                        title: alert.severity === 'emergency' ? 'АВАРИЯ' : 'Критическое оповещение',
+                        message: alert.message,
+                        color: 'red',
+                        autoClose: alert.severity === 'emergency' ? false : 8000,
+                        icon: <IconAlertCircle size={18} />,
+                    });
+
+                    // Play alert sound
+                    if (soundEnabled) {
+                        try {
+                            const ctx = new AudioContext();
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.frequency.value = alert.severity === 'emergency' ? 880 : 660;
+                            gain.gain.value = 0.15;
+                            osc.start();
+                            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+                            osc.stop(ctx.currentTime + 0.5);
+                        } catch {
+                            // audio not available
+                        }
+                    }
+                }
+            }
+        }
+        prevCountRef.current = alerts.length;
+    }, [alerts, soundEnabled]);
+
+    const filteredAlerts =
+        filter === 'all' ? alerts : alerts.filter((a) => a.severity === filter);
+
+    const counts = {
+        emergency: alerts.filter((a) => a.severity === 'emergency').length,
+        critical: alerts.filter((a) => a.severity === 'critical').length,
+        warning: alerts.filter((a) => a.severity === 'warning').length,
+        info: alerts.filter((a) => a.severity === 'info').length,
+    };
     const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
+    const newAlertIds = new Set(alerts.slice(0, 3).map((a) => a.id));
 
     return (
         <Card style={{ borderTop: '2px solid var(--mantine-color-critical-5)' }}>
-            <Group justify="space-between" mb="sm">
+            <Group justify="space-between" mb="xs">
                 <Group gap="xs">
                     <Text className="panel-label">ОПОВЕЩЕНИЯ</Text>
                     {unacknowledgedCount > 0 && (
-                        <Badge size="sm" color="red" variant="filled">
+                        <Badge size="sm" color="red" variant="filled" className={unacknowledgedCount > 0 ? 'led-pulse' : ''}>
                             {unacknowledgedCount}
                         </Badge>
                     )}
                 </Group>
-                <Button variant="subtle" size="xs" onClick={onClear}>
-                    Очистить
-                </Button>
+                <Group gap={4}>
+                    <Tooltip label={soundEnabled ? 'Выкл. звук' : 'Вкл. звук'}>
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            color={soundEnabled ? 'ktzBlue' : 'gray'}
+                            onClick={() => setSoundEnabled(!soundEnabled)}
+                        >
+                            {soundEnabled ? <IconBell size={14} /> : <IconBellOff size={14} />}
+                        </ActionIcon>
+                    </Tooltip>
+                    <Button variant="subtle" size="xs" onClick={onClear}>
+                        Очистить
+                    </Button>
+                </Group>
             </Group>
 
-            {alerts.length === 0 ? (
+            {/* Severity summary counters */}
+            <Group gap="xs" mb="xs">
+                {counts.emergency > 0 && (
+                    <Badge color="red" variant="filled" size="xs" leftSection={<IconAlertCircle size={10} />}>
+                        {counts.emergency}
+                    </Badge>
+                )}
+                {counts.critical > 0 && (
+                    <Badge color="critical" variant="light" size="xs" leftSection={<IconAlertCircle size={10} />}>
+                        {counts.critical}
+                    </Badge>
+                )}
+                {counts.warning > 0 && (
+                    <Badge color="ktzGold" variant="light" size="xs" leftSection={<IconAlertTriangle size={10} />}>
+                        {counts.warning}
+                    </Badge>
+                )}
+                {counts.info > 0 && (
+                    <Badge color="ktzBlue" variant="light" size="xs" leftSection={<IconInfoCircle size={10} />}>
+                        {counts.info}
+                    </Badge>
+                )}
+            </Group>
+
+            {/* Severity filter */}
+            <SegmentedControl
+                size="xs"
+                value={filter}
+                onChange={(v) => setFilter(v as SeverityFilter)}
+                data={[
+                    { label: `Все (${alerts.length})`, value: 'all' },
+                    { label: `Авария (${counts.emergency})`, value: 'emergency' },
+                    { label: `Крит. (${counts.critical})`, value: 'critical' },
+                    { label: `Вним. (${counts.warning})`, value: 'warning' },
+                ]}
+                mb="sm"
+                fullWidth
+            />
+
+            {filteredAlerts.length === 0 ? (
                 <Text c="dimmed" ta="center" py="xl">
-                    Нет оповещений
+                    {filter === 'all' ? 'Нет оповещений' : `Нет оповещений уровня "${severityLabels[filter]}"`}
                 </Text>
             ) : (
-                <ScrollArea.Autosize mah={300}>
-                    {alerts.map((alert) => (
-                        <AlertItem key={alert.id} alert={alert} />
+                <ScrollArea.Autosize mah={350}>
+                    {filteredAlerts.map((alert) => (
+                        <AlertItem
+                            key={alert.id}
+                            alert={alert}
+                            isNew={newAlertIds.has(alert.id)}
+                        />
                     ))}
                 </ScrollArea.Autosize>
             )}

@@ -29,7 +29,7 @@
 .map { grid-area: map; }
 
 /* Medium: 2 columns */
-@media (min-width: $mantine-breakpoint-md) {
+@media (min-width: 768px) {
     .grid {
         grid-template-columns: 1fr 1fr;
         grid-template-areas:
@@ -42,14 +42,27 @@
     }
 }
 
-/* Large: 4 columns */
-@media (min-width: $mantine-breakpoint-lg) {
+/* Large: 4 columns — optimized cabin layout */
+@media (min-width: 1200px) {
     .grid {
-        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+        grid-template-rows: auto auto auto auto;
         grid-template-areas:
-            "health  health  speed   fuel"
-            "health  health  press   elec"
-            "alerts  alerts  trends  trends"
-            "map     map     trends  trends";
+            "health  health  speed   alerts"
+            "fuel    press   elec    alerts"
+            "trends  trends  map     map"
+            "trends  trends  map     map";
+    }
+}
+
+/* XL: wider screens */
+@media (min-width: 1600px) {
+    .grid {
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+        grid-template-areas:
+            "health  health  speed   fuel    alerts"
+            "press   elec    elec    elec    alerts"
+            "trends  trends  trends  map     map"
+            "trends  trends  trends  map     map";
     }
 }

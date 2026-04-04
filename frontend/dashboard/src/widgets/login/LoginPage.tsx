@@ -35,7 +35,6 @@ export function LoginPage() {
                 setCredentials({
                     access_token: result.access_token,
                     username,
-                    role: 'operator', // role comes from JWT decode in real app
                 }),
             );
             router.push('/dashboard');

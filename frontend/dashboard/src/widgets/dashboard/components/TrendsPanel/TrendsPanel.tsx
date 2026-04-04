@@ -11,6 +11,7 @@ import {
     Center,
     ActionIcon,
     Tooltip as MantineTooltip,
+    Badge,
 } from '@mantine/core';
 import {
     AreaChart,
@@ -22,6 +23,7 @@ import {
     ResponsiveContainer,
     Brush,
     ReferenceArea,
+    ReferenceLine,
 } from 'recharts';
 import { useGetTelemetryQuery } from '@/features/telemetry';
 import type { BucketInterval } from '@/features/telemetry';
@@ -37,7 +39,16 @@ const sensorLabels: Record<string, string> = {
     oil_pressure: 'Давление масла',
     diesel_rpm: 'Обороты дизеля',
     fuel_level: 'Уровень топлива',
+    fuel_rate: 'Расход топлива',
     brake_pipe_pressure: 'Давл. тормозной магистрали',
+    traction_motor_temp: 'Темп. тяг. двигателя',
+    crankcase_pressure: 'Давление картера',
+    catenary_voltage: 'Напряжение сети',
+    pantograph_current: 'Ток пантографа',
+    transformer_temp: 'Темп. трансформатора',
+    igbt_temp: 'Темп. IGBT',
+    dc_link_voltage: 'Напряжение DC-звена',
+    recuperation_current: 'Ток рекуперации',
 };
 
 const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({
@@ -49,6 +60,7 @@ const rangeOptions = [
     { label: '5м', value: '5m' },
     { label: '15м', value: '15m' },
     { label: '1ч', value: '1h' },
+    { label: '6ч', value: '6h' },
     { label: '24ч', value: '24h' },
 ];
 
@@ -59,21 +71,19 @@ const rangeConfig: Record<
     '5m': { getStart: () => minutesAgo(5), bucket_interval: '1 minute', tickCount: 5 },
     '15m': { getStart: () => minutesAgo(15), bucket_interval: '1 minute', tickCount: 8 },
     '1h': { getStart: () => hoursAgo(1), bucket_interval: '5 minutes', tickCount: 7 },
+    '6h': { getStart: () => hoursAgo(6), bucket_interval: '15 minutes', tickCount: 8 },
     '24h': { getStart: () => hoursAgo(24), bucket_interval: '1 hour', tickCount: 8 },
 };
 
-/** Convert bucket string to epoch ms for numeric axis */
 function toEpoch(bucket: string): number {
     return new Date(bucket).getTime();
 }
 
-/** Format epoch ms to HH:mm */
 function fmtTick(v: number): string {
     const d = new Date(v);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Custom tooltip content */
 function CustomTooltipContent({
     active,
     payload,
@@ -119,11 +129,16 @@ function CustomTooltipContent({
                 {formatTime(new Date(Number(label)))}
             </div>
             <div style={{ color: 'var(--dashboard-text-primary)' }}>
-                {sensorLabel}: <strong>{avg.toFixed(1)}</strong> {unit}
+                {sensorLabel}: <strong>{avg.toFixed(2)}</strong> {unit}
             </div>
             {min != null && max != null && (
                 <div style={{ color: 'var(--dashboard-text-secondary)', fontSize: 11 }}>
-                    мин {min.toFixed(1)} / макс {max.toFixed(1)} {unit}
+                    мин {min.toFixed(2)} / макс {max.toFixed(2)} {unit}
+                </div>
+            )}
+            {min != null && max != null && (
+                <div style={{ color: 'var(--dashboard-text-secondary)', fontSize: 11 }}>
+                    разброс: {(max - min).toFixed(2)} {unit}
                 </div>
             )}
         </div>
@@ -140,13 +155,11 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
     const [zoomRight, setZoomRight] = useState<string | null>(null);
     const [zoomedDomain, setZoomedDomain] = useState<[number, number] | null>(null);
 
-    // Increment tick every 30s so `start` recalculates (true sliding window)
     useEffect(() => {
         const id = setInterval(() => setPollTick((t) => t + 1), 30_000);
         return () => clearInterval(id);
     }, []);
 
-    // Reset zoom when range or sensor changes
     useEffect(() => {
         setZoomedDomain(null);
     }, [selectedRange, selectedSensor, locomotiveId]);
@@ -168,7 +181,6 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
         pollingInterval: 30000,
     });
 
-    // Prepare chart data with epoch timestamps for numeric X axis
     const chartData = useMemo(() => {
         if (!data?.length) return [];
         return data.map((d) => ({ ...d, ts: toEpoch(d.bucket) }));
@@ -177,6 +189,17 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
     const unit = data?.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
     const tickCount = rangeConfig[selectedRange].tickCount;
+
+    // Calculate stats
+    const stats = useMemo(() => {
+        if (!chartData.length) return null;
+        const values = chartData.map((d) => d.avg_value).filter((v): v is number => v != null);
+        if (!values.length) return null;
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        return { avg, min, max };
+    }, [chartData]);
 
     // Drag-to-zoom handlers
     const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
@@ -204,7 +227,6 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
 
     const resetZoom = useCallback(() => setZoomedDomain(null), []);
 
-    // X axis domain
     const xDomain = useMemo<[number, number] | undefined>(() => {
         if (zoomedDomain) return zoomedDomain;
         if (!chartData.length) return undefined;
@@ -228,6 +250,7 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             </ActionIcon>
                         </MantineTooltip>
                     )}
+                    {isFetching && <Loader size={12} />}
                 </Group>
                 <Group gap="xs" wrap="wrap">
                     <Select
@@ -235,7 +258,9 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                         value={selectedSensor}
                         onChange={(v) => v && setSelectedSensor(v)}
                         data={sensorOptions}
-                        w={180}
+                        w={200}
+                        searchable
+                        placeholder="Датчик"
                     />
                     <SegmentedControl
                         size="xs"
@@ -245,6 +270,21 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                     />
                 </Group>
             </Group>
+
+            {/* Stats badges */}
+            {stats && (
+                <Group gap="xs" mb="xs">
+                    <Badge size="xs" variant="light" color="ktzBlue">
+                        Сред: {stats.avg.toFixed(1)} {unit}
+                    </Badge>
+                    <Badge size="xs" variant="light" color="green">
+                        Мин: {stats.min.toFixed(1)} {unit}
+                    </Badge>
+                    <Badge size="xs" variant="light" color="critical">
+                        Макс: {stats.max.toFixed(1)} {unit}
+                    </Badge>
+                </Group>
+            )}
 
             {!locomotiveId ? (
                 <Center h={280}>
@@ -256,7 +296,7 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                 </Center>
             ) : !data || data.length === 0 ? (
                 <Center h={280}>
-                    <Text c="dimmed">Нет данных</Text>
+                    <Text c="dimmed">Нет данных за выбранный период</Text>
                 </Center>
             ) : (
                 <ResponsiveContainer width="100%" height={320}>
@@ -293,13 +333,24 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                         <YAxis
                             tick={{ fontSize: 11 }}
                             width={70}
-                            domain={[0, 'auto']}
+                            domain={['auto', 'auto']}
                             allowDecimals={false}
                             tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
                         />
                         <Tooltip
                             content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />}
                         />
+
+                        {/* Average reference line */}
+                        {stats && (
+                            <ReferenceLine
+                                y={stats.avg}
+                                stroke="var(--mantine-color-ktzGold-5)"
+                                strokeDasharray="5 5"
+                                strokeOpacity={0.6}
+                            />
+                        )}
+
                         <Area
                             type="monotone"
                             dataKey="avg_value"
@@ -310,6 +361,7 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             isAnimationActive={false}
                             connectNulls
                         />
+
                         {/* Drag-to-zoom selection overlay */}
                         {zoomLeft && zoomRight && (
                             <ReferenceArea
@@ -320,7 +372,7 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                                 fillOpacity={0.3}
                             />
                         )}
-                        {/* Brush for fine-grained scroll/zoom at bottom */}
+
                         <Brush
                             dataKey="ts"
                             height={28}

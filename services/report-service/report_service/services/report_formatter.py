@@ -17,6 +17,33 @@ _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 # Font family name used throughout the PDF
 _FONT = "DejaVu"
 
+# ── Color palette ────────────────────────────────────────────────────────────
+
+# KTZ brand blue
+_CLR_PRIMARY = (3, 136, 230)
+_CLR_PRIMARY_DARK = (9, 81, 115)
+_CLR_GOLD = (254, 198, 4)
+_CLR_WHITE = (255, 255, 255)
+_CLR_LIGHT_BG = (245, 247, 250)
+_CLR_DARK_TEXT = (26, 27, 30)
+_CLR_SECONDARY_TEXT = (73, 80, 87)
+_CLR_BORDER = (222, 226, 230)
+_CLR_TABLE_HEADER = (15, 32, 53)
+_CLR_TABLE_STRIPE = (240, 243, 247)
+
+# Health categories
+_CLR_HEALTHY = (34, 197, 94)
+_CLR_WARNING = (245, 158, 11)
+_CLR_CRITICAL = (239, 68, 68)
+
+# Severity colors
+_SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
+    "info": (3, 136, 230),
+    "warning": (245, 158, 11),
+    "critical": (239, 68, 68),
+    "emergency": (127, 29, 29),
+}
+
 # ── Russian translations ─────────────────────────────────────────────────────
 
 _SENSOR_NAMES: dict[str, str] = {
@@ -157,7 +184,7 @@ def _fmt(val, decimals: int = 2) -> str:
 def _create_pdf() -> FPDF:
     """Create a landscape PDF instance with DejaVu Sans (Unicode/Cyrillic support)."""
     pdf = FPDF(orientation="L", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_auto_page_break(auto=True, margin=18)
 
     pdf.add_font(_FONT, "", str(_FONTS_DIR / "DejaVuSans.ttf"))
     pdf.add_font(_FONT, "B", str(_FONTS_DIR / "DejaVuSans-Bold.ttf"))
@@ -165,31 +192,75 @@ def _create_pdf() -> FPDF:
     return pdf
 
 
+def _set_color(pdf: FPDF, color: tuple[int, int, int]) -> None:
+    """Set text color."""
+    pdf.set_text_color(*color)
+
+
+def _set_draw(pdf: FPDF, color: tuple[int, int, int]) -> None:
+    """Set draw color."""
+    pdf.set_draw_color(*color)
+
+
+def _set_fill(pdf: FPDF, color: tuple[int, int, int]) -> None:
+    """Set fill color."""
+    pdf.set_fill_color(*color)
+
+
+def _health_color(score) -> tuple[int, int, int]:
+    """Get color based on health score."""
+    if not isinstance(score, (int, float)):
+        return _CLR_SECONDARY_TEXT
+    if score >= 80:
+        return _CLR_HEALTHY
+    if score >= 50:
+        return _CLR_WARNING
+    return _CLR_CRITICAL
+
+
 # ── PDF generation ───────────────────────────────────────────────────────────
 
 
 def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
-    """Generate a PDF report and return as base64."""
+    """Generate a beautiful PDF report and return as base64."""
     pdf = _create_pdf()
     pdf.add_page()
 
-    _pdf_header(pdf, data)
+    _pdf_cover_header(pdf, data)
     _pdf_health_overview(pdf, data.get("health_overview", {}))
+    _pdf_top_factors(pdf, data.get("health_overview", {}))
     _pdf_sensor_stats(pdf, data.get("sensor_stats", []))
     _pdf_alerts(pdf, data.get("alert_summary", {}), data.get("alerts", []))
     _pdf_anomalies(pdf, data.get("anomalies", {}))
+    _pdf_footer(pdf)
 
     buf = io.BytesIO()
     pdf.output(buf)
     return {"pdf_base64": base64.b64encode(buf.getvalue()).decode()}
 
 
-def _pdf_header(pdf: FPDF, data: dict) -> None:
-    pdf.set_font(_FONT, "B", 18)
-    pdf.cell(0, 12, "Отчёт о состоянии локомотива", new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.ln(4)
+def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
+    """Render branded header with KTZ colors."""
+    # Top color bar
+    _set_fill(pdf, _CLR_PRIMARY)
+    pdf.rect(pdf.l_margin, pdf.get_y(), pdf.w - pdf.l_margin - pdf.r_margin, 28, "F")
 
+    # Title text on blue bar
+    pdf.set_font(_FONT, "B", 20)
+    _set_color(pdf, _CLR_WHITE)
+    pdf.set_y(pdf.get_y() + 3)
+    pdf.cell(0, 12, "Отчёт о состоянии локомотива", new_x="LMARGIN", new_y="NEXT", align="C")
+
+    # Subtitle
     pdf.set_font(_FONT, "", 10)
+    pdf.cell(0, 8, "Система мониторинга КТЖ — Цифровой двойник", new_x="LMARGIN", new_y="NEXT", align="C")
+
+    pdf.ln(6)
+
+    # Meta info in two columns
+    _set_color(pdf, _CLR_DARK_TEXT)
+    pdf.set_font(_FONT, "", 10)
+
     loco_id = data.get("locomotive_id", "Весь парк")
     loco_type = data.get("locomotive_type", "")
     date_range = data.get("date_range", {})
@@ -197,59 +268,140 @@ def _pdf_header(pdf: FPDF, data: dict) -> None:
     end = _to_local(date_range.get("end", ""))
     generated = _to_local(str(data.get("generated_at", "")))
 
-    type_label = f" — {_loco_type_ru(loco_type)}" if loco_type else ""
-    pdf.cell(0, 6, f"Локомотив: {loco_id}{type_label}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Период: {start} — {end} (Алматы)", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Сформирован: {generated}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
+    # Left column
+    col_w = (pdf.w - pdf.l_margin - pdf.r_margin) / 2
+    y = pdf.get_y()
+
+    _set_fill(pdf, _CLR_LIGHT_BG)
+    pdf.rect(pdf.l_margin, y, pdf.w - pdf.l_margin - pdf.r_margin, 22, "F")
+    pdf.set_y(y + 2)
+
+    pdf.set_font(_FONT, "B", 9)
+    _set_color(pdf, _CLR_SECONDARY_TEXT)
+    pdf.cell(col_w, 5, "ЛОКОМОТИВ", new_x="LEFT", new_y="NEXT")
+    pdf.set_font(_FONT, "", 10)
+    _set_color(pdf, _CLR_DARK_TEXT)
+    type_label = f"  ({_loco_type_ru(loco_type)})" if loco_type else ""
+    pdf.cell(col_w, 6, f"  {loco_id}{type_label}", new_x="LEFT", new_y="NEXT")
+
+    # Right column
+    pdf.set_xy(pdf.l_margin + col_w, y + 2)
+    pdf.set_font(_FONT, "B", 9)
+    _set_color(pdf, _CLR_SECONDARY_TEXT)
+    pdf.cell(col_w, 5, "ПЕРИОД", new_x="LEFT", new_y="NEXT")
+    pdf.set_x(pdf.l_margin + col_w)
+    pdf.set_font(_FONT, "", 10)
+    _set_color(pdf, _CLR_DARK_TEXT)
+    pdf.cell(col_w, 6, f"  {start}  —  {end}", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_y(y + 24)
+    pdf.set_font(_FONT, "", 8)
+    _set_color(pdf, _CLR_SECONDARY_TEXT)
+    pdf.cell(0, 5, f"Сформирован: {generated} (Алматы)", new_x="LMARGIN", new_y="NEXT", align="R")
+    pdf.ln(4)
 
 
 def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
-    _section_header(pdf, "Индекс здоровья")
-    pdf.set_font(_FONT, "", 10)
-    pdf.cell(0, 6, f"Расчётный балл: {_fmt(overview.get('calculated_score', 'N/A'))}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Средний балл: {_fmt(overview.get('avg_score', 'N/A'))}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(
-        0,
-        6,
-        f"Мин/Макс: {_fmt(overview.get('min_score', 'N/A'))} / {_fmt(overview.get('max_score', 'N/A'))}",
-        new_x="LMARGIN",
-        new_y="NEXT",
-    )
-    pdf.cell(0, 6, f"Категория: {overview.get('category', 'N/A')}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Штраф за износ: {_fmt(overview.get('damage_penalty', 0.0), 4)}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+    """Render health index as a prominent visual block."""
+    _section_header(pdf, "Индекс здоровья", _CLR_PRIMARY)
 
+    score = overview.get("calculated_score", None)
+    avg_score = overview.get("avg_score", None)
+    min_score = overview.get("min_score", None)
+    max_score = overview.get("max_score", None)
+    category = overview.get("category", "N/A")
+    damage = overview.get("damage_penalty", 0.0)
+
+    # Big score display with color
+    y_start = pdf.get_y()
+    color = _health_color(score)
+
+    # Score box
+    _set_fill(pdf, color)
+    box_x = pdf.l_margin + 5
+    pdf.rect(box_x, y_start, 50, 30, "F")
+    # Round corners effect via small white overlay at edges
+    pdf.set_font(_FONT, "B", 28)
+    _set_color(pdf, _CLR_WHITE)
+    pdf.set_xy(box_x, y_start + 2)
+    pdf.cell(50, 18, _fmt(score) if isinstance(score, (int, float)) else "N/A", align="C")
+    pdf.set_font(_FONT, "", 10)
+    pdf.set_xy(box_x, y_start + 19)
+    pdf.cell(50, 8, category, align="C")
+
+    # Stats to the right
+    stats_x = box_x + 60
+    pdf.set_xy(stats_x, y_start + 2)
+    _set_color(pdf, _CLR_DARK_TEXT)
+    pdf.set_font(_FONT, "", 10)
+
+    # Health bar (simple visual)
+    bar_y = y_start + 4
+    bar_w = 100
+    bar_h = 6
+    # Background bar
+    _set_fill(pdf, _CLR_BORDER)
+    pdf.rect(stats_x, bar_y, bar_w, bar_h, "F")
+    # Filled portion
+    if isinstance(score, (int, float)):
+        fill_w = max(1, bar_w * score / 100)
+        _set_fill(pdf, color)
+        pdf.rect(stats_x, bar_y, fill_w, bar_h, "F")
+
+    pdf.set_xy(stats_x, bar_y + bar_h + 2)
+    pdf.set_font(_FONT, "", 9)
+    _set_color(pdf, _CLR_SECONDARY_TEXT)
+
+    pdf.cell(50, 5, f"Средний: {_fmt(avg_score)}", new_x="LEFT", new_y="NEXT")
+    pdf.set_x(stats_x)
+    pdf.cell(50, 5, f"Мин: {_fmt(min_score)}  /  Макс: {_fmt(max_score)}", new_x="LEFT", new_y="NEXT")
+    pdf.set_x(stats_x)
+    pdf.cell(50, 5, f"Штраф за износ: {_fmt(damage, 4)}", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_y(y_start + 34)
+    pdf.ln(2)
+
+
+def _pdf_top_factors(pdf: FPDF, overview: dict) -> None:
+    """Render top contributing factors with visual bars."""
     factors = overview.get("top_factors", [])
-    if factors:
-        _section_header(pdf, "Основные факторы влияния")
-        cols = [("Датчик", 55), ("Значение", 30), ("Ед.", 18), ("Штраф", 22), ("Вклад %", 22), ("Откл. %", 22)]
-        _table_header(pdf, cols)
-        for f in factors[:10]:
-            if isinstance(f, dict):
-                _table_row(
-                    pdf,
-                    cols,
-                    [
-                        _sensor_ru(str(f.get("sensor_type", ""))),
-                        _fmt(f.get("value", 0)),
-                        str(f.get("unit", "")),
-                        _fmt(f.get("penalty", 0), 4),
-                        _fmt(f.get("contribution_pct", 0), 1),
-                        _fmt(f.get("deviation_pct", 0), 1),
-                    ],
-                )
-        pdf.ln(4)
+    if not factors:
+        return
+
+    _section_header(pdf, "Основные факторы влияния", _CLR_PRIMARY_DARK)
+
+    # Column header
+    cols = [("Датчик", 55), ("Значение", 30), ("Ед.", 18), ("Штраф", 22), ("Вклад", 22), ("Откл.", 22), ("", 60)]
+    _table_header_colored(pdf, cols)
+
+    for f in factors[:10]:
+        if not isinstance(f, dict):
+            continue
+        contrib = f.get("contribution_pct", 0)
+        # Visual bar column
+        values = [
+            _sensor_ru(str(f.get("sensor_type", ""))),
+            _fmt(f.get("value", 0)),
+            str(f.get("unit", "")),
+            _fmt(f.get("penalty", 0), 4),
+            f"{_fmt(contrib, 1)}%",
+            f"{_fmt(f.get('deviation_pct', 0), 1)}%",
+        ]
+        _table_row_colored(pdf, cols, values, bar_col=6, bar_pct=min(100, abs(contrib)))
+
+    pdf.ln(4)
 
 
 def _pdf_sensor_stats(pdf: FPDF, stats: list[dict]) -> None:
     if not stats:
         return
-    _section_header(pdf, "Статистика датчиков")
-    cols = [("Датчик", 55), ("Ед.", 18), ("Среднее", 28), ("Мин.", 28), ("Макс.", 28), ("СКО", 25), ("Кол-во", 20)]
-    _table_header(pdf, cols)
-    for s in stats:
-        _table_row(
+    _section_header(pdf, "Статистика датчиков", _CLR_PRIMARY)
+
+    cols = [("Датчик", 55), ("Ед.", 18), ("Среднее", 30), ("Мин.", 30), ("Макс.", 30), ("СКО", 28), ("Кол-во", 22)]
+    _table_header_colored(pdf, cols)
+
+    for i, s in enumerate(stats):
+        _table_row_colored(
             pdf,
             cols,
             [
@@ -261,36 +413,60 @@ def _pdf_sensor_stats(pdf: FPDF, stats: list[dict]) -> None:
                 _fmt(s["stddev"], 4),
                 str(s["samples"]),
             ],
+            stripe=(i % 2 == 0),
         )
     pdf.ln(4)
 
 
 def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
     if alert_summary.get("total", 0) > 0:
-        _section_header(pdf, "Сводка предупреждений")
-        pdf.set_font(_FONT, "", 10)
-        pdf.cell(0, 6, f"Всего предупреждений: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
+        _section_header(pdf, "Сводка предупреждений", _CLR_CRITICAL)
+
+        # Severity counters in colored badges
+        pdf.set_font(_FONT, "B", 10)
+        _set_color(pdf, _CLR_DARK_TEXT)
+        pdf.cell(0, 7, f"Всего предупреждений: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
+
+        x = pdf.l_margin
+        y = pdf.get_y()
         for sev, count in alert_summary.get("by_severity", {}).items():
-            pdf.cell(0, 6, f"  {_severity_ru(sev)}: {count}", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(2)
+            sev_color = _SEVERITY_COLORS.get(sev, _CLR_SECONDARY_TEXT)
+            _set_fill(pdf, sev_color)
+            _set_color(pdf, _CLR_WHITE)
+            pdf.set_font(_FONT, "B", 8)
+            label = f" {_severity_ru(sev)}: {count} "
+            w = pdf.get_string_width(label) + 6
+            pdf.set_xy(x, y)
+            pdf.cell(w, 7, label, new_x="RIGHT", new_y="TOP", fill=True)
+            x += w + 3
+        pdf.set_y(y + 10)
+        _set_color(pdf, _CLR_DARK_TEXT)
 
     if not alerts:
         return
+
     shown = min(len(alerts), 30)
-    _section_header(pdf, f"История предупреждений (показано {shown} из {len(alerts)})")
-    cols = [("Время", 40), ("Датчик", 44), ("Уровень", 28), ("Значение", 20), ("Описание", 135)]
-    _table_header(pdf, cols)
-    for a in alerts[:30]:
-        _table_row(
+    _section_header(pdf, f"История предупреждений ({shown} из {len(alerts)})", _CLR_WARNING)
+
+    cols = [("Время", 40), ("Датчик", 44), ("Уровень", 28), ("Значение", 22), ("Описание", 130)]
+    _table_header_colored(pdf, cols)
+
+    for i, a in enumerate(alerts[:30]):
+        sev = a.get("severity", "info")
+        sev_color = _SEVERITY_COLORS.get(sev, _CLR_SECONDARY_TEXT)
+        _table_row_colored(
             pdf,
             cols,
             [
                 _to_local(a["timestamp"]),
                 _sensor_ru(a["sensor_type"]),
-                _severity_ru(a["severity"]),
+                _severity_ru(sev),
                 _fmt(a["value"]),
                 a["message"],
             ],
+            stripe=(i % 2 == 0),
+            accent_col=2,
+            accent_color=sev_color,
         )
     pdf.ln(4)
 
@@ -298,42 +474,122 @@ def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
 def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
     if not anomalies:
         return
-    _section_header(pdf, "Обнаруженные аномалии")
+    _section_header(pdf, "Обнаруженные аномалии", _CLR_WARNING)
     pdf.set_font(_FONT, "", 10)
+    _set_color(pdf, _CLR_DARK_TEXT)
+
     for sensor, items in anomalies.items():
-        pdf.cell(0, 6, f"  {_sensor_ru(sensor)}: {len(items)} аномалий", new_x="LMARGIN", new_y="NEXT")
+        count = len(items) if isinstance(items, list) else items
+        # Color code by count
+        if isinstance(count, int) and count > 10:
+            _set_color(pdf, _CLR_CRITICAL)
+        elif isinstance(count, int) and count > 3:
+            _set_color(pdf, _CLR_WARNING)
+        else:
+            _set_color(pdf, _CLR_DARK_TEXT)
+        pdf.cell(0, 6, f"  {_sensor_ru(sensor)}: {count} аномалий", new_x="LMARGIN", new_y="NEXT")
+
+    _set_color(pdf, _CLR_DARK_TEXT)
+
+
+def _pdf_footer(pdf: FPDF) -> None:
+    """Add footer to all pages."""
+    total_pages = pdf.pages_count
+    for i in range(1, total_pages + 1):
+        pdf.page = i
+        pdf.set_y(-15)
+        _set_draw(pdf, _CLR_BORDER)
+        pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+        pdf.set_font(_FONT, "", 7)
+        _set_color(pdf, _CLR_SECONDARY_TEXT)
+        pdf.cell(0, 8, f"КТЖ — Цифровой двойник локомотива  |  Стр. {i}/{total_pages}", align="C")
 
 
 # ── Table primitives ─────────────────────────────────────────────────────────
 
 
-def _section_header(pdf: FPDF, title: str) -> None:
-    # Ensure section header + at least a few rows fit on current page
-    if pdf.get_y() > pdf.h - 40:
+def _section_header(pdf: FPDF, title: str, color: tuple[int, int, int] = _CLR_PRIMARY) -> None:
+    """Section header with colored left accent bar."""
+    if pdf.get_y() > pdf.h - 45:
         pdf.add_page()
+
+    y = pdf.get_y()
+    # Accent bar
+    _set_fill(pdf, color)
+    pdf.rect(pdf.l_margin, y, 4, 10, "F")
+
+    # Title
     pdf.set_font(_FONT, "B", 12)
-    pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+    _set_color(pdf, color)
+    pdf.set_x(pdf.l_margin + 8)
+    pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
+
+    # Subtle separator line
+    _set_draw(pdf, _CLR_BORDER)
     pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
-    pdf.ln(2)
+    pdf.ln(3)
+    _set_color(pdf, _CLR_DARK_TEXT)
 
 
-def _table_header(pdf: FPDF, cols: list[tuple[str, int]]) -> None:
+def _table_header_colored(pdf: FPDF, cols: list[tuple[str, int]]) -> None:
+    """Table header with dark background."""
+    _set_fill(pdf, _CLR_TABLE_HEADER)
+    _set_color(pdf, _CLR_WHITE)
     pdf.set_font(_FONT, "B", 8)
     for name, w in cols:
-        pdf.cell(w, 6, name, border=1, align="C")
+        pdf.cell(w, 7, name, border=0, align="C", fill=True)
     pdf.ln()
+    _set_color(pdf, _CLR_DARK_TEXT)
 
 
-def _table_row(pdf: FPDF, cols: list[tuple[str, int]], values: list[str]) -> None:
-    # Prevent row from being split across pages
+def _table_row_colored(
+    pdf: FPDF,
+    cols: list[tuple[str, int]],
+    values: list[str],
+    stripe: bool = False,
+    bar_col: int | None = None,
+    bar_pct: float = 0,
+    accent_col: int | None = None,
+    accent_color: tuple[int, int, int] | None = None,
+) -> None:
+    """Table row with optional striping, bar visualization, and accent coloring."""
     if pdf.get_y() + 6 > pdf.h - pdf.b_margin:
         pdf.add_page()
-        _table_header(pdf, cols)  # repeat header on new page
+        _table_header_colored(pdf, cols)
+
+    row_h = 6
+
+    if stripe:
+        _set_fill(pdf, _CLR_TABLE_STRIPE)
+        pdf.rect(pdf.l_margin, pdf.get_y(), sum(w for _, w in cols), row_h, "F")
+
     pdf.set_font(_FONT, "", 8)
+
     for i, ((_, w), v) in enumerate(zip(cols, values, strict=False)):
-        is_last = i == len(values) - 1
-        # Last column gets more space per char (description/message fields)
-        max_chars = int(w * 0.7) if is_last else int(w / 2)
+        if i == bar_col:
+            # Draw a mini bar
+            bar_x = pdf.get_x() + 2
+            bar_y = pdf.get_y() + 1.5
+            bar_w = w - 4
+            bar_h = 3
+            _set_fill(pdf, _CLR_BORDER)
+            pdf.rect(bar_x, bar_y, bar_w, bar_h, "F")
+            if bar_pct > 0:
+                _set_fill(pdf, _CLR_PRIMARY)
+                pdf.rect(bar_x, bar_y, bar_w * bar_pct / 100, bar_h, "F")
+            pdf.cell(w, row_h, "", border=0)
+            continue
+
+        if accent_col is not None and i == accent_col and accent_color:
+            _set_color(pdf, accent_color)
+            pdf.set_font(_FONT, "B", 8)
+
+        max_chars = int(w * 0.6)
         display = v if len(v) <= max_chars else v[: max_chars - 1] + "…"
-        pdf.cell(w, 5, display, border=1)
+        pdf.cell(w, row_h, display, border=0)
+
+        if accent_col is not None and i == accent_col:
+            _set_color(pdf, _CLR_DARK_TEXT)
+            pdf.set_font(_FONT, "", 8)
+
     pdf.ln()
