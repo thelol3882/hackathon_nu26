@@ -255,9 +255,37 @@
       ]
     },
     {
+      "title": "Recent Traces — API Gateway",
+      "type": "traces",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "api-gateway",
+          "limit": 20,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Recent Traces — Processor",
+      "type": "traces",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "processor",
+          "limit": 20,
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "title": "Service Logs",
       "type": "logs",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 25 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 33 },
       "datasource": { "type": "loki" },
       "options": {
         "showTime": true,
@@ -290,7 +318,7 @@
     {
       "title": "Error Logs",
       "type": "logs",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
       "datasource": { "type": "loki" },
       "options": {
         "showTime": true,
@@ -310,7 +338,7 @@
     {
       "title": "Warning Logs",
       "type": "logs",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "datasource": { "type": "loki" },
       "options": {
         "showTime": true,
@@ -330,7 +358,7 @@
     {
       "title": "Log Volume by Service",
       "type": "timeseries",
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 43 },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 51 },
       "datasource": { "type": "loki" },
       "fieldConfig": {
         "defaults": {
@@ -356,7 +384,7 @@
     {
       "title": "Error Rate (logs)",
       "type": "timeseries",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 43 },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 51 },
       "datasource": { "type": "loki" },
       "fieldConfig": {
         "defaults": {
