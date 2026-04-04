@@ -52,7 +52,7 @@ async def query_telemetry_bucketed(
     query = text("""
         SELECT
             time_bucket(:interval, time) AS bucket,
-            locomotive_id::text,
+            CAST(locomotive_id AS text),
             sensor_type,
             avg(value)  AS avg_value,
             min(value)  AS min_value,
@@ -60,7 +60,7 @@ async def query_telemetry_bucketed(
             last(value, time) AS last_value,
             unit
         FROM raw_telemetry
-        WHERE (:loco_id IS NULL OR locomotive_id = :loco_id::uuid)
+        WHERE (:loco_id IS NULL OR locomotive_id = CAST(:loco_id AS uuid))
           AND (:sensor  IS NULL OR sensor_type  = :sensor)
           AND (:t_start IS NULL OR time >= :t_start)
           AND (:t_end   IS NULL OR time <= :t_end)
@@ -109,10 +109,10 @@ async def query_telemetry_raw(
 ) -> list[TelemetryRaw]:
     query = text("""
         SELECT
-            time, locomotive_id::text, locomotive_type, sensor_type,
+            time, CAST(locomotive_id AS text), locomotive_type, sensor_type,
             value, filtered_value, unit, latitude, longitude
         FROM raw_telemetry
-        WHERE (:loco_id IS NULL OR locomotive_id = :loco_id::uuid)
+        WHERE (:loco_id IS NULL OR locomotive_id = CAST(:loco_id AS uuid))
           AND (:sensor  IS NULL OR sensor_type  = :sensor)
           AND (:t_start IS NULL OR time >= :t_start)
           AND (:t_end   IS NULL OR time <= :t_end)
