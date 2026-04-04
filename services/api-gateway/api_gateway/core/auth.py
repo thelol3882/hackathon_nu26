@@ -9,7 +9,7 @@ from typing import Annotated
 import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,7 @@ from api_gateway.core.config import get_settings
 from api_gateway.core.database import get_db_session
 from api_gateway.models.user_entity import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+_bearer_scheme = HTTPBearer()
 
 
 def _prepare(plain: str) -> bytes:
@@ -61,10 +61,10 @@ def _decode_token(token: str) -> dict:
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer_scheme)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> User:
-    payload = _decode_token(token)
+    payload = _decode_token(credentials.credentials)
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid token payload")
