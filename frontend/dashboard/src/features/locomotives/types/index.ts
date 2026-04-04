@@ -1,0 +1,19 @@
+export type LocomotiveStatus = 'active' | 'idle' | 'maintenance' | 'decommissioned';
+
+export interface Locomotive {
+    id: string;
+    serial_number: string;
+    model: string;
+    manufacturer: string;
+    year_manufactured: number;
+    status: LocomotiveStatus;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface LocomotiveCreate {
+    serial_number: string;
+    model: string;
+    manufacturer: string;
+    year_manufactured: number;
+}
