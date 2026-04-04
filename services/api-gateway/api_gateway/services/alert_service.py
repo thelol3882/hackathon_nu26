@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime
 
 import redis.asyncio as redis
@@ -22,6 +21,7 @@ from shared.log_codes import (
 )
 from shared.observability import get_logger
 from shared.schemas.alert import AlertEvent
+from shared.wire import decode as wire_decode
 
 logger = get_logger(__name__)
 
@@ -45,10 +45,10 @@ async def run_alert_persistence(
             backoff = 1.0
             logger.info("Alert persistence listener started", code=ALERT_LISTENER_STARTED)
             async for message in pubsub.listen():
-                if message["type"] != "message":
+                if message["type"] != b"message":
                     continue
                 try:
-                    data = json.loads(message["data"])
+                    data = wire_decode(message["data"])
                     alert = AlertEvent.model_validate(data)
                     async with session_factory() as session:
                         record = AlertRecord(

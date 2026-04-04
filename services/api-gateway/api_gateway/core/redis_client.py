@@ -76,9 +76,9 @@ _HEALTH_CACHE_TTL = 60  # seconds
 
 async def cache_health(loco_id: str, data: bytes) -> None:
     """Cache the latest HealthIndex (wire-encoded bytes) for a locomotive."""
-    await get_redis().set(f"{_HEALTH_CACHE_PREFIX}:{loco_id}", data, ex=_HEALTH_CACHE_TTL)
+    await get_redis_raw().set(f"{_HEALTH_CACHE_PREFIX}:{loco_id}", data, ex=_HEALTH_CACHE_TTL)
 
 
-async def get_cached_health(loco_id: str) -> str | None:
-    """Get cached HealthIndex. Returns string (decoded by redis) or None."""
-    return await get_redis().get(f"{_HEALTH_CACHE_PREFIX}:{loco_id}")
+async def get_cached_health(loco_id: str) -> bytes | None:
+    """Get cached HealthIndex as raw bytes. Returns None if expired or missing."""
+    return await get_redis_raw().get(f"{_HEALTH_CACHE_PREFIX}:{loco_id}")

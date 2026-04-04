@@ -1,7 +1,6 @@
 """WebSocket endpoints for real-time telemetry and alert streaming.
 
-Query params:
-    ?format=msgpack  — receive binary msgpack frames (default: JSON text)
+Wire format (JSON or msgpack) is controlled globally by WIRE_FORMAT env var.
 """
 
 from __future__ import annotations
@@ -22,22 +21,16 @@ def _get_manager(ws: WebSocket) -> ConnectionManager:
     return ws.app.state.ws_manager
 
 
-def _wants_msgpack(ws: WebSocket) -> bool:
-    return ws.query_params.get("format", "json") == "msgpack"
-
-
 @router.websocket("/ws/telemetry/{loco_id}")
 async def ws_telemetry(ws: WebSocket, loco_id: str):
     """Real-time telemetry stream for a specific locomotive."""
     manager = _get_manager(ws)
-    use_msgpack = _wants_msgpack(ws)
-    if not await manager.accept(ws, use_msgpack=use_msgpack):
+    if not await manager.accept(ws):
         return
 
     channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
     await manager.subscribe(ws, channel)
-    fmt = "msgpack" if use_msgpack else "json"
-    logger.info("WS telemetry connected", code=WS_CONNECTED, loco_id=loco_id, ws_format=fmt)
+    logger.info("WS telemetry connected", code=WS_CONNECTED, loco_id=loco_id)
     try:
         while True:
             await ws.receive_text()
@@ -52,13 +45,11 @@ async def ws_telemetry(ws: WebSocket, loco_id: str):
 async def ws_alerts(ws: WebSocket):
     """Real-time alert stream (all locomotives)."""
     manager = _get_manager(ws)
-    use_msgpack = _wants_msgpack(ws)
-    if not await manager.accept(ws, use_msgpack=use_msgpack):
+    if not await manager.accept(ws):
         return
 
     await manager.subscribe(ws, ALERT_CHANNEL)
-    fmt = "msgpack" if use_msgpack else "json"
-    logger.info("WS alerts connected", code=WS_CONNECTED, ws_format=fmt)
+    logger.info("WS alerts connected", code=WS_CONNECTED)
     try:
         while True:
             await ws.receive_text()
@@ -77,12 +68,9 @@ async def ws_live(ws: WebSocket, loco_id: str):
         {"type": "telemetry", "data": {...}}
         {"type": "alert", "data": {...}}
         {"type": "health", "data": {...}}
-
-    Connect with ?format=msgpack for binary frames.
     """
     manager = _get_manager(ws)
-    use_msgpack = _wants_msgpack(ws)
-    if not await manager.accept(ws, use_msgpack=use_msgpack):
+    if not await manager.accept(ws):
         return
 
     telemetry_channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
@@ -90,8 +78,7 @@ async def ws_live(ws: WebSocket, loco_id: str):
     await manager.subscribe(ws, telemetry_channel)
     await manager.subscribe(ws, ALERT_CHANNEL, filter_loco_id=loco_id)
     await manager.subscribe(ws, health_channel)
-    fmt = "msgpack" if use_msgpack else "json"
-    logger.info("WS live connected", code=WS_CONNECTED, loco_id=loco_id, ws_format=fmt)
+    logger.info("WS live connected", code=WS_CONNECTED, loco_id=loco_id)
     try:
         while True:
             await ws.receive_text()
