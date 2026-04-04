@@ -25,13 +25,12 @@ async def lifespan(app: FastAPI):
     redis_raw = get_redis_raw()
     session_factory = get_session_factory()
 
-    # Seed default data and health config
     async with session_factory() as session:
         await seed_admin_user(session)
         await seed_locomotives(session)
         await init_health_config(session, redis_client)
 
-    # WebSocket connection manager (uses raw client for binary-safe pub/sub)
+    # raw client for binary-safe pub/sub (msgpack support)
     manager = ConnectionManager(
         redis_client=redis_raw,
         max_connections=settings.ws_max_connections,
@@ -39,13 +38,11 @@ async def lifespan(app: FastAPI):
     await manager.start()
     app.state.ws_manager = manager
 
-    # Background: persist alerts from Redis to DB (raw client for binary pub/sub)
     alert_task = asyncio.create_task(
         run_alert_persistence(redis_raw, session_factory),
         name="alert-persistence",
     )
-
-    # Background: cache health index from processor via Redis pub/sub
+    # subscribes health:live:* and caches latest HI per locomotive
     health_task = asyncio.create_task(
         run_health_cache(redis_raw),
         name="health-cache",

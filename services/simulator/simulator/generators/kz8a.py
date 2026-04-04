@@ -9,7 +9,6 @@ from simulator.models.locomotive_state import LocomotiveMode, LocomotiveState
 
 
 def generate_kz8a(state: LocomotiveState) -> list[SensorPayload]:
-    """Generate all sensor readings for a KZ8A electric locomotive."""
     sensors: list[SensorPayload] = []
     speed = state.speed
 
@@ -30,7 +29,6 @@ def generate_kz8a(state: LocomotiveState) -> list[SensorPayload]:
     transformer_target = 45 + (pantograph_current / 400) * 35
     state.transformer_temp += (transformer_target - state.transformer_temp) * 0.03
 
-    # DC link voltage
     dc_link = 2800.0
 
     # Recuperation current — only during braking (ARRIVAL mode, speed > 20)
@@ -53,7 +51,6 @@ def generate_kz8a(state: LocomotiveState) -> list[SensorPayload]:
         ]
     )
 
-    # Common sensors
     brake = state.brake_override if state.brake_override is not None else 5.1
     sensors.extend(
         [

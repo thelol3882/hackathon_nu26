@@ -29,9 +29,6 @@ _REDIS_THRESHOLDS_KEY = "health:thresholds"
 _REDIS_WEIGHTS_KEY = "health:weights"
 
 
-# --- Config models ---
-
-
 class ThresholdConfig(BaseModel):
     sensor_type: str
     min_value: float
@@ -43,12 +40,8 @@ class WeightConfig(BaseModel):
     weight: float
 
 
-# --- Startup: seed DB if empty, then cache to Redis ---
-
-
 async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -> None:
-    """Load health config from DB into Redis. Seed DB from constants if empty."""
-    # Seed thresholds
+    """Load health config from DB into Redis. Seeds DB from constants if empty."""
     result = await session.execute(select(HealthThreshold))
     existing = result.scalars().all()
     if not existing:
@@ -57,7 +50,6 @@ async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -
         await session.commit()
         logger.info("Seeded health thresholds from defaults", code=HEALTH_CONFIG_SEEDED)
 
-    # Seed weights
     result = await session.execute(select(HealthWeight))
     existing = result.scalars().all()
     if not existing:
@@ -66,7 +58,6 @@ async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -
         await session.commit()
         logger.info("Seeded health weights from defaults", code=HEALTH_CONFIG_SEEDED)
 
-    # Cache to Redis
     await _cache_config_to_redis(session, redis_client)
 
 
@@ -84,9 +75,6 @@ async def _cache_config_to_redis(session: AsyncSession, redis_client: redis.Redi
         await redis_client.hset(_REDIS_WEIGHTS_KEY, mapping=weights)
 
 
-# --- Read config from Redis ---
-
-
 async def _get_thresholds(redis_client: redis.Redis) -> dict[str, tuple[float, float]]:
     raw = await redis_client.hgetall(_REDIS_THRESHOLDS_KEY)
     result = {}
@@ -100,9 +88,6 @@ async def _get_weights(redis_client: redis.Redis) -> dict[str, float]:
     raw = await redis_client.hgetall(_REDIS_WEIGHTS_KEY)
     result = {sensor: float(w) for sensor, w in raw.items()}
     return result or HEALTH_WEIGHTS
-
-
-# --- Background: cache health index from processor pub/sub ---
 
 
 async def run_health_cache(redis_client: redis.Redis) -> None:
@@ -138,9 +123,6 @@ async def run_health_cache(redis_client: redis.Redis) -> None:
                 pass
 
 
-# --- Health Index computation ---
-
-
 def _compute_component_score(value: float, lo: float, hi: float) -> float:
     """Compute score 0.0-1.0 based on how far value is from normal range."""
     if lo <= value <= hi:
@@ -151,7 +133,6 @@ def _compute_component_score(value: float, lo: float, hi: float) -> float:
         deviation = abs(value - mid) / span
         return max(0.0, 1.0 - deviation * 0.3)
 
-    # Out of range: penalty proportional to how far out
     if value < lo:
         overshoot = (lo - value) / max(lo, 1.0)
     else:
@@ -177,7 +158,6 @@ async def get_health_index(
     Primary: read from Redis cache (populated by processor via health:live pub/sub).
     Fallback: compute from raw_telemetry if cache is empty (processor not running).
     """
-    # Try cache first (populated by run_health_cache from processor pub/sub)
     cached = await get_cached_health(locomotive_id)
     if cached:
         try:
@@ -185,7 +165,6 @@ async def get_health_index(
         except Exception:
             logger.warning("Failed to parse cached health index, falling back to DB", locomotive_id=locomotive_id)
 
-    # Fallback: compute from DB
     thresholds = await _get_thresholds(redis_client)
     weights = await _get_weights(redis_client)
 
@@ -236,10 +215,8 @@ async def get_health_index(
             )
         )
 
-    # Overall score: 100 minus weighted penalties scaled to 0-100
     overall = max(0.0, min(100.0, 100.0 - total_penalty * 100.0))
 
-    # Top 5 factors by penalty, with contribution percentages
     factors.sort(key=lambda x: x[0], reverse=True)
     top_factors = []
     for penalty, factor in factors[:5]:
@@ -256,9 +233,6 @@ async def get_health_index(
         damage_penalty=0.0,  # Montsinger aging not computed in gateway
         calculated_at=datetime.now(UTC),
     )
-
-
-# --- Config CRUD ---
 
 
 async def list_thresholds(session: AsyncSession) -> list[ThresholdConfig]:
@@ -285,7 +259,6 @@ async def update_threshold(
     entity.max_value = max_value
     await session.commit()
 
-    # Update Redis cache
     await redis_client.hset(
         _REDIS_THRESHOLDS_KEY,
         sensor_type,

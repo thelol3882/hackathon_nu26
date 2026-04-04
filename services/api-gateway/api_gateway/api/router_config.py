@@ -25,7 +25,6 @@ class WeightUpdate(BaseModel):
 
 @router.get("/thresholds", response_model=list[ThresholdConfig])
 async def get_thresholds(db: DbSession):
-    """List all health index thresholds."""
     return await list_thresholds(db)
 
 
@@ -37,7 +36,6 @@ async def put_threshold(sensor_type: str, body: ThresholdUpdate, db: DbSession, 
 
 @router.get("/weights", response_model=list[WeightConfig])
 async def get_weights(db: DbSession):
-    """List all health index weights."""
     return await list_weights(db)
 
 

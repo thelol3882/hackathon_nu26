@@ -21,7 +21,6 @@ logger = get_logger(__name__)
 
 
 async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> dict:
-    """Generate report data by querying telemetry, health, and alert tables."""
     logger.info(
         "Report generation started",
         code=REPORT_PROCESSING,
@@ -80,7 +79,6 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
 
 
 async def _query_locomotive_type(session: AsyncSession, loco_id: UUID | None) -> str:
-    """Get locomotive type from the most recent telemetry record."""
     if not loco_id:
         return "Парк"
     result = await session.execute(
@@ -94,7 +92,6 @@ async def _query_locomotive_type(session: AsyncSession, loco_id: UUID | None) ->
 async def _query_sensor_stats(
     session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime
 ) -> list[dict]:
-    """Aggregate sensor statistics from raw_telemetry."""
     params: dict = {"start": start, "end": end}
     where_loco = ""
     if loco_id:
@@ -133,7 +130,6 @@ async def _query_sensor_stats(
 async def _query_health_trend(
     session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime
 ) -> list[dict]:
-    """Get health score trend using time_bucket."""
     params: dict = {"start": start, "end": end}
     where_loco = ""
     if loco_id:
@@ -165,14 +161,12 @@ async def _query_health_trend(
 
 
 async def _query_latest_health(session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime) -> dict:
-    """Get the latest health snapshot and aggregate scores in the range."""
     params: dict = {"start": start, "end": end}
     where_loco = ""
     if loco_id:
         where_loco = "AND locomotive_id = :loco_id"
         params["loco_id"] = loco_id
 
-    # Aggregate scores
     agg_result = await session.execute(
         text(f"""
             SELECT AVG(score) AS avg_score,
@@ -185,7 +179,6 @@ async def _query_latest_health(session: AsyncSession, loco_id: UUID | None, star
     )
     agg = agg_result.fetchone()
 
-    # Latest snapshot
     latest_result = await session.execute(
         text(f"""
             SELECT score, category, top_factors, damage_penalty
@@ -209,7 +202,6 @@ async def _query_latest_health(session: AsyncSession, loco_id: UUID | None, star
 
 
 async def _query_alerts(session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime) -> list[dict]:
-    """Get alert events in the date range."""
     params: dict = {"start": start, "end": end}
     where_loco = ""
     if loco_id:
@@ -243,7 +235,6 @@ async def _query_alerts(session: AsyncSession, loco_id: UUID | None, start: date
 
 
 def _summarize_alerts(alerts: list[dict]) -> dict:
-    """Count alerts by severity."""
     summary: dict[str, int] = {}
     for alert in alerts:
         sev = alert["severity"]
@@ -254,7 +245,6 @@ def _summarize_alerts(alerts: list[dict]) -> dict:
 async def _detect_anomalies(
     session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime
 ) -> dict[str, list[dict]]:
-    """Run z-score anomaly detection per sensor."""
     params: dict = {"start": start, "end": end}
     where_loco = ""
     if loco_id:
@@ -272,7 +262,6 @@ async def _detect_anomalies(
     )
     rows = result.fetchall()
 
-    # Group by sensor
     series: dict[str, list[tuple[float, str]]] = {}
     for row in rows:
         s = series.setdefault(row.sensor_type, [])

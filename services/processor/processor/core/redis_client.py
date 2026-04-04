@@ -41,21 +41,18 @@ def get_redis() -> redis.Redis:
 
 
 async def publish_telemetry(loco_id: str, payload: bytes) -> None:
-    """Publish telemetry to the live channel. Payload is wire-encoded bytes."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
 
 
 async def publish_alert(payload: bytes) -> None:
-    """Publish an AlertEvent to the global alert channel. Payload is wire-encoded bytes."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(ALERT_CHANNEL, payload)
 
 
 async def publish_health(loco_id: str, payload: bytes) -> None:
-    """Publish a HealthIndex to the live health channel. Payload is wire-encoded bytes."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)

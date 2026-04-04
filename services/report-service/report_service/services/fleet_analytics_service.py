@@ -9,7 +9,6 @@ logger = get_logger(__name__)
 
 
 async def get_fleet_summary(session: AsyncSession) -> dict:
-    """Aggregate fleet-wide statistics from health snapshots."""
     logger.info("Fetching fleet summary")
 
     result = await session.execute(
@@ -41,7 +40,6 @@ async def get_fleet_summary(session: AsyncSession) -> dict:
 
 
 async def get_utilization_stats(session: AsyncSession, locomotive_id: str | None = None) -> dict:
-    """Calculate utilization rates from speed readings."""
     logger.info("Calculating utilization stats", locomotive_id=locomotive_id)
 
     params: dict = {}

@@ -9,7 +9,6 @@ from simulator.models.locomotive_state import LocomotiveMode, LocomotiveState
 
 
 def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
-    """Generate all sensor readings for a TE33A diesel locomotive."""
     sensors: list[SensorPayload] = []
     n = state.notch  # 0..8
 
@@ -37,7 +36,6 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
             )
         )
     else:
-        # Normal diesel operation
         diesel_rpm = 300 + n * 93.75
         fuel_rate = 15 + (n / 8) ** 1.5 * 165
         oil_pressure = 1.5 + (diesel_rpm / 1050) * 3.0
@@ -66,11 +64,9 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
             ]
         )
 
-    # Always report fuel level and crankcase
     sensors.append(SensorPayload(sensor_type=SensorType.FUEL_LEVEL, value=add_noise(state.fuel_level, 50), unit="%"))
     sensors.append(SensorPayload(sensor_type=SensorType.CRANKCASE_PRESSURE, value=add_noise(2.0, 0), unit="mbar"))
 
-    # Common sensors
     sensors.extend(_common_sensors(state))
     return sensors
 

@@ -47,7 +47,6 @@ def _fetch_locomotive_ids(gateway_url: str) -> list[dict] | None:
     """Fetch locomotive records from api-gateway. Returns list of {id, model} or None on failure."""
     try:
         with httpx.Client(timeout=10, follow_redirects=True) as client:
-            # Login as admin
             resp = client.post(
                 f"{gateway_url}/auth/login",
                 json={"username": "admin", "password": "admin"},
@@ -57,7 +56,6 @@ def _fetch_locomotive_ids(gateway_url: str) -> list[dict] | None:
                 return None
             token = resp.json()["access_token"]
 
-            # Fetch locomotives
             resp = client.get(
                 f"{gateway_url}/locomotives",
                 headers={"Authorization": f"Bearer {token}"},
@@ -77,7 +75,6 @@ def generate_fleet(n: int = 1700, gateway_url: str | None = None) -> list[Locomo
     gateway_locos = _fetch_locomotive_ids(gateway_url) if gateway_url else None
 
     if gateway_locos:
-        # Separate by model type
         te33a_ids = [rec for rec in gateway_locos if "TE33A" in rec.get("model", "")]
         kz8a_ids = [rec for rec in gateway_locos if "KZ8A" in rec.get("model", "")]
         logger.info(

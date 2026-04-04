@@ -47,7 +47,6 @@ def get_channel() -> aio_pika.abc.AbstractChannel:
 
 
 async def publish_report_job(payload: dict) -> None:
-    """Publish a report generation job to the report.generate queue."""
     channel = get_channel()
     message = Message(
         body=json.dumps(payload, default=str).encode(),

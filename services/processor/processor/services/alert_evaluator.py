@@ -24,22 +24,12 @@ logger = get_logger(__name__)
 
 
 def _is_aess_active(sensor_map: dict[str, float]) -> bool:
-    """
-    Detect TE33A Auto Engine Start/Stop sleep mode.
-    Returns True when engine is considered stopped (RPM below threshold).
-    """
     rpm = sensor_map.get(SensorType.DIESEL_RPM.value)
     return rpm is not None and rpm <= AESS_RPM_THRESHOLD
 
 
 def _threshold_violated(value: float, spec: SensorSpec) -> bool:
-    """
-    Check whether the value has LEFT the safe zone (triggers at least a WARNING).
-
-    Alert levels:
-      - Leaving safe zone (> p_nom ± delta_safe) → WARNING or higher
-      - Crossing p_crit                           → CRITICAL / EMERGENCY
-    """
+    """True when value has left the safe zone (p_nom ± delta_safe)."""
     if spec.threshold_type == ThresholdType.BIDIRECTIONAL:
         return abs(value - spec.p_nom) > spec.delta_safe
     if spec.threshold_type == ThresholdType.UPPER_BOUND:
@@ -52,10 +42,7 @@ def _threshold_violated(value: float, spec: SensorSpec) -> bool:
 
 
 def _severity_from_spec(value: float, spec: SensorSpec) -> AlertSeverity:
-    """
-    Derive severity based on how far into the critical zone the value is.
-    Uses the same normalized deviation as the HI formula.
-    """
+    """Normalized deviation → severity; mirrors the HI penalty formula."""
 
     if spec.threshold_type == ThresholdType.BIDIRECTIONAL:
         dev = abs(value - spec.p_nom)
@@ -91,7 +78,6 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
     sensor_map: dict[str, float] = {s.sensor_type.value: s.value for s in reading.sensors}
     sensor_units: dict[str, str] = {s.sensor_type.value: s.unit for s in reading.sensors}
 
-    # TE33A: detect AESS sleep mode to avoid false oil-pressure shutdowns
     aess_active = reading.locomotive_type.value == "TE33A" and _is_aess_active(sensor_map)
 
     alerts: list[AlertEvent] = []
@@ -101,11 +87,9 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
         if value is None:
             continue
 
-        # ── AESS masking ────────────────────────────────────────────────
         if aess_active and sensor_type_str in AESS_MASKED_SENSORS:
-            continue  # suppress false low-RPM / low-pressure alerts during sleep
+            continue  # engine in sleep mode — suppress false low-pressure alerts
 
-        # ── Contextual masking: oil pressure needs RPM context ──────────
         if sensor_type_str == SensorType.OIL_PRESSURE.value:
             rpm = sensor_map.get(SensorType.DIESEL_RPM.value, 0.0)
             _coolant = sensor_map.get(SensorType.COOLANT_TEMP.value, 70.0)
@@ -120,7 +104,6 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
 
         severity = _severity_from_spec(value, spec)
 
-        # Determine readable threshold bounds for the alert message
         if spec.threshold_type == ThresholdType.UPPER_BOUND:
             thr_min, thr_max = spec.p_nom - spec.delta_safe, spec.p_crit
         elif spec.threshold_type == ThresholdType.LOWER_BOUND:

@@ -38,7 +38,6 @@ class UserResponse(BaseModel):
 
 @router.post("/register", status_code=201, response_model=UserResponse)
 async def register(body: RegisterRequest, db: DbSession):
-    """Register a new user."""
     user = User(
         username=body.username,
         hashed_password=hash_password(body.password),
@@ -58,7 +57,6 @@ async def register(body: RegisterRequest, db: DbSession):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, db: DbSession):
-    """Authenticate and receive a JWT token."""
     result = await db.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.hashed_password):

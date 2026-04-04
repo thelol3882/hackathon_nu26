@@ -26,17 +26,11 @@ from shared.wire import decode as wire_decode
 logger = get_logger(__name__)
 
 
-# --- Background persistence task ---
-
-
 async def run_alert_persistence(
     redis_client: redis.Redis,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Subscribe to alerts:live and persist each alert to the DB.
-
-    Runs as a long-lived background asyncio task.
-    """
+    """Subscribe to alerts:live and persist each alert to DB. Runs as a background task."""
     backoff = 1.0
     while True:
         pubsub = redis_client.pubsub()
@@ -87,9 +81,6 @@ async def run_alert_persistence(
                 await pubsub.aclose()
             except Exception:
                 pass
-
-
-# --- CRUD ---
 
 
 async def list_alerts(

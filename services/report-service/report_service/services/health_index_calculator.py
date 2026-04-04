@@ -32,7 +32,6 @@ def calculate_component_score(
 
 
 def calculate_overall_score(components: list[ComponentHealth]) -> float:
-    """Weighted average of component scores."""
     total_weight = 0.0
     weighted_sum = 0.0
 

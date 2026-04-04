@@ -1,15 +1,12 @@
 """
 Telemetry ingest endpoints.
 
-POST /telemetry/ingest        — single TelemetryReading
-POST /telemetry/ingest/batch  — list of TelemetryReading (bulk)
-
 Pipeline per reading:
   1. EMA filter + flatten → TelemetryRecord ORM rows
   2. Bulk INSERT raw_telemetry
   3. Evaluate alerts → INSERT alert_events + publish alerts:live
   4. Calculate HealthIndex → INSERT health_snapshots + publish health:live
-  5. Publish full reading to telemetry:live (for frontend WebSocket)
+  5. Publish full reading to telemetry:live
 """
 
 import asyncio
@@ -51,11 +48,9 @@ async def _process_single(
     """
     loco_id = str(reading.locomotive_id)
 
-    # ── 1. EMA filter + flatten ──────────────────────────────────────────
     # flatten_reading mutates sensor.value → filtered; returns DB rows
     rows = flatten_reading(reading)
 
-    # ── 2. Bulk INSERT raw telemetry (skip duplicates) ────────────────
     if rows:
         stmt = (
             pg_insert(TelemetryRecord)
@@ -80,8 +75,7 @@ async def _process_single(
         )
         await db.execute(stmt)
 
-    # ── 3. Alert evaluation ─────────────────────────────────────────────
-    # Uses already-filtered sensor.value (mutated by flatten_reading)
+    # Uses already-filtered sensor.value (mutated by flatten_reading above)
     alert_events = evaluate_alerts(reading)
 
     alert_records = [
@@ -103,7 +97,6 @@ async def _process_single(
     if alert_records:
         db.add_all(alert_records)
 
-    # ── 4. Health Index calculation ─────────────────────────────────────
     health = calculate_health(reading)
 
     health_record = HealthSnapshotRecord(
@@ -118,10 +111,8 @@ async def _process_single(
     )
     db.add(health_record)
 
-    # ── 5. Commit everything in one transaction ─────────────────────────
     await db.commit()
 
-    # ── 6. Prometheus metrics ─────────────────────────────────────────────
     telemetry_ingested_total.labels(locomotive_type=reading.locomotive_type.value).inc(len(reading.sensors))
     health_index_calculated_total.inc()
     health_index_value.labels(locomotive_id=loco_id, locomotive_type=reading.locomotive_type.value).set(
@@ -130,7 +121,7 @@ async def _process_single(
     for ae in alert_events:
         alerts_fired_total.labels(severity=ae.severity.value, sensor_type=str(ae.sensor_type)).inc()
 
-    # ── 7. Publish to Redis async (fire-and-forget, non-blocking) ───────
+    # Publish to Redis fire-and-forget (non-blocking)
     telemetry_payload = wire_encode(reading.model_dump(mode="json"))
     health_payload = wire_encode(health.model_dump(mode="json"))
     alert_payloads = [wire_encode(ae.model_dump(mode="json")) for ae in alert_events]
@@ -157,7 +148,6 @@ async def ingest_telemetry(
     db: DbSession,
     redis: Redis,
 ):
-    """Receive a single TelemetryReading and run the full processing pipeline."""
     logger.info(
         "Ingest request received",
         locomotive_id=str(reading.locomotive_id),

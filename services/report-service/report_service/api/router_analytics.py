@@ -11,10 +11,8 @@ router = APIRouter()
 
 @router.get("/fleet")
 async def fleet_analytics(db: DbSession):
-    """Fleet-wide analytics: health distribution, counts by category."""
     logger.info("Fleet analytics requested")
 
-    # Latest health snapshot per locomotive
     result = await db.execute(
         text("""
             SELECT locomotive_id, locomotive_type, score, category

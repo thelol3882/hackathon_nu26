@@ -158,11 +158,9 @@ class SimulationRunner:
             self.running = False
 
     async def _do_tick(self) -> None:
-        # Apply scenario effects
         handler = SCENARIO_HANDLERS.get(self.scenario, apply_normal)
         handler(self.fleet, self.tick_count)
 
-        # Generate readings for all locos
         readings: list[dict] = []
         now = datetime.now(UTC)
 
@@ -181,7 +179,6 @@ class SimulationRunner:
             )
             readings.append(reading.model_dump(mode="json"))
 
-        # Batch and send
         batch_size = settings.batch_size
         if self.effective_multiplier > 1:
             batch_size = 200  # larger batches for highload

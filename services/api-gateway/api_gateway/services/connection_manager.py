@@ -107,8 +107,6 @@ class _ChannelRelay:
             self._clients.clear()
             self._ws_map.clear()
 
-    # --- internal loops ---
-
     async def _listener_loop(self) -> None:
         """Subscribe to Redis and distribute messages to client queues."""
         backoff = _RECONNECT_BASE

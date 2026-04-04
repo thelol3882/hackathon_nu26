@@ -24,12 +24,10 @@ tracer = trace.get_tracer(__name__)
 
 
 async def process_report_job(message: aio_pika.abc.AbstractIncomingMessage) -> None:
-    """Process a single report generation job from RabbitMQ."""
     async with message.process():
         body = json.loads(message.body.decode())
         job = ReportJobMessage.model_validate(body)
 
-        # Bind structured log context for every log line within this job
         structlog.contextvars.bind_contextvars(
             report_id=str(job.report_id),
             report_type=job.report_type,
@@ -44,7 +42,6 @@ async def process_report_job(message: aio_pika.abc.AbstractIncomingMessage) -> N
 
 
 async def _execute_job(job: ReportJobMessage) -> None:
-    """Run the report pipeline inside an OTEL span."""
     with tracer.start_as_current_span(
         "report.generate",
         attributes={
@@ -57,7 +54,6 @@ async def _execute_job(job: ReportJobMessage) -> None:
         logger.info("Processing report job", code=REPORT_PROCESSING)
 
         async for session in get_db_session():
-            # Mark as processing
             await session.execute(
                 update(Report).where(Report.id == job.report_id).values(status=ReportStatus.PROCESSING)
             )
@@ -70,7 +66,6 @@ async def _execute_job(job: ReportJobMessage) -> None:
                 with tracer.start_as_current_span("report.format"):
                     formatted = format_report(data, job.format, job)
 
-                # Mark as completed
                 await session.execute(
                     update(Report)
                     .where(Report.id == job.report_id)

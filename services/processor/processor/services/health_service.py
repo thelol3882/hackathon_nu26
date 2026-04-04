@@ -42,9 +42,6 @@ logger = get_logger(__name__)
 _damage_state: dict[tuple[str, str], float] = {}
 
 
-# ── Deviation helpers ────────────────────────────────────────────────────────
-
-
 def _raw_deviation(value: float, spec: SensorSpec) -> float:
     """Unsigned deviation from nominal, respecting threshold direction."""
     if spec.threshold_type == ThresholdType.BIDIRECTIONAL:
@@ -71,9 +68,6 @@ def _sensor_penalty(value: float, spec: SensorSpec) -> tuple[float, float]:
     return penalty, normalized * 100.0
 
 
-# ── Montsinger aging accumulator ─────────────────────────────────────────────
-
-
 def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpec) -> float:
     """
     Increment damage accumulator using Montsinger's rule and return current total damage.
@@ -88,9 +82,6 @@ def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpe
     key = (loco_id, sensor_type)
     _damage_state[key] = _damage_state.get(key, 0.0) + increment
     return _damage_state[key]
-
-
-# ── Main public function ──────────────────────────────────────────────────────
 
 
 def calculate_health(reading: TelemetryReading) -> HealthIndex:
@@ -126,7 +117,6 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
 
         penalties.append((sensor_key, penalty, dev_pct, sensor.value, sensor.unit))
 
-    # Sort by penalty descending → top-5 worst contributors
     penalties.sort(key=lambda x: x[1], reverse=True)
 
     total_penalty = sum(p[1] for p in penalties)
@@ -140,7 +130,6 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
     else:
         category = "Критично"
 
-    # Build top-5 HealthFactor list with contribution percentages
     top5 = penalties[:5]
     contribution_base = max(total_penalty, 1e-6)  # avoid division by zero
     top_factors = [

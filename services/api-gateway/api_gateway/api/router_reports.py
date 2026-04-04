@@ -31,7 +31,6 @@ async def get_reports(
     offset: int = 0,
     limit: int = 20,
 ):
-    """List reports with optional filters."""
     return await list_reports(db, locomotive_id=locomotive_id, status=status, offset=offset, limit=limit)
 
 

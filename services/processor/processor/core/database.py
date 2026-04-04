@@ -31,7 +31,6 @@ async def init_db_pool() -> None:
     )
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
-    # Auto-create tables and hypertables on startup
     import processor.models  # noqa: F401 — ensure all models are registered
     from processor.models.base import Base
 

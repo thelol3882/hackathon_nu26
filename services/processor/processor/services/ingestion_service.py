@@ -17,7 +17,6 @@ logger = get_logger(__name__)
 # Minimum relative change required to persist a high-frequency reading.
 _HF_NOISE_FLOOR = 0.005  # 0.5 %
 
-# Track last persisted filtered value per (loco_id, sensor_type) for HF dedup.
 _last_persisted: dict[tuple[str, str], float] = {}
 
 
@@ -51,7 +50,7 @@ def flatten_reading(reading: TelemetryReading) -> list[TelemetryRecord]:
             if last is not None:
                 relative_change = abs(filtered - last) / (abs(last) + 1e-9)
                 if relative_change < _HF_NOISE_FLOOR:
-                    continue  # skip DB write — value hasn't moved enough
+                    continue
             _last_persisted[dedup_key] = filtered
 
         rows.append(

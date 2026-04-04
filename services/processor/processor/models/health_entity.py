@@ -19,7 +19,6 @@ class HealthSnapshotRecord(Base):
     locomotive_type: Mapped[str] = mapped_column(Text, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)  # 0–100
     category: Mapped[str] = mapped_column(Text, nullable=False)  # Норма/Внимание/Критично
-    # top_factors: list of HealthFactor dicts (up to 5)
-    top_factors: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
+    top_factors: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)  # up to 5 HealthFactor dicts
     damage_penalty: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)

@@ -28,7 +28,6 @@ async def generate_report(request: ReportRequest, db: DbSession):
         report_id=str(report_id),
     )
 
-    # Create DB record
     entity = Report(
         id=report_id,
         locomotive_id=request.locomotive_id,
@@ -41,7 +40,6 @@ async def generate_report(request: ReportRequest, db: DbSession):
     await db.commit()
 
     try:
-        # Build a job message for the generator
         from datetime import UTC, datetime
 
         job = ReportJobMessage(
@@ -81,7 +79,6 @@ async def generate_report(request: ReportRequest, db: DbSession):
 
 @router.get("/{report_id}")
 async def get_report(report_id: str, db: DbSession):
-    """Retrieve a generated report by ID."""
     result = await db.execute(select(Report).where(Report.id == report_id))
     entity = result.scalar_one_or_none()
     if entity is None:

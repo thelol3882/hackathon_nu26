@@ -15,10 +15,8 @@ router = APIRouter()
 
 @router.get("/{locomotive_id}")
 async def get_health_index(locomotive_id: str, db: DbSession):
-    """Get current health index for a locomotive based on latest data."""
     logger.info("Health index requested", locomotive_id=locomotive_id)
 
-    # Get latest health snapshot
     snapshot_result = await db.execute(
         text("""
             SELECT score, category, top_factors, damage_penalty, calculated_at
@@ -31,7 +29,6 @@ async def get_health_index(locomotive_id: str, db: DbSession):
     )
     snapshot = snapshot_result.fetchone()
 
-    # Get latest sensor readings for component breakdown
     sensors_result = await db.execute(
         text("""
             SELECT DISTINCT ON (sensor_type) sensor_type, filtered_value, unit
@@ -46,7 +43,6 @@ async def get_health_index(locomotive_id: str, db: DbSession):
     if not snapshot and not sensors:
         raise HTTPException(status_code=404, detail="No data found for locomotive")
 
-    # Calculate component scores from latest readings
     components = []
     for row in sensors:
         comp = calculate_component_score(row.sensor_type, float(row.filtered_value), row.unit)

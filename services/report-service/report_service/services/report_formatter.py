@@ -14,10 +14,7 @@ from shared.schemas.report import ReportFormat, ReportJobMessage
 
 _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 
-# Font family name used throughout the PDF
 _FONT = "DejaVu"
-
-# ── Russian translations ─────────────────────────────────────────────────────
 
 _SENSOR_NAMES: dict[str, str] = {
     "diesel_rpm": "Обороты дизеля",
@@ -64,11 +61,7 @@ def _loco_type_ru(key: str) -> str:
     return _LOCO_TYPE_NAMES.get(key, key)
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
-
-
 def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
-    """Format report data according to the requested format."""
     if fmt == ReportFormat.JSON:
         return data
     if fmt == ReportFormat.CSV:
@@ -79,7 +72,6 @@ def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
 
 
 def _format_csv(data: dict) -> dict:
-    """Flatten report data into rows for CSV export."""
     rows: list[dict] = [
         {
             "section": "sensor_stats",
@@ -120,9 +112,6 @@ def _format_csv(data: dict) -> dict:
     }
 
 
-# ── PDF helpers ──────────────────────────────────────────────────────────────
-
-
 def _get_almaty_tz():
     """Resolve Asia/Almaty; fall back to fixed UTC+5 when tzdata is unavailable."""
     try:
@@ -135,7 +124,6 @@ _TZ_ALMATY = _get_almaty_tz()
 
 
 def _to_local(iso_str: str) -> str:
-    """Convert ISO timestamp string to Asia/Almaty local time for display."""
     if not iso_str:
         return ""
     try:
@@ -148,7 +136,6 @@ def _to_local(iso_str: str) -> str:
 
 
 def _fmt(val, decimals: int = 2) -> str:
-    """Round numeric values for display."""
     if isinstance(val, float):
         return f"{val:.{decimals}f}"
     return str(val)
@@ -165,11 +152,7 @@ def _create_pdf() -> FPDF:
     return pdf
 
 
-# ── PDF generation ───────────────────────────────────────────────────────────
-
-
 def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
-    """Generate a PDF report and return as base64."""
     pdf = _create_pdf()
     pdf.add_page()
 
@@ -302,9 +285,6 @@ def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
     pdf.set_font(_FONT, "", 10)
     for sensor, items in anomalies.items():
         pdf.cell(0, 6, f"  {_sensor_ru(sensor)}: {len(items)} аномалий", new_x="LMARGIN", new_y="NEXT")
-
-
-# ── Table primitives ─────────────────────────────────────────────────────────
 
 
 def _section_header(pdf: FPDF, title: str) -> None:

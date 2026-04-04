@@ -1,15 +1,8 @@
 """
-EMA / Kalman pre-filter for raw sensor values.
+EMA pre-filter: x̂_k = K · z_k + (1 - K) · x̂_{k-1}
 
-Formula: x̂_k = K · z_k + (1 - K) · x̂_{k-1}
-
-where K is the gain (0 < K ≤ 1):
-  - Low K  (≈0.10) → heavy smoothing for slow thermal sensors (1 Hz)
-  - High K (≈0.30) → light smoothing for fast electrodynamic sensors (50 Hz)
-
-State is kept in-process. In production this should be Redis-backed so
-multiple replicas share state, but for a single-instance demo in-process is
-sufficient and avoids network round-trips on the hot path.
+K per sensor type (see EMA_GAINS): ~0.10 for slow thermal, ~0.30 for fast electrodynamic.
+State is in-process; for multi-replica deployments it should be Redis-backed.
 """
 
 from shared.constants import EMA_GAINS
@@ -19,18 +12,11 @@ _ema_state: dict[tuple[str, str], float] = {}
 
 
 def ema_filter(locomotive_id: str, sensor_type: str, raw_value: float) -> float:
-    """
-    Apply an EMA filter to a single sensor reading.
-
-    Returns the filtered value x̂_k.
-    On first call for a given (locomotive_id, sensor_type) pair the raw value
-    is returned as-is (cold start).
-    """
+    """Returns filtered x̂_k. On cold start returns raw_value unchanged."""
     key = (locomotive_id, sensor_type)
     prev = _ema_state.get(key)
 
     if prev is None:
-        # Cold start — seed the state with the first observation
         _ema_state[key] = raw_value
         return raw_value
 
@@ -41,10 +27,7 @@ def ema_filter(locomotive_id: str, sensor_type: str, raw_value: float) -> float:
 
 
 def reset_filter(locomotive_id: str, sensor_type: str | None = None) -> None:
-    """
-    Clear EMA state for a locomotive (e.g. after reconnect / maintenance).
-    If sensor_type is None, clears all sensors for that locomotive.
-    """
+    """Clear EMA state for a locomotive (e.g. after reconnect). None clears all sensors."""
     if sensor_type is not None:
         _ema_state.pop((locomotive_id, sensor_type), None)
     else:

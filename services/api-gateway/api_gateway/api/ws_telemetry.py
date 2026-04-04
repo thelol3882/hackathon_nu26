@@ -23,7 +23,6 @@ def _get_manager(ws: WebSocket) -> ConnectionManager:
 
 @router.websocket("/ws/telemetry/{loco_id}")
 async def ws_telemetry(ws: WebSocket, loco_id: str):
-    """Real-time telemetry stream for a specific locomotive."""
     manager = _get_manager(ws)
     if not await manager.accept(ws):
         return
@@ -43,7 +42,6 @@ async def ws_telemetry(ws: WebSocket, loco_id: str):
 
 @router.websocket("/ws/alerts")
 async def ws_alerts(ws: WebSocket):
-    """Real-time alert stream (all locomotives)."""
     manager = _get_manager(ws)
     if not await manager.accept(ws):
         return
@@ -62,13 +60,7 @@ async def ws_alerts(ws: WebSocket):
 
 @router.websocket("/ws/live/{loco_id}")
 async def ws_live(ws: WebSocket, loco_id: str):
-    """Combined telemetry + alerts + health stream for a specific locomotive.
-
-    Messages are wrapped in envelopes:
-        {"type": "telemetry", "data": {...}}
-        {"type": "alert", "data": {...}}
-        {"type": "health", "data": {...}}
-    """
+    """Combined stream for one locomotive. Envelope: {"type": "telemetry"|"alert"|"health", "data": {...}}"""
     manager = _get_manager(ws)
     if not await manager.accept(ws):
         return
