@@ -27,6 +27,9 @@ class ReportSettings(BaseSettings):
     def database_url(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
+    # --- RabbitMQ ---
+    rabbitmq_url: str = "amqp://locomotive:changeme@rabbitmq:5672/"
+
     # --- Domain ---
     report_retention_days: int = 90
 

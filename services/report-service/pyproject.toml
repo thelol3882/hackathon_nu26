@@ -9,6 +9,8 @@ dependencies = [
     "asyncpg>=0.30.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "alembic>=1.15.0",
+    "aio-pika>=9.0.0",
+    "fpdf2>=2.8.0",
     "shared",
 ]
 
