@@ -256,30 +256,68 @@
     },
     {
       "title": "Recent Traces — API Gateway",
-      "type": "traces",
+      "type": "table",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "traceID" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View trace",
+                    "url": "http://localhost:16686/trace/${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "targets": [
         {
           "queryType": "search",
-          "serviceName": "api-gateway",
+          "service": "api-gateway",
           "limit": 20,
-          "resultLimit": 20,
           "refId": "A"
         }
       ]
     },
     {
       "title": "Recent Traces — Processor",
-      "type": "traces",
+      "type": "table",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "traceID" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View trace",
+                    "url": "http://localhost:16686/trace/${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "targets": [
         {
           "queryType": "search",
-          "serviceName": "processor",
+          "service": "processor",
           "limit": 20,
-          "resultLimit": 20,
           "refId": "A"
         }
       ]

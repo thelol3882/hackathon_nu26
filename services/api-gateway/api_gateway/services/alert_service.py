@@ -45,7 +45,8 @@ async def run_alert_persistence(
             backoff = 1.0
             logger.info("Alert persistence listener started", code=ALERT_LISTENER_STARTED)
             async for message in pubsub.listen():
-                if message["type"] != b"message":
+                msg_type = message.get("type", b"")
+                if msg_type not in (b"message", "message"):
                     continue
                 try:
                     data = wire_decode(message["data"])

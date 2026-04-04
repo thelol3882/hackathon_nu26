@@ -193,7 +193,7 @@ async def get_health_index(
         SELECT DISTINCT ON (sensor_type)
             sensor_type, value, unit, locomotive_type
         FROM raw_telemetry
-        WHERE locomotive_id = :loco_id::uuid
+        WHERE locomotive_id = CAST(:loco_id AS uuid)
         ORDER BY sensor_type, time DESC
     """)
     result = await session.execute(query, {"loco_id": locomotive_id})
