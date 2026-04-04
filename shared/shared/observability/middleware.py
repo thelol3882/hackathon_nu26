@@ -25,6 +25,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         self._logger = structlog.get_logger("access")
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path == "/metrics":
+            return await call_next(request)
+
         request_id = request.headers.get("X-Request-ID", str(generate_id()))
 
         # Extract client IP (respect reverse proxy headers)

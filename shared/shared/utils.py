@@ -11,4 +11,4 @@ def generate_id() -> uuid.UUID:
     Better than UUIDv4 for PostgreSQL B-tree indexes:
     monotonically increasing, no random page splits.
     """
-    return uuid7()
+    return uuid.UUID(bytes=uuid7().bytes)

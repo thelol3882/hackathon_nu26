@@ -9,16 +9,15 @@
     {
       "title": "Requests per Second",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
-            "spanNulls": false,
-            "axisBorderShow": false
+            "spanNulls": false
           },
           "unit": "reqps"
         },
@@ -35,8 +34,8 @@
     {
       "title": "Request Latency p50 / p95 / p99",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -66,8 +65,8 @@
     {
       "title": "Telemetry Ingestion Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 7 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -85,10 +84,10 @@
       ]
     },
     {
-      "title": "Health Index Calculations / sec",
+      "title": "Health Index Calc/s",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 4, "x": 8, "y": 7 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -106,7 +105,6 @@
       "targets": [
         {
           "expr": "rate(health_index_calculated_total[1m])",
-          "legendFormat": "",
           "refId": "A"
         }
       ]
@@ -114,8 +112,8 @@
     {
       "title": "Alerts Fired",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 7 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -138,10 +136,10 @@
       ]
     },
     {
-      "title": "Active WebSocket Connections",
+      "title": "WebSocket",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -159,16 +157,15 @@
       "targets": [
         {
           "expr": "ws_connections_active",
-          "legendFormat": "",
           "refId": "A"
         }
       ]
     },
     {
-      "title": "Reports Generated",
+      "title": "Reports",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 14 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -184,7 +181,6 @@
       "targets": [
         {
           "expr": "sum(reports_generated_total)",
-          "legendFormat": "",
           "refId": "A"
         }
       ]
@@ -192,8 +188,8 @@
     {
       "title": "In-Progress Requests",
       "type": "timeseries",
-      "gridPos": { "h": 4, "w": 16, "x": 8, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 16, "x": 8, "y": 14 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -213,8 +209,8 @@
     {
       "title": "HTTP Errors (4xx + 5xx)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -238,8 +234,8 @@
     {
       "title": "Health Index Distribution",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -257,6 +253,135 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "title": "Service Logs",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 25 },
+      "datasource": { "type": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{service=~\".*processor.*\"} | json",
+          "legendFormat": "",
+          "refId": "A"
+        },
+        {
+          "expr": "{service=~\".*api-gateway.*\"} | json",
+          "legendFormat": "",
+          "refId": "B"
+        },
+        {
+          "expr": "{service=~\".*report-service.*\"} | json",
+          "legendFormat": "",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Error Logs",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "datasource": { "type": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "expr": "{service=~\".+\"} | json | level = \"error\" or level = \"critical\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Warning Logs",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "datasource": { "type": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "expr": "{service=~\".+\"} | json | level = \"warning\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Log Volume by Service",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 43 },
+      "datasource": { "type": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "drawStyle": "bars",
+            "stacking": { "mode": "normal" }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=~\".+\"}[1m])) by (service)",
+          "legendFormat": "{{ service }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Error Rate (logs)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 43 },
+      "datasource": { "type": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "drawStyle": "bars"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service=~\".+\"} | json | level = \"error\"[1m])) by (service)",
+          "legendFormat": "{{ service }} errors",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({service=~\".+\"} | json | level = \"warning\"[1m])) by (service)",
+          "legendFormat": "{{ service }} warnings",
+          "refId": "B"
+        }
+      ]
     }
   ],
   "refresh": "5s",
@@ -268,5 +393,5 @@
   "timezone": "",
   "title": "Locomotive Digital Twin",
   "uid": "locomotive-digital-twin",
-  "version": 1
+  "version": 2
 }

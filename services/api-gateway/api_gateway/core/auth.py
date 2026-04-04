@@ -6,10 +6,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,16 +17,20 @@ from api_gateway.core.config import get_settings
 from api_gateway.core.database import get_db_session
 from api_gateway.models.user_entity import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
+def _prepare(plain: str) -> bytes:
+    """Encode and truncate to bcrypt's 72-byte limit."""
+    return plain.encode()[:72]
+
+
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(_prepare(plain), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(_prepare(plain), hashed.encode())
 
 
 def create_access_token(user_id: uuid.UUID, role: str) -> str:
