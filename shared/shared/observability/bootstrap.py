@@ -16,12 +16,19 @@ def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
     otel_enabled = os.environ.get("OTEL_ENABLED", "true").lower() == "true"
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317")
 
+    metrics_enabled = os.environ.get("OTEL_METRICS_ENABLED", "false").lower() == "true"
+
     if otel_enabled:
-        from shared.observability.metrics import setup_metrics
         from shared.observability.tracing import setup_tracing
 
         shutdown_fns.append(setup_tracing(service_name, otlp_endpoint))
-        shutdown_fns.append(setup_metrics(service_name, otlp_endpoint))
+
+        if metrics_enabled:
+            from shared.observability.metrics import setup_metrics
+
+            shutdown_fns.append(setup_metrics(service_name, otlp_endpoint))
+        else:
+            logger.info("OTLP metrics export disabled (set OTEL_METRICS_ENABLED=true to enable)")
 
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 

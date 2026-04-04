@@ -1,7 +1,7 @@
 .PHONY: test test-processor test-api-gateway test-report-service \
        up down build logs restart \
        up-infra up-services up-simulator \
-       ps status clean env
+       ps status clean env migrate
 
 # ──────────────────────────────────────
 #  Full stack
