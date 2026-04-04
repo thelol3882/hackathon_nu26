@@ -14,6 +14,7 @@ members = [
     "services/processor",
     "services/api-gateway",
     "services/report-service",
+    "services/simulator",
 ]
 
 # ── Ruff ─────────────────────────────────────────────────────────────
@@ -78,9 +79,11 @@ ignore = [
 "**/middleware.py" = ["S110"]  # silent skip when no JWT present
 "**/alert_service.py" = ["S110"]  # best-effort pubsub cleanup
 "**/health_service.py" = ["S110"]  # best-effort pubsub cleanup
+"services/simulator/**/*.py" = ["S311", "PLR0912"]  # pseudo-random is fine for simulation; state machine is branchy
+"services/simulator/dry_run.py" = ["T201"]  # print is the point of this script
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared", "api_gateway", "processor", "report_service"]
+known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator"]
 
 [tool.ruff.format]
 quote-style = "double"

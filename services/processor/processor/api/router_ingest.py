@@ -26,6 +26,7 @@ from processor.services.ingestion_service import flatten_reading
 from shared.observability import get_logger
 from shared.schemas.telemetry import TelemetryReading
 from shared.utils import generate_id
+from shared.wire import encode as wire_encode
 
 logger = get_logger(__name__)
 
@@ -92,9 +93,9 @@ async def _process_single(
     await db.commit()
 
     # ── 6. Publish to Redis async (fire-and-forget, non-blocking) ───────
-    telemetry_payload = reading.model_dump_json()
-    health_payload = health.model_dump_json()
-    alert_payloads = [ae.model_dump_json() for ae in alert_events]
+    telemetry_payload = wire_encode(reading.model_dump(mode="json"))
+    health_payload = wire_encode(health.model_dump(mode="json"))
+    alert_payloads = [wire_encode(ae.model_dump(mode="json")) for ae in alert_events]
 
     publish_tasks = [
         publish_telemetry(loco_id, telemetry_payload),

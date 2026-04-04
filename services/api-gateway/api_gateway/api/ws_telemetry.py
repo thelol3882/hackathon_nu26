@@ -1,4 +1,7 @@
-"""WebSocket endpoints for real-time telemetry and alert streaming."""
+"""WebSocket endpoints for real-time telemetry and alert streaming.
+
+Wire format (JSON or msgpack) is controlled globally by WIRE_FORMAT env var.
+"""
 
 from __future__ import annotations
 

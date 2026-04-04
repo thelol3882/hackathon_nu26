@@ -20,6 +20,7 @@ from shared.log_codes import (
 )
 from shared.observability import get_logger
 from shared.schemas.health import HealthFactor, HealthIndex
+from shared.wire import decode as wire_decode
 
 logger = get_logger(__name__)
 
@@ -113,12 +114,12 @@ async def run_health_cache(redis_client: redis.Redis) -> None:
             backoff = 1.0
             logger.info("Health cache listener started")
             async for message in pubsub.listen():
-                if message["type"] != "pmessage":
+                if message["type"] != b"pmessage":
                     continue
                 try:
-                    channel: str = message["channel"]
-                    # channel = "health:live:<loco_id>"
-                    loco_id = channel.rsplit(":", maxsplit=1)[-1]
+                    channel: bytes = message["channel"]
+                    # channel = b"health:live:<loco_id>"
+                    loco_id = channel.decode().rsplit(":", maxsplit=1)[-1]
                     await cache_health(loco_id, message["data"])
                 except Exception:
                     logger.exception("Failed to cache health index")
@@ -179,7 +180,7 @@ async def get_health_index(
     cached = await get_cached_health(locomotive_id)
     if cached:
         try:
-            return HealthIndex.model_validate_json(cached)
+            return HealthIndex.model_validate(wire_decode(cached))
         except Exception:
             logger.warning("Failed to parse cached health index, falling back to DB", locomotive_id=locomotive_id)
 

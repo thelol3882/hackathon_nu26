@@ -7,20 +7,27 @@ from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
+# Main client (decode_responses=True) for general ops
 _redis_pool: redis.Redis | None = None
+# Raw client (decode_responses=False) for pub/sub — supports binary msgpack
+_redis_raw: redis.Redis | None = None
 
 
 async def init_redis() -> redis.Redis:
-    global _redis_pool
+    global _redis_pool, _redis_raw
     settings = get_settings()
     _redis_pool = redis.from_url(settings.redis_url, decode_responses=True)
+    _redis_raw = redis.from_url(settings.redis_url, decode_responses=False)
     await _redis_pool.ping()
     logger.info("Redis connected", code=INFRA_REDIS_CONNECTED, url=settings.redis_url)
     return _redis_pool
 
 
 async def close_redis() -> None:
-    global _redis_pool
+    global _redis_pool, _redis_raw
+    if _redis_raw:
+        await _redis_raw.aclose()
+        _redis_raw = None
     if _redis_pool:
         await _redis_pool.aclose()
         _redis_pool = None
@@ -33,16 +40,22 @@ def get_redis() -> redis.Redis:
     return _redis_pool
 
 
-async def publish_telemetry(loco_id: str, payload: str) -> None:
-    """Publish raw telemetry JSON to the live telemetry channel."""
-    await get_redis().publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
+async def publish_telemetry(loco_id: str, payload: bytes) -> None:
+    """Publish telemetry to the live channel. Payload is wire-encoded bytes."""
+    if _redis_raw is None:
+        raise RuntimeError("Redis not initialized.")
+    await _redis_raw.publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
 
 
-async def publish_alert(payload: str) -> None:
-    """Publish an AlertEvent JSON to the global alert channel."""
-    await get_redis().publish(ALERT_CHANNEL, payload)
+async def publish_alert(payload: bytes) -> None:
+    """Publish an AlertEvent to the global alert channel. Payload is wire-encoded bytes."""
+    if _redis_raw is None:
+        raise RuntimeError("Redis not initialized.")
+    await _redis_raw.publish(ALERT_CHANNEL, payload)
 
 
-async def publish_health(loco_id: str, payload: str) -> None:
-    """Publish a HealthIndex JSON to the live health channel."""
-    await get_redis().publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)
+async def publish_health(loco_id: str, payload: bytes) -> None:
+    """Publish a HealthIndex to the live health channel. Payload is wire-encoded bytes."""
+    if _redis_raw is None:
+        raise RuntimeError("Redis not initialized.")
+    await _redis_raw.publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)
