@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import base64
 import io
+from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fpdf import FPDF
 
@@ -14,6 +16,55 @@ _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 
 # Font family name used throughout the PDF
 _FONT = "DejaVu"
+
+# ── Russian translations ─────────────────────────────────────────────────────
+
+_SENSOR_NAMES: dict[str, str] = {
+    "diesel_rpm": "Обороты дизеля",
+    "oil_pressure": "Давление масла",
+    "coolant_temp": "Темп. охлаждения",
+    "fuel_level": "Уровень топлива",
+    "fuel_rate": "Расход топлива",
+    "traction_motor_temp": "Темп. тяг. двигателя",
+    "crankcase_pressure": "Давл. картера",
+    "catenary_voltage": "Напряжение сети",
+    "pantograph_current": "Ток пантографа",
+    "transformer_temp": "Темп. трансформатора",
+    "igbt_temp": "Темп. IGBT",
+    "recuperation_current": "Ток рекуперации",
+    "dc_link_voltage": "Напряжение DC-звена",
+    "speed_actual": "Скорость факт.",
+    "speed_target": "Скорость задан.",
+    "brake_pipe_pressure": "Давл. торм. магистрали",
+    "wheel_slip_ratio": "Коэфф. буксования",
+}
+
+_SEVERITY_NAMES: dict[str, str] = {
+    "info": "информация",
+    "warning": "предупреждение",
+    "critical": "критический",
+    "emergency": "аварийный",
+}
+
+_LOCO_TYPE_NAMES: dict[str, str] = {
+    "TE33A": "ТЭ33А (дизель-электрический)",
+    "KZ8A": "КЗ8А (электрический)",
+}
+
+
+def _sensor_ru(key: str) -> str:
+    return _SENSOR_NAMES.get(key, key)
+
+
+def _severity_ru(key: str) -> str:
+    return _SEVERITY_NAMES.get(key, key)
+
+
+def _loco_type_ru(key: str) -> str:
+    return _LOCO_TYPE_NAMES.get(key, key)
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
 
 
 def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
@@ -69,6 +120,25 @@ def _format_csv(data: dict) -> dict:
     }
 
 
+# ── PDF helpers ──────────────────────────────────────────────────────────────
+
+
+_TZ_ALMATY = ZoneInfo("Asia/Almaty")
+
+
+def _to_local(iso_str: str) -> str:
+    """Convert ISO timestamp string to Asia/Almaty local time for display."""
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(_TZ_ALMATY).strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return iso_str[:19]
+
+
 def _fmt(val, decimals: int = 2) -> str:
     """Round numeric values for display."""
     if isinstance(val, float):
@@ -81,11 +151,13 @@ def _create_pdf() -> FPDF:
     pdf = FPDF(orientation="L", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Register DejaVu Sans — supports Latin, Cyrillic, Greek, and more
     pdf.add_font(_FONT, "", str(_FONTS_DIR / "DejaVuSans.ttf"))
     pdf.add_font(_FONT, "B", str(_FONTS_DIR / "DejaVuSans-Bold.ttf"))
 
     return pdf
+
+
+# ── PDF generation ───────────────────────────────────────────────────────────
 
 
 def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
@@ -113,13 +185,13 @@ def _pdf_header(pdf: FPDF, data: dict) -> None:
     loco_id = data.get("locomotive_id", "Весь парк")
     loco_type = data.get("locomotive_type", "")
     date_range = data.get("date_range", {})
-    start = date_range.get("start", "")[:19]
-    end = date_range.get("end", "")[:19]
-    generated = str(data.get("generated_at", ""))[:19]
+    start = _to_local(date_range.get("start", ""))
+    end = _to_local(date_range.get("end", ""))
+    generated = _to_local(str(data.get("generated_at", "")))
 
-    type_label = f" ({loco_type})" if loco_type else ""
+    type_label = f" — {_loco_type_ru(loco_type)}" if loco_type else ""
     pdf.cell(0, 6, f"Локомотив: {loco_id}{type_label}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"Период: {start} — {end}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f"Период: {start} — {end} (Алматы)", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f"Сформирован: {generated}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
 
@@ -143,7 +215,7 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
     factors = overview.get("top_factors", [])
     if factors:
         _section_header(pdf, "Основные факторы влияния")
-        cols = [("Датчик", 55), ("Значение", 35), ("Ед.", 20), ("Штраф", 25), ("Вклад %", 25), ("Откл. %", 25)]
+        cols = [("Датчик", 55), ("Значение", 30), ("Ед.", 18), ("Штраф", 22), ("Вклад %", 22), ("Откл. %", 22)]
         _table_header(pdf, cols)
         for f in factors[:10]:
             if isinstance(f, dict):
@@ -151,7 +223,7 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
                     pdf,
                     cols,
                     [
-                        str(f.get("sensor_type", "")),
+                        _sensor_ru(str(f.get("sensor_type", ""))),
                         _fmt(f.get("value", 0)),
                         str(f.get("unit", "")),
                         _fmt(f.get("penalty", 0), 4),
@@ -166,14 +238,14 @@ def _pdf_sensor_stats(pdf: FPDF, stats: list[dict]) -> None:
     if not stats:
         return
     _section_header(pdf, "Статистика датчиков")
-    cols = [("Датчик", 50), ("Ед.", 18), ("Сред.", 30), ("Мин.", 30), ("Макс.", 30), ("СКО", 25), ("Кол-во", 20)]
+    cols = [("Датчик", 55), ("Ед.", 18), ("Среднее", 28), ("Мин.", 28), ("Макс.", 28), ("СКО", 25), ("Кол-во", 20)]
     _table_header(pdf, cols)
     for s in stats:
         _table_row(
             pdf,
             cols,
             [
-                s["sensor_type"],
+                _sensor_ru(s["sensor_type"]),
                 s["unit"],
                 _fmt(s["avg"]),
                 _fmt(s["min"]),
@@ -187,27 +259,27 @@ def _pdf_sensor_stats(pdf: FPDF, stats: list[dict]) -> None:
 
 def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
     if alert_summary.get("total", 0) > 0:
-        _section_header(pdf, "Сводка алертов")
+        _section_header(pdf, "Сводка предупреждений")
         pdf.set_font(_FONT, "", 10)
-        pdf.cell(0, 6, f"Всего алертов: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"Всего предупреждений: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
         for sev, count in alert_summary.get("by_severity", {}).items():
-            pdf.cell(0, 6, f"  {sev}: {count}", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, f"  {_severity_ru(sev)}: {count}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
     if not alerts:
         return
     shown = min(len(alerts), 30)
-    _section_header(pdf, f"История алертов (показано {shown} из {len(alerts)})")
-    cols = [("Время", 40), ("Датчик", 45), ("Уровень", 25), ("Значение", 25), ("Сообщение", 130)]
+    _section_header(pdf, f"История предупреждений (показано {shown} из {len(alerts)})")
+    cols = [("Время", 40), ("Датчик", 44), ("Уровень", 28), ("Значение", 20), ("Описание", 135)]
     _table_header(pdf, cols)
     for a in alerts[:30]:
         _table_row(
             pdf,
             cols,
             [
-                a["timestamp"][:19],
-                a["sensor_type"],
-                a["severity"],
+                _to_local(a["timestamp"]),
+                _sensor_ru(a["sensor_type"]),
+                _severity_ru(a["severity"]),
                 _fmt(a["value"]),
                 a["message"],
             ],
@@ -221,10 +293,16 @@ def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
     _section_header(pdf, "Обнаруженные аномалии")
     pdf.set_font(_FONT, "", 10)
     for sensor, items in anomalies.items():
-        pdf.cell(0, 6, f"  {sensor}: {len(items)} аномалий", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"  {_sensor_ru(sensor)}: {len(items)} аномалий", new_x="LMARGIN", new_y="NEXT")
+
+
+# ── Table primitives ─────────────────────────────────────────────────────────
 
 
 def _section_header(pdf: FPDF, title: str) -> None:
+    # Ensure section header + at least a few rows fit on current page
+    if pdf.get_y() > pdf.h - 40:
+        pdf.add_page()
     pdf.set_font(_FONT, "B", 12)
     pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
     pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
@@ -239,10 +317,15 @@ def _table_header(pdf: FPDF, cols: list[tuple[str, int]]) -> None:
 
 
 def _table_row(pdf: FPDF, cols: list[tuple[str, int]], values: list[str]) -> None:
+    # Prevent row from being split across pages
+    if pdf.get_y() + 6 > pdf.h - pdf.b_margin:
+        pdf.add_page()
+        _table_header(pdf, cols)  # repeat header on new page
     pdf.set_font(_FONT, "", 8)
-    for (_, w), v in zip(cols, values, strict=False):
-        # Truncate if too long for the cell
-        max_chars = int(w / 2)
+    for i, ((_, w), v) in enumerate(zip(cols, values, strict=False)):
+        is_last = i == len(values) - 1
+        # Last column gets more space per char (description/message fields)
+        max_chars = int(w * 0.7) if is_last else int(w / 2)
         display = v if len(v) <= max_chars else v[: max_chars - 1] + "…"
         pdf.cell(w, 5, display, border=1)
     pdf.ln()
