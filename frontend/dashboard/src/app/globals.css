@@ -1,49 +1,84 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
 }
 
 html {
-  height: 100%;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+    height: 100%;
 }
 
 body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+    min-height: 100%;
+    background: var(--dashboard-bg);
+    color: var(--dashboard-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 a {
-  color: inherit;
-  text-decoration: none;
+    color: inherit;
+    text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* Panel glow effects for health states */
+.panel-glow-healthy {
+    box-shadow: 0 0 20px var(--dashboard-glow-healthy),
+        inset 0 1px 0 rgba(34, 197, 94, 0.1);
+}
+
+.panel-glow-warning {
+    box-shadow: 0 0 20px var(--dashboard-glow-warning),
+        inset 0 1px 0 rgba(254, 198, 4, 0.1);
+}
+
+.panel-glow-critical {
+    box-shadow: 0 0 20px var(--dashboard-glow-critical),
+        inset 0 1px 0 rgba(239, 68, 68, 0.1);
+}
+
+/* Status LED pulse animation */
+@keyframes pulse-led {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.led-pulse {
+    animation: pulse-led 1.5s ease-in-out infinite;
+}
+
+/* Emergency alert flash */
+@keyframes alert-flash {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.alert-emergency {
+    animation: alert-flash 0.8s ease-in-out infinite;
+}
+
+/* Instrument value text — monospace readout style */
+.instrument-value {
+    font-family: var(--font-mono), monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+/* Panel label — engraved instrument style */
+.panel-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: var(--mantine-font-size-xs);
+    color: var(--dashboard-text-secondary);
+    font-weight: 600;
 }

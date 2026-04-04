@@ -1,0 +1,55 @@
+.grid {
+    display: grid;
+    gap: var(--mantine-spacing-md);
+    padding: var(--mantine-spacing-md);
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "health"
+        "speed"
+        "fuel"
+        "press"
+        "elec"
+        "alerts"
+        "trends"
+        "map";
+}
+
+/* Ensure cards fill their grid cell */
+.grid > div > * {
+    height: 100%;
+}
+
+.health { grid-area: health; }
+.speed { grid-area: speed; }
+.fuel { grid-area: fuel; }
+.press { grid-area: press; }
+.elec { grid-area: elec; }
+.alerts { grid-area: alerts; }
+.trends { grid-area: trends; }
+.map { grid-area: map; }
+
+/* Medium: 2 columns */
+@media (min-width: $mantine-breakpoint-md) {
+    .grid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "health  health"
+            "speed   fuel"
+            "press   elec"
+            "alerts  alerts"
+            "trends  trends"
+            "map     map";
+    }
+}
+
+/* Large: 4 columns */
+@media (min-width: $mantine-breakpoint-lg) {
+    .grid {
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-areas:
+            "health  health  speed   fuel"
+            "health  health  press   elec"
+            "alerts  alerts  trends  trends"
+            "map     map     trends  trends";
+    }
+}

@@ -1,0 +1,22 @@
+.mapContainer {
+    border-radius: var(--panel-radius, 8px);
+    overflow: hidden;
+}
+
+.mapContainer :global(.leaflet-container) {
+    height: 300px;
+    width: 100%;
+    border-radius: var(--panel-radius, 8px);
+}
+
+.trainMarker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background-color: var(--mantine-color-ktzBlue-5);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}

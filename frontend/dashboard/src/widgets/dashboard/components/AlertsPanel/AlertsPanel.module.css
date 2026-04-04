@@ -1,0 +1,57 @@
+.alertItem {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--dashboard-border);
+}
+
+.alertItem:last-child {
+    border-bottom: none;
+}
+
+.severityStripe {
+    width: 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.severityInfo {
+    background-color: var(--mantine-color-ktzBlue-5);
+}
+
+.severityWarning {
+    background-color: var(--mantine-color-ktzGold-5);
+}
+
+.severityCritical {
+    background-color: var(--mantine-color-critical-5);
+}
+
+.severityEmergency {
+    background-color: var(--mantine-color-critical-7);
+}
+
+.alertEmergency {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.alertContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.alertAction {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
