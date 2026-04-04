@@ -5,8 +5,8 @@ from fastapi import FastAPI
 
 from api_gateway.core.config import get_settings
 from api_gateway.core.database import close_db_pool, get_session_factory, init_db_pool
-from api_gateway.core.redis_client import close_redis, get_redis, init_redis
 from api_gateway.core.rabbitmq import close_rabbitmq, init_rabbitmq
+from api_gateway.core.redis_client import close_redis, get_redis, init_redis
 from api_gateway.services.alert_service import run_alert_persistence
 from api_gateway.services.connection_manager import ConnectionManager
 from api_gateway.services.health_service import init_health_config

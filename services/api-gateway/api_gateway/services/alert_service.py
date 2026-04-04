@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 
 
 # --- Background persistence task ---
+
 
 async def run_alert_persistence(
     redis_client: redis.Redis,
@@ -89,6 +90,7 @@ async def run_alert_persistence(
 
 # --- CRUD ---
 
+
 async def list_alerts(
     session: AsyncSession,
     *,
@@ -128,9 +130,7 @@ async def list_alerts(
 
 
 async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
-    result = await session.execute(
-        select(AlertRecord).where(AlertRecord.id == alert_id)
-    )
+    result = await session.execute(select(AlertRecord).where(AlertRecord.id == alert_id))
     r = result.scalar_one_or_none()
     if r is None:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -149,15 +149,13 @@ async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
 
 
 async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
-    result = await session.execute(
-        select(AlertRecord).where(AlertRecord.id == alert_id)
-    )
+    result = await session.execute(select(AlertRecord).where(AlertRecord.id == alert_id))
     r = result.scalar_one_or_none()
     if r is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
     r.acknowledged = True
-    r.acknowledged_at = datetime.now(timezone.utc)
+    r.acknowledged_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(r)
     logger.info("Alert acknowledged", code=ALERT_ACKNOWLEDGED, alert_id=alert_id)

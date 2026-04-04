@@ -20,7 +20,10 @@ async def get_telemetry(
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
-    bucket_interval: str = Query("1 minute", description="Aggregation interval: 1 minute, 5 minutes, 15 minutes, 1 hour, 1 day"),
+    bucket_interval: str = Query(
+        "1 minute",
+        description="Aggregation interval: 1 minute, 5 minutes, 15 minutes, 1 hour, 1 day",
+    ),
     offset: int = 0,
     limit: int = 50,
 ):

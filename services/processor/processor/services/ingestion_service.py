@@ -1,5 +1,5 @@
-from shared.schemas.telemetry import TelemetryReading
 from processor.models.telemetry_entity import TelemetryRow
+from shared.schemas.telemetry import TelemetryReading
 
 
 def flatten_reading(reading: TelemetryReading) -> list[TelemetryRow]:

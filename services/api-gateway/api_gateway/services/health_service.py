@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
@@ -12,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.models.health_config_entity import HealthThreshold, HealthWeight
 from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS
-from shared.log_codes import HEALTH_CONFIG_CACHED, HEALTH_CONFIG_SEEDED, HEALTH_CONFIG_UPDATED, HEALTH_COMPUTED, HEALTH_NO_DATA
+from shared.log_codes import (
+    HEALTH_CONFIG_SEEDED,
+)
 from shared.observability import get_logger
 from shared.schemas.health import ComponentHealth, HealthIndex
 
@@ -23,6 +26,7 @@ _REDIS_WEIGHTS_KEY = "health:weights"
 
 
 # --- Config models ---
+
 
 class ThresholdConfig(BaseModel):
     sensor_type: str
@@ -36,6 +40,7 @@ class WeightConfig(BaseModel):
 
 
 # --- Startup: seed DB if empty, then cache to Redis ---
+
 
 async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -> None:
     """Load health config from DB into Redis. Seed DB from constants if empty."""
@@ -63,10 +68,7 @@ async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -
 
 async def _cache_config_to_redis(session: AsyncSession, redis_client: redis.Redis) -> None:
     result = await session.execute(select(HealthThreshold))
-    thresholds = {
-        r.sensor_type: json.dumps({"min": r.min_value, "max": r.max_value})
-        for r in result.scalars().all()
-    }
+    thresholds = {r.sensor_type: json.dumps({"min": r.min_value, "max": r.max_value}) for r in result.scalars().all()}
     if thresholds:
         await redis_client.delete(_REDIS_THRESHOLDS_KEY)
         await redis_client.hset(_REDIS_THRESHOLDS_KEY, mapping=thresholds)
@@ -79,6 +81,7 @@ async def _cache_config_to_redis(session: AsyncSession, redis_client: redis.Redi
 
 
 # --- Read config from Redis ---
+
 
 async def _get_thresholds(redis_client: redis.Redis) -> dict[str, tuple[float, float]]:
     raw = await redis_client.hgetall(_REDIS_THRESHOLDS_KEY)
@@ -97,10 +100,9 @@ async def _get_weights(redis_client: redis.Redis) -> dict[str, float]:
 
 # --- Health Index computation ---
 
-def _compute_component_score(
-    value: float, lo: float, hi: float
-) -> float:
-    """Compute score 0.0–1.0 based on how far value is from normal range."""
+
+def _compute_component_score(value: float, lo: float, hi: float) -> float:
+    """Compute score 0.0-1.0 based on how far value is from normal range."""
     if lo <= value <= hi:
         mid = (lo + hi) / 2
         span = (hi - lo) / 2
@@ -165,22 +167,19 @@ async def get_health_index(
 
     overall = round(weighted_sum / total_weight, 3) if total_weight > 0 else 0.0
 
-    from datetime import datetime, timezone
-
     return HealthIndex(
         locomotive_id=locomotive_id,
         overall_score=overall,
         components=sorted(components, key=lambda c: c.score),
-        calculated_at=datetime.now(timezone.utc),
+        calculated_at=datetime.now(UTC),
     )
 
 
 # --- Config CRUD ---
 
+
 async def list_thresholds(session: AsyncSession) -> list[ThresholdConfig]:
-    result = await session.execute(
-        select(HealthThreshold).order_by(HealthThreshold.sensor_type)
-    )
+    result = await session.execute(select(HealthThreshold).order_by(HealthThreshold.sensor_type))
     return [
         ThresholdConfig(sensor_type=r.sensor_type, min_value=r.min_value, max_value=r.max_value)
         for r in result.scalars().all()
@@ -194,9 +193,7 @@ async def update_threshold(
     min_value: float,
     max_value: float,
 ) -> ThresholdConfig:
-    result = await session.execute(
-        select(HealthThreshold).where(HealthThreshold.sensor_type == sensor_type)
-    )
+    result = await session.execute(select(HealthThreshold).where(HealthThreshold.sensor_type == sensor_type))
     entity = result.scalar_one_or_none()
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Threshold for '{sensor_type}' not found")
@@ -216,13 +213,8 @@ async def update_threshold(
 
 
 async def list_weights(session: AsyncSession) -> list[WeightConfig]:
-    result = await session.execute(
-        select(HealthWeight).order_by(HealthWeight.sensor_type)
-    )
-    return [
-        WeightConfig(sensor_type=r.sensor_type, weight=r.weight)
-        for r in result.scalars().all()
-    ]
+    result = await session.execute(select(HealthWeight).order_by(HealthWeight.sensor_type))
+    return [WeightConfig(sensor_type=r.sensor_type, weight=r.weight) for r in result.scalars().all()]
 
 
 async def update_weight(
@@ -231,9 +223,7 @@ async def update_weight(
     sensor_type: str,
     weight: float,
 ) -> WeightConfig:
-    result = await session.execute(
-        select(HealthWeight).where(HealthWeight.sensor_type == sensor_type)
-    )
+    result = await session.execute(select(HealthWeight).where(HealthWeight.sensor_type == sensor_type))
     entity = result.scalar_one_or_none()
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Weight for '{sensor_type}' not found")

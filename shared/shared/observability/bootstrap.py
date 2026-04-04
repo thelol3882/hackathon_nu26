@@ -14,9 +14,7 @@ def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
     shutdown_fns: list[Callable[[], None]] = []
 
     otel_enabled = os.environ.get("OTEL_ENABLED", "true").lower() == "true"
-    otlp_endpoint = os.environ.get(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317"
-    )
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317")
 
     if otel_enabled:
         from shared.observability.metrics import setup_metrics

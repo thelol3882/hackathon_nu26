@@ -1,5 +1,5 @@
-from pydantic import BaseModel
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from api_gateway.api.dependencies import DbSession, Redis
 from api_gateway.services.health_service import (
@@ -30,9 +30,7 @@ async def get_thresholds(db: DbSession):
 
 
 @router.put("/thresholds/{sensor_type}", response_model=ThresholdConfig)
-async def put_threshold(
-    sensor_type: str, body: ThresholdUpdate, db: DbSession, redis: Redis
-):
+async def put_threshold(sensor_type: str, body: ThresholdUpdate, db: DbSession, redis: Redis):
     """Update threshold for a sensor type. Changes apply immediately."""
     return await update_threshold(db, redis, sensor_type, body.min_value, body.max_value)
 
@@ -44,8 +42,6 @@ async def get_weights(db: DbSession):
 
 
 @router.put("/weights/{sensor_type}", response_model=WeightConfig)
-async def put_weight(
-    sensor_type: str, body: WeightUpdate, db: DbSession, redis: Redis
-):
+async def put_weight(sensor_type: str, body: WeightUpdate, db: DbSession, redis: Redis):
     """Update weight for a sensor type. Changes apply immediately."""
     return await update_weight(db, redis, sensor_type, body.weight)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -45,7 +45,7 @@ async def create_report_job(
         report_type=request.report_type,
         format=request.format,
         date_range=request.date_range,
-        requested_at=datetime.now(timezone.utc),
+        requested_at=datetime.now(UTC),
     )
     await publish_report_job(job.model_dump(mode="json"))
 
@@ -62,9 +62,7 @@ async def create_report_job(
 
 async def get_report(session: AsyncSession, report_id: str) -> ReportResponse:
     """Fetch report status and data."""
-    result = await session.execute(
-        select(Report).where(Report.id == report_id)
-    )
+    result = await session.execute(select(Report).where(Report.id == report_id))
     entity = result.scalar_one_or_none()
     if entity is None:
         raise HTTPException(status_code=404, detail="Report not found")

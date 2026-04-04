@@ -2,11 +2,11 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api_gateway.api.router_alerts import router as alerts_router
-from api_gateway.api.router_reports import router as reports_router
 from api_gateway.api.router_auth import router as auth_router
 from api_gateway.api.router_config import router as config_router
 from api_gateway.api.router_health import router as health_router
 from api_gateway.api.router_locomotives import router as locomotives_router
+from api_gateway.api.router_reports import router as reports_router
 from api_gateway.api.router_telemetry import router as telemetry_router
 from api_gateway.api.ws_telemetry import router as ws_router
 from api_gateway.core.auth import get_current_user, require_admin

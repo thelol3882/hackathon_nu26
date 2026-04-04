@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from shared.constants import DEFAULT_THRESHOLDS
@@ -35,5 +35,5 @@ def evaluate_sensor(
         threshold_min=min_val,
         threshold_max=max_val,
         message=f"{sensor.sensor_type.value} out of range: {sensor.value} {sensor.unit}",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from starlette.requests import HTTPConnection
 
 from api_gateway.services.connection_manager import ConnectionManager
 from shared.constants import ALERT_CHANNEL, TELEMETRY_CHANNEL

@@ -16,17 +16,13 @@ class UserContextMiddleware(BaseHTTPMiddleware):
     for logging. Skips silently if no token or invalid token.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
             try:
                 settings = get_settings()
-                payload = jwt.decode(
-                    token, settings.jwt_secret, algorithms=["HS256"]
-                )
+                payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
                 structlog.contextvars.bind_contextvars(
                     user_id=payload.get("sub"),
                     user_role=payload.get("role"),

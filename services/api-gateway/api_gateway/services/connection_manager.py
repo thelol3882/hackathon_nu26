@@ -67,16 +67,12 @@ class _ChannelRelay:
         async with self._lock:
             ws_id = id(ws)
             slot = _ClientSlot(filter_loco_id=filter_loco_id)
-            slot.sender_task = asyncio.create_task(
-                self._sender_loop(ws, slot.queue), name=f"ws-sender-{ws_id}"
-            )
+            slot.sender_task = asyncio.create_task(self._sender_loop(ws, slot.queue), name=f"ws-sender-{ws_id}")
             self._clients[ws_id] = slot
             self._ws_map[ws_id] = ws
 
             if self._listener_task is None or self._listener_task.done():
-                self._listener_task = asyncio.create_task(
-                    self._listener_loop(), name=f"redis-listener-{self.channel}"
-                )
+                self._listener_task = asyncio.create_task(self._listener_loop(), name=f"redis-listener-{self.channel}")
 
     async def remove_client(self, ws: WebSocket) -> int:
         """Remove client, return remaining count."""
@@ -187,9 +183,7 @@ class ConnectionManager:
         return len(self._connections)
 
     async def start(self) -> None:
-        self._heartbeat_task = asyncio.create_task(
-            self._heartbeat_loop(), name="ws-heartbeat"
-        )
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="ws-heartbeat")
 
     async def accept(self, ws: WebSocket) -> bool:
         """Accept a WebSocket connection. Returns False if over limit."""

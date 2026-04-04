@@ -1,3 +1,4 @@
+import base64
 import csv
 import io
 import json
@@ -31,9 +32,7 @@ async def get_reports(
     limit: int = 20,
 ):
     """List reports with optional filters."""
-    return await list_reports(
-        db, locomotive_id=locomotive_id, status=status, offset=offset, limit=limit
-    )
+    return await list_reports(db, locomotive_id=locomotive_id, status=status, offset=offset, limit=limit)
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
@@ -81,8 +80,6 @@ async def download_report(report_id: str, db: DbSession):
 
     # PDF: report-service would generate and store as base64 in data["pdf_base64"]
     if report.format == "pdf":
-        import base64
-
         pdf_b64 = report.data.get("pdf_base64")
         if not pdf_b64:
             raise HTTPException(status_code=404, detail="PDF data not available")

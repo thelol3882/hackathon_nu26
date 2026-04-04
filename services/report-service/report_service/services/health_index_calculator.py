@@ -1,7 +1,7 @@
 """Weighted health index scoring across sensor readings."""
 
 from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS
-from shared.schemas.health import ComponentHealth, HealthIndex
+from shared.schemas.health import ComponentHealth
 
 
 def calculate_component_score(

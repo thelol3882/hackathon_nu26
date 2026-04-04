@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import jwt
@@ -31,7 +31,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(user_id: uuid.UUID, role: str) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expiry_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expiry_minutes)
     payload = {
         "sub": str(user_id),
         "role": role,
@@ -44,16 +44,16 @@ def _decode_token(token: str) -> dict:
     settings = get_settings()
     try:
         return jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired",
-        )
-    except jwt.InvalidTokenError:
+        ) from e
+    except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+        ) from e
 
 
 async def get_current_user(

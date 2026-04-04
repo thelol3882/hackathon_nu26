@@ -1,5 +1,5 @@
-from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -47,10 +47,10 @@ async def register(body: RegisterRequest, db: DbSession):
     db.add(user)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
         logger.warning("Registration conflict", code=AUTH_REGISTER_CONFLICT, username=body.username)
-        raise HTTPException(status_code=409, detail="Username already exists")
+        raise HTTPException(status_code=409, detail="Username already exists") from e
     await db.refresh(user)
     logger.info("User registered", code=AUTH_REGISTER_OK, user_id=str(user.id), username=user.username)
     return UserResponse(id=str(user.id), username=user.username, role=user.role)

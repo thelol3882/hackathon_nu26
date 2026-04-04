@@ -52,18 +52,27 @@ select = [
 ignore = [
     "S101",    # assert used — fine in tests
     "S104",    # bind to 0.0.0.0 — expected in containers
+    "S105",    # hardcoded password — false positives on config defaults and log codes
     "B008",    # function call in default arg — FastAPI Depends() pattern
     "ARG001",  # unused function arg — common in FastAPI deps/endpoints
     "FBT001",  # boolean positional arg in function def — too noisy for Pydantic
     "FBT002",  # boolean default in function def — same
     "PLR0913", # too many arguments — unavoidable in query services
+    "PLW0603", # global statement — used for module-level connection pool singletons
+    "PLC0415", # import outside top-level — conditional OTel imports are intentional
     "RUF012",  # mutable class attributes — false positives with SQLAlchemy mapped_column
+    "TCH",     # type-checking blocks — adds complexity for minimal benefit
+    "SIM108",  # ternary operator — explicit if/else is more readable for complex expressions
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ARG001", "PLR2004"]
-"alembic/**/*.py" = ["F401", "E501"]
+"**/alembic/**/*.py" = ["F401", "E501"]
 "**/models/*.py" = ["A003"]  # allow 'id', 'format' field names in ORM models
+"**/ws_telemetry.py" = ["S110"]  # try-except-pass expected for WS disconnect
+"**/connection_manager.py" = ["S110", "SIM105", "PLR0912"]  # try-except-pass for best-effort cleanup, queue backpressure
+"**/middleware.py" = ["S110"]  # silent skip when no JWT present
+"**/alert_service.py" = ["S110"]  # best-effort pubsub cleanup
 
 [tool.ruff.lint.isort]
 known-first-party = ["shared", "api_gateway", "processor", "report_service"]
