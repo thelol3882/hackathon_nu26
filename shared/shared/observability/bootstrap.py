@@ -32,7 +32,7 @@ def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
     else:
         logger.info("OpenTelemetry disabled")
 
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(RequestContextMiddleware, service_name=service_name)
     logger.info("Observability initialized", service=service_name)
 
     def shutdown() -> None:

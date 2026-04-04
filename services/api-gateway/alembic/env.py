@@ -8,6 +8,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from api_gateway.core.config import get_settings
 from api_gateway.models.base import Base
 import api_gateway.models.locomotive_entity  # noqa: F401 — register models
+import api_gateway.models.alert_entity  # noqa: F401
+import api_gateway.models.health_config_entity  # noqa: F401
+import api_gateway.models.user_entity  # noqa: F401
+import api_gateway.models.report_entity  # noqa: F401
 
 config = context.config
 

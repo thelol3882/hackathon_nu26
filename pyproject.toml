@@ -3,6 +3,11 @@ name = "hackathon-nu26"
 version = "0.1.0"
 requires-python = ">=3.13"
 
+[dependency-groups]
+dev = [
+    "ruff>=0.11.0",
+]
+
 [tool.uv.workspace]
 members = [
     "shared",
@@ -10,3 +15,60 @@ members = [
     "services/api-gateway",
     "services/report-service",
 ]
+
+# ── Ruff ─────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",      # Pyflakes — unused imports, undefined names
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort — import ordering
+    "N",      # pep8-naming
+    "UP",     # pyupgrade — modern Python syntax
+    "S",      # flake8-bandit — security
+    "B",      # flake8-bugbear — common bugs
+    "A",      # flake8-builtins — shadowing builtins
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez — enforce tz-aware datetimes
+    "T20",    # flake8-print — no print() in prod code
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking — move type-only imports behind TYPE_CHECKING
+    "RUF",    # Ruff-specific rules
+    "ASYNC",  # flake8-async — async pitfalls
+    "LOG",    # flake8-logging
+    "PT",     # flake8-pytest-style
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+    "FBT",    # flake8-boolean-trap
+    "PIE",    # flake8-pie — misc lints
+    "PL",     # Pylint subset (convention + refactor + error)
+    "PERF",   # Perflint — performance anti-patterns
+    "FURB",   # refurb — modernize code
+]
+ignore = [
+    "S101",    # assert used — fine in tests
+    "S104",    # bind to 0.0.0.0 — expected in containers
+    "B008",    # function call in default arg — FastAPI Depends() pattern
+    "ARG001",  # unused function arg — common in FastAPI deps/endpoints
+    "FBT001",  # boolean positional arg in function def — too noisy for Pydantic
+    "FBT002",  # boolean default in function def — same
+    "PLR0913", # too many arguments — unavoidable in query services
+    "RUF012",  # mutable class attributes — false positives with SQLAlchemy mapped_column
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ARG001", "PLR2004"]
+"alembic/**/*.py" = ["F401", "E501"]
+"**/models/*.py" = ["A003"]  # allow 'id', 'format' field names in ORM models
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared", "api_gateway", "processor", "report_service"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
