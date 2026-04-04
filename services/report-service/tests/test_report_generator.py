@@ -99,10 +99,12 @@ def _build_mock_session(
     latest_row=None,
     alert_rows=None,
     telemetry_rows=None,
+    has_locomotive_id: bool = True,
 ):
     """Build an AsyncSession mock with side_effect for sequential execute calls.
 
     Call order in generate_report_data:
+      0. _query_locomotive_type -> fetchone
       1. _query_sensor_stats  -> fetchall
       2. _query_health_trend  -> fetchall
       3. _query_latest_health (agg) -> fetchone
@@ -111,6 +113,12 @@ def _build_mock_session(
       6. _detect_anomalies     -> fetchall
     """
     results = []
+
+    # 0 - locomotive_type (only when locomotive_id is provided)
+    if has_locomotive_id:
+        r0 = MagicMock()
+        r0.fetchone.return_value = SimpleNamespace(locomotive_type="TE33A")
+        results.append(r0)
 
     # 1 - sensor_stats
     r1 = MagicMock()
@@ -191,7 +199,7 @@ class TestGenerateReportData:
     @pytest.mark.asyncio
     async def test_without_locomotive_id(self):
         """When locomotive_id is None, result locomotive_id is None."""
-        session = _build_mock_session(agg_row=_make_agg_row(), latest_row=_make_latest_row())
+        session = _build_mock_session(agg_row=_make_agg_row(), latest_row=_make_latest_row(), has_locomotive_id=False)
         result = await generate_report_data(session, _make_job(locomotive_id=None))
         assert result["locomotive_id"] is None
 

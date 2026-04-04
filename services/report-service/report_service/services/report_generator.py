@@ -33,6 +33,7 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
     start = job.date_range.start
     end = job.date_range.end
 
+    locomotive_type = await _query_locomotive_type(session, loco_id)
     sensor_stats = await _query_sensor_stats(session, loco_id, start, end)
     health_trend = await _query_health_trend(session, loco_id, start, end)
     latest_health = await _query_latest_health(session, loco_id, start, end)
@@ -56,6 +57,7 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
 
     return {
         "locomotive_id": str(loco_id) if loco_id else None,
+        "locomotive_type": locomotive_type,
         "report_type": job.report_type,
         "date_range": {"start": start.isoformat(), "end": end.isoformat()},
         "health_overview": {
@@ -75,6 +77,18 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
         "components": [c.model_dump() for c in components],
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def _query_locomotive_type(session: AsyncSession, loco_id: UUID | None) -> str:
+    """Get locomotive type from the most recent telemetry record."""
+    if not loco_id:
+        return "Парк"
+    result = await session.execute(
+        text("SELECT locomotive_type FROM raw_telemetry WHERE locomotive_id = :loco_id LIMIT 1"),
+        {"loco_id": loco_id},
+    )
+    row = result.fetchone()
+    return row.locomotive_type if row else "N/A"
 
 
 async def _query_sensor_stats(

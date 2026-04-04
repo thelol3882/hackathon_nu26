@@ -15,11 +15,13 @@ Pipeline per reading:
 import asyncio
 
 from fastapi import APIRouter
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from processor.api.dependencies import DbSession, Redis
 from processor.core.redis_client import publish_alert, publish_health, publish_telemetry
 from processor.models.alert_entity import AlertRecord
 from processor.models.health_entity import HealthSnapshotRecord
+from processor.models.telemetry_entity import TelemetryRecord
 from processor.services.alert_evaluator import evaluate_alerts
 from processor.services.health_service import calculate_health
 from processor.services.ingestion_service import flatten_reading
@@ -53,9 +55,30 @@ async def _process_single(
     # flatten_reading mutates sensor.value → filtered; returns DB rows
     rows = flatten_reading(reading)
 
-    # ── 2. Bulk INSERT raw telemetry ────────────────────────────────────
+    # ── 2. Bulk INSERT raw telemetry (skip duplicates) ────────────────
     if rows:
-        db.add_all(rows)
+        stmt = (
+            pg_insert(TelemetryRecord)
+            .values(
+                [
+                    {
+                        "time": r.time,
+                        "locomotive_id": r.locomotive_id,
+                        "locomotive_type": r.locomotive_type,
+                        "sensor_type": r.sensor_type,
+                        "value": r.value,
+                        "filtered_value": r.filtered_value,
+                        "unit": r.unit,
+                        "sample_rate_hz": r.sample_rate_hz,
+                        "latitude": r.latitude,
+                        "longitude": r.longitude,
+                    }
+                    for r in rows
+                ]
+            )
+            .on_conflict_do_nothing()
+        )
+        await db.execute(stmt)
 
     # ── 3. Alert evaluation ─────────────────────────────────────────────
     # Uses already-filtered sensor.value (mutated by flatten_reading)
