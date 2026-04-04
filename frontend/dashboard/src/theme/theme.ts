@@ -1,8 +1,4 @@
-import {
-    createTheme,
-    type CSSVariablesResolver,
-    type MantineColorsTuple,
-} from '@mantine/core';
+import { createTheme, type CSSVariablesResolver, type MantineColorsTuple } from '@mantine/core';
 
 const ktzBlue: MantineColorsTuple = [
     '#e5f4ff',

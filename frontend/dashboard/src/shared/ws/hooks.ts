@@ -25,12 +25,9 @@ export function useWebSocket(path: string | null) {
         };
     }, [path]);
 
-    const subscribe = useCallback(
-        (handler: (data: unknown) => void) => {
-            return managerRef.current?.subscribe(handler) ?? (() => {});
-        },
-        [],
-    );
+    const subscribe = useCallback((handler: (data: unknown) => void) => {
+        return managerRef.current?.subscribe(handler) ?? (() => {});
+    }, []);
 
     return { status, subscribe };
 }

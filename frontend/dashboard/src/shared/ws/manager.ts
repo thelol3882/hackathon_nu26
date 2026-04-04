@@ -49,7 +49,13 @@ export class WebSocketManager {
         this.ws.onmessage = (event: MessageEvent) => {
             try {
                 const data = this.decodeMessage(event.data);
-                if (data && typeof data === 'object' && 'type' in data && (data as Record<string, unknown>).type === 'ping') return;
+                if (
+                    data &&
+                    typeof data === 'object' &&
+                    'type' in data &&
+                    (data as Record<string, unknown>).type === 'ping'
+                )
+                    return;
                 this.handlers.forEach((handler) => handler(data));
             } catch {
                 // ignore malformed messages

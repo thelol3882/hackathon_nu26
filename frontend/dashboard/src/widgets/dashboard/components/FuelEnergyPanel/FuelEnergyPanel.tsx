@@ -23,7 +23,8 @@ export default function FuelEnergyPanel({
     const panelLabel = isDiesel ? 'ТОПЛИВО' : 'ЭЛЕКТРОПИТАНИЕ';
 
     const fuelLevelValue = fuelLevel?.value ?? null;
-    const fuelLevelPercent = fuelLevelValue !== null ? Math.min(100, Math.max(0, fuelLevelValue)) : 0;
+    const fuelLevelPercent =
+        fuelLevelValue !== null ? Math.min(100, Math.max(0, fuelLevelValue)) : 0;
 
     let fuelBarColor = 'var(--mantine-color-healthy-5)';
     if (fuelLevelValue !== null) {
@@ -80,9 +81,14 @@ export default function FuelEnergyPanel({
                                 </div>
                                 <span
                                     className="instrument-value"
-                                    style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 14 }}
+                                    style={{
+                                        fontFamily: 'var(--font-mono, monospace)',
+                                        fontSize: 14,
+                                    }}
                                 >
-                                    {fuelLevelValue !== null ? `${fuelLevelValue.toFixed(0)}%` : '--%'}
+                                    {fuelLevelValue !== null
+                                        ? `${fuelLevelValue.toFixed(0)}%`
+                                        : '--%'}
                                 </span>
                             </Stack>
                             <Stack gap="sm" style={{ flex: 1 }}>

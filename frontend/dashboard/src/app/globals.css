@@ -25,23 +25,27 @@ a {
 
 /* Panel glow effects for health states */
 .panel-glow-healthy {
-    box-shadow: 0 0 20px var(--dashboard-glow-healthy),
+    box-shadow:
+        0 0 20px var(--dashboard-glow-healthy),
         inset 0 1px 0 rgba(34, 197, 94, 0.1);
 }
 
 .panel-glow-warning {
-    box-shadow: 0 0 20px var(--dashboard-glow-warning),
+    box-shadow:
+        0 0 20px var(--dashboard-glow-warning),
         inset 0 1px 0 rgba(254, 198, 4, 0.1);
 }
 
 .panel-glow-critical {
-    box-shadow: 0 0 20px var(--dashboard-glow-critical),
+    box-shadow:
+        0 0 20px var(--dashboard-glow-critical),
         inset 0 1px 0 rgba(239, 68, 68, 0.1);
 }
 
 /* Status LED pulse animation */
 @keyframes pulse-led {
-    0%, 100% {
+    0%,
+    100% {
         opacity: 1;
     }
     50% {
@@ -55,7 +59,8 @@ a {
 
 /* Emergency alert flash */
 @keyframes alert-flash {
-    0%, 100% {
+    0%,
+    100% {
         opacity: 1;
     }
     50% {

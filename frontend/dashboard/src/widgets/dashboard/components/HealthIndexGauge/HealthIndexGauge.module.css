@@ -13,7 +13,9 @@
 }
 
 .ring {
-    transition: stroke-dashoffset 0.8s ease-out, stroke 0.5s ease;
+    transition:
+        stroke-dashoffset 0.8s ease-out,
+        stroke 0.5s ease;
 }
 
 .score {

@@ -64,10 +64,7 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                 />
                 <MapUpdater position={position} />
                 {position && (
-                    <Marker
-                        position={[position.latitude, position.longitude]}
-                        icon={trainIcon}
-                    />
+                    <Marker position={[position.latitude, position.longitude]} icon={trainIcon} />
                 )}
             </MapContainer>
         </div>

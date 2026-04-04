@@ -67,16 +67,7 @@ function buildTickMarks() {
         const y1 = cy + innerR * Math.sin(rad);
         const x2 = cx + outerR * Math.cos(rad);
         const y2 = cy + outerR * Math.sin(rad);
-        return (
-            <line
-                key={pct}
-                className={classes.tickMark}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-            />
-        );
+        return <line key={pct} className={classes.tickMark} x1={x1} y1={y1} x2={x2} y2={y2} />;
     });
 }
 
@@ -176,13 +167,9 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             Влияющие факторы
                         </Text>
                         {factors.map((factor) => (
-                            <div
-                                key={factor.sensor_type}
-                                className={classes.factorRow}
-                            >
+                            <div key={factor.sensor_type} className={classes.factorRow}>
                                 <span className={classes.factorLabel}>
-                                    {SENSOR_LABELS[factor.sensor_type] ??
-                                        factor.sensor_type}
+                                    {SENSOR_LABELS[factor.sensor_type] ?? factor.sensor_type}
                                 </span>
                                 <Progress
                                     className={classes.factorBar}

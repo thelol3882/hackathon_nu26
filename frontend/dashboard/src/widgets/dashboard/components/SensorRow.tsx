@@ -43,8 +43,7 @@ export default function SensorRow({
     warningMin,
     warningMax,
 }: SensorRowProps) {
-    const percentage =
-        value === null ? 0 : clamp(((value - min) / (max - min)) * 100, 0, 100);
+    const percentage = value === null ? 0 : clamp(((value - min) / (max - min)) * 100, 0, 100);
 
     const color = getProgressColor(value, min, max, warningMin, warningMax);
 

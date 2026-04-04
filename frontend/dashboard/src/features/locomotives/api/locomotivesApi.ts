@@ -25,8 +25,5 @@ export const locomotivesApi = baseApi.injectEndpoints({
     }),
 });
 
-export const {
-    useGetLocomotivesQuery,
-    useGetLocomotiveQuery,
-    useCreateLocomotiveMutation,
-} = locomotivesApi;
+export const { useGetLocomotivesQuery, useGetLocomotiveQuery, useCreateLocomotiveMutation } =
+    locomotivesApi;

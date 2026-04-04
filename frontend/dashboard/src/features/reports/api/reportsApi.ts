@@ -25,8 +25,4 @@ export const reportsApi = baseApi.injectEndpoints({
     }),
 });
 
-export const {
-    useGenerateReportMutation,
-    useGetReportsQuery,
-    useGetReportQuery,
-} = reportsApi;
+export const { useGenerateReportMutation, useGetReportsQuery, useGetReportQuery } = reportsApi;

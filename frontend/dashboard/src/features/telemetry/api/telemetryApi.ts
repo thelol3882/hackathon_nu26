@@ -1,5 +1,10 @@
 import { baseApi } from '@/shared/api/baseApi';
-import type { TelemetryBucket, TelemetryQuery, TelemetryRawQuery, TelemetryReading } from '../types';
+import type {
+    TelemetryBucket,
+    TelemetryQuery,
+    TelemetryRawQuery,
+    TelemetryReading,
+} from '../types';
 
 export const telemetryApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({

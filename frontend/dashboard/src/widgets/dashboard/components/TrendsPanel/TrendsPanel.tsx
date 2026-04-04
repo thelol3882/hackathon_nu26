@@ -114,20 +114,13 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                                 />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--dashboard-border)"
-                        />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--dashboard-border)" />
                         <XAxis
                             dataKey="bucket"
                             tickFormatter={(v: string) => formatTimeShort(v)}
                             tick={{ fontSize: 11 }}
                         />
-                        <YAxis
-                            unit={unit ? ` ${unit}` : ''}
-                            tick={{ fontSize: 11 }}
-                            width={60}
-                        />
+                        <YAxis unit={unit ? ` ${unit}` : ''} tick={{ fontSize: 11 }} width={60} />
                         <Tooltip
                             formatter={(value: unknown) => [
                                 `${Number(value).toFixed(2)} ${unit}`,

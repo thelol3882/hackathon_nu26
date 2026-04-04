@@ -77,7 +77,11 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
                     СКОРОСТЬ
                 </Text>
 
-                <svg viewBox="0 0 200 120" width="100%" style={{ maxWidth: 240, alignSelf: 'center' }}>
+                <svg
+                    viewBox="0 0 200 120"
+                    width="100%"
+                    style={{ maxWidth: 240, alignSelf: 'center' }}
+                >
                     {/* Background arc */}
                     <path
                         d={bgPath}

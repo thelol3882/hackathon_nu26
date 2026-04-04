@@ -9,19 +9,14 @@ export function useReportGeneration() {
     const [status, setStatus] = useState<ReportStatus | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const [generateMutation, { error: mutationError }] =
-        reportsApi.useGenerateReportMutation();
+    const [generateMutation, { error: mutationError }] = reportsApi.useGenerateReportMutation();
 
-    const shouldPoll =
-        reportId !== null && status !== null && !TERMINAL_STATUSES.includes(status);
+    const shouldPoll = reportId !== null && status !== null && !TERMINAL_STATUSES.includes(status);
 
-    const { data: reportData, error: queryError } = reportsApi.useGetReportQuery(
-        reportId!,
-        {
-            skip: !reportId,
-            pollingInterval: shouldPoll ? 2000 : 0,
-        },
-    );
+    const { data: reportData, error: queryError } = reportsApi.useGetReportQuery(reportId!, {
+        skip: !reportId,
+        pollingInterval: shouldPoll ? 2000 : 0,
+    });
 
     if (reportData && reportData.status !== status) {
         setStatus(reportData.status);

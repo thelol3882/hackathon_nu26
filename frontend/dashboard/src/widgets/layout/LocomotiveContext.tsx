@@ -15,9 +15,7 @@ const LocomotiveContext = createContext<LocomotiveContextValue>({
 export function LocomotiveProvider({ children }: { children: ReactNode }) {
     const [locomotiveId, setLocomotiveId] = useState<string | null>(null);
     return (
-        <LocomotiveContext value={{ locomotiveId, setLocomotiveId }}>
-            {children}
-        </LocomotiveContext>
+        <LocomotiveContext value={{ locomotiveId, setLocomotiveId }}>{children}</LocomotiveContext>
     );
 }
 

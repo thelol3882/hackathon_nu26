@@ -75,9 +75,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     const dispatch = useAppDispatch();
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
-    const visibleNavItems = navigationItems.filter(
-        (item) => !item.adminOnly || isAdmin,
-    );
+    const visibleNavItems = navigationItems.filter((item) => !item.adminOnly || isAdmin);
 
     return (
         <LocomotiveProvider>
@@ -141,10 +139,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 </AppShell.Header>
 
                 {/* Navbar */}
-                <AppShell.Navbar
-                    p="md"
-                    style={{ backgroundColor: 'var(--dashboard-surface)' }}
-                >
+                <AppShell.Navbar p="md" style={{ backgroundColor: 'var(--dashboard-surface)' }}>
                     <AppShell.Section grow>
                         {visibleNavItems.map((item) => (
                             <NavLink

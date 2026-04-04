@@ -22,10 +22,7 @@ export const configApi = baseApi.injectEndpoints({
             query: () => '/config/weights',
             providesTags: [{ type: 'Weight', id: 'LIST' }],
         }),
-        updateWeight: builder.mutation<
-            WeightConfig,
-            { sensor_type: string; weight: number }
-        >({
+        updateWeight: builder.mutation<WeightConfig, { sensor_type: string; weight: number }>({
             query: ({ sensor_type, ...body }) => ({
                 url: `/config/weights/${sensor_type}`,
                 method: 'PUT',

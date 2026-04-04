@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   env: {
     NEXT_PUBLIC_WS_WIRE_FORMAT: process.env.WIRE_FORMAT ?? 'json',
   },
