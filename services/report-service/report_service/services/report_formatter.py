@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import base64
 import io
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fpdf import FPDF
 
@@ -123,7 +123,15 @@ def _format_csv(data: dict) -> dict:
 # ── PDF helpers ──────────────────────────────────────────────────────────────
 
 
-_TZ_ALMATY = ZoneInfo("Asia/Almaty")
+def _get_almaty_tz():
+    """Resolve Asia/Almaty; fall back to fixed UTC+5 when tzdata is unavailable."""
+    try:
+        return ZoneInfo("Asia/Almaty")
+    except ZoneInfoNotFoundError:
+        return timezone(timedelta(hours=5), name="Asia/Almaty")
+
+
+_TZ_ALMATY = _get_almaty_tz()
 
 
 def _to_local(iso_str: str) -> str:

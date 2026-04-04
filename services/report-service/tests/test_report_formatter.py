@@ -2,7 +2,7 @@
 
 import base64
 
-from report_service.services.report_formatter import format_report
+from report_service.services.report_formatter import _to_local, format_report
 from shared.schemas.report import ReportFormat
 
 # ── JSON format tests ─────────────────────────────────────────────────────────
@@ -49,6 +49,9 @@ class TestFormatCsv:
 
 
 class TestFormatPdf:
+    def test_to_local_converts_utc_to_almaty(self):
+        assert _to_local("2026-01-01T00:00:00+00:00") == "2026-01-01 05:00:00"
+
     def test_pdf_returns_base64(self, sample_report_data, sample_job):
         result = format_report(sample_report_data, ReportFormat.PDF, sample_job)
         assert "pdf_base64" in result
