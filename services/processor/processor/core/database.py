@@ -86,7 +86,9 @@ async def init_db_pool() -> None:
         await conn.run_sync(Base.metadata.create_all)
         for table, col in _HYPERTABLES:
             await conn.execute(
-                text(f"SELECT create_hypertable('{table}', '{col}', if_not_exists => TRUE, migrate_data => TRUE)")
+                text(f"SELECT create_hypertable('{table}', '{col}', "
+                     f"chunk_time_interval => INTERVAL '1 hour', "
+                     f"if_not_exists => TRUE, migrate_data => TRUE)")
             )
         await _setup_retention_policies(conn, settings)
 

@@ -44,7 +44,7 @@ class ProcessorSettings(BaseSettings):
     retention_telemetry_hours: int = 72
     retention_alerts_hours: int = 168
     retention_health_hours: int = 168
-    compression_after_hours: int = 2
+    compression_after_hours: int = 1
 
 
 @lru_cache

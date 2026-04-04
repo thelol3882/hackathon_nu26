@@ -97,7 +97,7 @@ def _loco_type_ru(key: str) -> str:
 def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
     """Format report data according to the requested format."""
     if fmt == ReportFormat.JSON:
-        return data
+        return _format_json(data)
     if fmt == ReportFormat.CSV:
         return _format_csv(data)
     if fmt == ReportFormat.PDF:
@@ -105,10 +105,29 @@ def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
     return data
 
 
+def _format_json(data: dict) -> dict:
+    """Clean up JSON output — translate sensor names for readability."""
+    result = dict(data)
+    # Add human-readable sensor names
+    for stat in result.get("sensor_stats", []):
+        stat["sensor_name"] = _sensor_ru(stat.get("sensor_type", ""))
+    for alert in result.get("alerts", []):
+        alert["sensor_name"] = _sensor_ru(alert.get("sensor_type", ""))
+        alert["severity_name"] = _severity_ru(alert.get("severity", ""))
+    # Translate worst locomotives type
+    overview = result.get("health_overview", {})
+    for loco in overview.get("worst_locomotives", []):
+        loco["locomotive_type_name"] = _loco_type_ru(loco.get("locomotive_type", ""))
+    return result
+
+
 def _format_csv(data: dict) -> dict:
     """Flatten report data into rows for CSV export."""
-    rows: list[dict] = [
-        {
+    rows: list[dict] = []
+
+    # Sensor stats
+    for stat in data.get("sensor_stats", []):
+        rows.append({
             "section": "sensor_stats",
             "sensor_type": stat["sensor_type"],
             "unit": stat["unit"],
@@ -120,12 +139,13 @@ def _format_csv(data: dict) -> dict:
             "severity": "",
             "message": "",
             "timestamp": "",
-        }
-        for stat in data.get("sensor_stats", [])
-    ]
+            "locomotive_id": "",
+            "avg_score": "",
+        })
 
-    rows.extend(
-        {
+    # Alerts (single loco only)
+    for alert in data.get("alerts", []):
+        rows.append({
             "section": "alert",
             "sensor_type": alert["sensor_type"],
             "unit": "",
@@ -137,13 +157,42 @@ def _format_csv(data: dict) -> dict:
             "severity": alert["severity"],
             "message": alert["message"],
             "timestamp": alert["timestamp"],
-        }
-        for alert in data.get("alerts", [])
-    )
+            "locomotive_id": "",
+            "avg_score": "",
+        })
+
+    # Fleet: worst locomotives
+    overview = data.get("health_overview", {})
+    worst = overview.get("worst_locomotives", [])
+    for loco in worst:
+        rows.append({
+            "section": "worst_locomotive",
+            "sensor_type": "",
+            "unit": "",
+            "avg": "",
+            "min": loco.get("min_score", ""),
+            "max": loco.get("max_score", ""),
+            "stddev": "",
+            "samples": "",
+            "severity": "",
+            "message": loco.get("locomotive_type", ""),
+            "timestamp": "",
+            "locomotive_id": loco.get("locomotive_id", ""),
+            "avg_score": loco.get("avg_score", ""),
+        })
+
+    summary = dict(overview)
+    # Include fleet stats in summary if present
+    fleet_stats = overview.get("fleet_stats")
+    if fleet_stats:
+        summary["fleet_total"] = fleet_stats.get("total_locomotives", 0)
+        summary["fleet_healthy"] = fleet_stats.get("healthy_count", 0)
+        summary["fleet_warning"] = fleet_stats.get("warning_count", 0)
+        summary["fleet_critical"] = fleet_stats.get("critical_count", 0)
 
     return {
         "rows": rows,
-        "summary": data.get("health_overview", {}),
+        "summary": summary,
     }
 
 
