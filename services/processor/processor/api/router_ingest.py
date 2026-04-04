@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from processor.api.dependencies import DbPool, Redis
+from processor.api.dependencies import DbSession, Redis
 from shared.schemas.telemetry import TelemetryReading
 
 router = APIRouter()
@@ -9,7 +9,7 @@ router = APIRouter()
 @router.post("/ingest")
 async def ingest_telemetry(
     reading: TelemetryReading,
-    db: DbPool,
+    db: DbSession,
     redis: Redis,
 ):
     """Receive a telemetry reading, persist to TimescaleDB, publish to Redis."""
@@ -20,7 +20,7 @@ async def ingest_telemetry(
 @router.post("/ingest/batch")
 async def ingest_batch(
     readings: list[TelemetryReading],
-    db: DbPool,
+    db: DbSession,
     redis: Redis,
 ):
     """Receive a batch of telemetry readings."""

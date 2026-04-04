@@ -2,14 +2,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query
 
-from api_gateway.api.dependencies import DbPool
+from api_gateway.api.dependencies import DbSession
 
 router = APIRouter()
 
 
 @router.get("/")
 async def get_telemetry(
-    db: DbPool,
+    db: DbSession,
     locomotive_id: str | None = Query(None),
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),
