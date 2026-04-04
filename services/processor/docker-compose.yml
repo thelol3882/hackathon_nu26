@@ -32,8 +32,9 @@ services:
       - "8001:8001"
     env_file: ../../.env
     volumes:
-      - ./:/app
-      - ../../shared/shared:/usr/local/lib/python3.13/site-packages/shared
+      - ./main.py:/app/main.py
+      - ./processor:/app/processor
+      - ../../shared/shared:/app/.venv/lib/python3.13/site-packages/shared
     depends_on:
       timescaledb:
         condition: service_healthy
