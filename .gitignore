@@ -1,0 +1,49 @@
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- IDEs ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Python / FastAPI services ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+.env
+.env.*
+!.env.example
+*.log
+
+# --- uv ---
+# lock files are committed; caches are not
+.uv/
+
+# --- Docker ---
+.dockerignore
+
+# --- Frontend (Next.js / pnpm) ---
+node_modules/
+.next/
+out/
+.vercel
+*.tsbuildinfo
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Testing / Coverage ---
+coverage/
+htmlcov/
+.pytest_cache/
+.coverage
+.coverage.*
