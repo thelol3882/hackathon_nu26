@@ -35,6 +35,32 @@ class TelemetryRaw(BaseModel):
     longitude: float | None = None
 
 
+def _build_where(
+    params: dict,
+    *,
+    locomotive_id: str | None = None,
+    sensor_type: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    time_col: str = "time",
+) -> str:
+    """Build a WHERE clause dynamically, only including non-None filters."""
+    clauses = []
+    if locomotive_id is not None:
+        clauses.append("locomotive_id = CAST(:loco_id AS uuid)")
+        params["loco_id"] = locomotive_id
+    if sensor_type is not None:
+        clauses.append("sensor_type = :sensor")
+        params["sensor"] = sensor_type
+    if start is not None:
+        clauses.append(f"{time_col} >= :t_start")
+        params["t_start"] = start
+    if end is not None:
+        clauses.append(f"{time_col} <= :t_end")
+        params["t_end"] = end
+    return ("WHERE " + " AND ".join(clauses)) if clauses else ""
+
+
 async def query_telemetry_bucketed(
     session: AsyncSession,
     *,
@@ -49,10 +75,14 @@ async def query_telemetry_bucketed(
     if bucket_interval not in _ALLOWED_BUCKETS:
         bucket_interval = _DEFAULT_BUCKET
 
-    query = text("""
+    params: dict = {"off": offset, "lim": limit}
+    where = _build_where(params, locomotive_id=locomotive_id, sensor_type=sensor_type, start=start, end=end)
+
+    # interval is safe to inline — validated against _ALLOWED_BUCKETS above
+    query = text(f"""
         SELECT
-            time_bucket(:interval, time) AS bucket,
-            CAST(locomotive_id AS text),
+            time_bucket('{bucket_interval}', time) AS bucket,
+            CAST(locomotive_id AS text) AS locomotive_id,
             sensor_type,
             avg(value)  AS avg_value,
             min(value)  AS min_value,
@@ -60,27 +90,13 @@ async def query_telemetry_bucketed(
             last(value, time) AS last_value,
             unit
         FROM raw_telemetry
-        WHERE (:loco_id IS NULL OR locomotive_id = CAST(:loco_id AS uuid))
-          AND (:sensor  IS NULL OR sensor_type  = :sensor)
-          AND (:t_start IS NULL OR time >= :t_start)
-          AND (:t_end   IS NULL OR time <= :t_end)
+        {where}
         GROUP BY bucket, locomotive_id, sensor_type, unit
         ORDER BY bucket DESC
         OFFSET :off LIMIT :lim
     """)
 
-    result = await session.execute(
-        query,
-        {
-            "interval": bucket_interval,
-            "loco_id": locomotive_id,
-            "sensor": sensor_type,
-            "t_start": start,
-            "t_end": end,
-            "off": offset,
-            "lim": limit,
-        },
-    )
+    result = await session.execute(query, params)
 
     return [
         TelemetryBucket(
@@ -107,30 +123,20 @@ async def query_telemetry_raw(
     offset: int = 0,
     limit: int = 200,
 ) -> list[TelemetryRaw]:
-    query = text("""
+    params: dict = {"off": offset, "lim": limit}
+    where = _build_where(params, locomotive_id=locomotive_id, sensor_type=sensor_type, start=start, end=end)
+
+    query = text(f"""
         SELECT
-            time, CAST(locomotive_id AS text), locomotive_type, sensor_type,
+            time, CAST(locomotive_id AS text) AS locomotive_id, locomotive_type, sensor_type,
             value, filtered_value, unit, latitude, longitude
         FROM raw_telemetry
-        WHERE (:loco_id IS NULL OR locomotive_id = CAST(:loco_id AS uuid))
-          AND (:sensor  IS NULL OR sensor_type  = :sensor)
-          AND (:t_start IS NULL OR time >= :t_start)
-          AND (:t_end   IS NULL OR time <= :t_end)
+        {where}
         ORDER BY time DESC
         OFFSET :off LIMIT :lim
     """)
 
-    result = await session.execute(
-        query,
-        {
-            "loco_id": locomotive_id,
-            "sensor": sensor_type,
-            "t_start": start,
-            "t_end": end,
-            "off": offset,
-            "lim": limit,
-        },
-    )
+    result = await session.execute(query, params)
 
     return [
         TelemetryRaw(

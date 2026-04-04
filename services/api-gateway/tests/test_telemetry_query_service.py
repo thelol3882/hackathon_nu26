@@ -97,12 +97,14 @@ async def test_bucketed_with_all_filters(mock_session):
     )
 
     assert len(result) == 1
-    # Verify the execute call received the correct interval
+    # Verify the execute call received the correct params
     call_args = mock_session.execute.call_args
     params = call_args[0][1]  # positional arg #1 is the params dict
-    assert params["interval"] == "15 minutes"
     assert params["off"] == 5
     assert params["lim"] == 10
+    # Interval is inlined into the SQL text, verify it's in the query string
+    sql_text = str(call_args[0][0])
+    assert "15 minutes" in sql_text
 
 
 @pytest.mark.asyncio
@@ -121,8 +123,9 @@ async def test_bucketed_invalid_interval_falls_back(mock_session):
     await query_telemetry_bucketed(mock_session, bucket_interval="99 years")
 
     call_args = mock_session.execute.call_args
-    params = call_args[0][1]
-    assert params["interval"] == "1 minute"
+    # Invalid interval falls back to "1 minute", inlined in the SQL
+    sql_text = str(call_args[0][0])
+    assert "1 minute" in sql_text
 
 
 # ---------------------------------------------------------------------------
