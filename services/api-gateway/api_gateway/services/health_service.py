@@ -12,12 +12,12 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.models.health_config_entity import HealthThreshold, HealthWeight
-from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS
+from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS, HI_CATEGORY_NORMAL, HI_CATEGORY_WARNING
 from shared.log_codes import (
     HEALTH_CONFIG_SEEDED,
 )
 from shared.observability import get_logger
-from shared.schemas.health import ComponentHealth, HealthIndex
+from shared.schemas.health import HealthFactor, HealthIndex
 
 logger = get_logger(__name__)
 
@@ -119,18 +119,30 @@ def _compute_component_score(value: float, lo: float, hi: float) -> float:
     return max(0.0, 1.0 - overshoot)
 
 
+def _categorize(score: float) -> str:
+    if score >= HI_CATEGORY_NORMAL:
+        return "Норма"
+    if score >= HI_CATEGORY_WARNING:
+        return "Внимание"
+    return "Критично"
+
+
 async def get_health_index(
     session: AsyncSession,
     redis_client: redis.Redis,
     locomotive_id: str,
 ) -> HealthIndex:
-    """Compute health index from latest sensor values."""
+    """Compute health index from latest sensor values.
+
+    Uses the simplified threshold-based approach.  The processor computes
+    the full HI formula in real-time; this is a fallback / on-demand endpoint.
+    """
     thresholds = await _get_thresholds(redis_client)
     weights = await _get_weights(redis_client)
 
     query = text("""
         SELECT DISTINCT ON (sensor_type)
-            sensor_type, value, unit
+            sensor_type, value, unit, locomotive_type
         FROM raw_telemetry
         WHERE locomotive_id = :loco_id::uuid
         ORDER BY sensor_type, time DESC
@@ -144,9 +156,9 @@ async def get_health_index(
             detail="No telemetry data found for this locomotive",
         )
 
-    components: list[ComponentHealth] = []
-    weighted_sum = 0.0
-    total_weight = 0.0
+    factors: list[tuple[float, HealthFactor]] = []  # (penalty, factor)
+    total_penalty = 0.0
+    locomotive_type = getattr(rows[0], "locomotive_type", "TE33A") if rows else "TE33A"
 
     for row in rows:
         sensor = row.sensor_type
@@ -154,23 +166,45 @@ async def get_health_index(
         w = weights.get(sensor, 0.05)
 
         score = _compute_component_score(row.value, lo, hi)
-        components.append(
-            ComponentHealth(
-                sensor_type=sensor,
-                score=round(score, 3),
-                latest_value=row.value,
-                unit=row.unit,
+        penalty = (1.0 - score) * w
+        total_penalty += penalty
+
+        mid = (lo + hi) / 2
+        span = (hi - lo) / 2 if hi != lo else 1.0
+        deviation_pct = min(100.0, abs(row.value - mid) / span * 100) if span > 0 else 0.0
+
+        factors.append(
+            (
+                penalty,
+                HealthFactor(
+                    sensor_type=sensor,
+                    value=row.value,
+                    unit=row.unit,
+                    penalty=round(penalty, 4),
+                    contribution_pct=0.0,  # filled below
+                    deviation_pct=round(deviation_pct, 1),
+                ),
             )
         )
-        weighted_sum += score * w
-        total_weight += w
 
-    overall = round(weighted_sum / total_weight, 3) if total_weight > 0 else 0.0
+    # Overall score: 100 minus weighted penalties scaled to 0-100
+    overall = max(0.0, min(100.0, 100.0 - total_penalty * 100.0))
+
+    # Top 5 factors by penalty, with contribution percentages
+    factors.sort(key=lambda x: x[0], reverse=True)
+    top_factors = []
+    for penalty, factor in factors[:5]:
+        if total_penalty > 0:
+            factor.contribution_pct = round(penalty / total_penalty * 100, 1)
+        top_factors.append(factor)
 
     return HealthIndex(
         locomotive_id=locomotive_id,
-        overall_score=overall,
-        components=sorted(components, key=lambda c: c.score),
+        locomotive_type=locomotive_type,
+        overall_score=round(overall, 1),
+        category=_categorize(overall),
+        top_factors=top_factors,
+        damage_penalty=0.0,  # Montsinger aging not computed in gateway
         calculated_at=datetime.now(UTC),
     )
 

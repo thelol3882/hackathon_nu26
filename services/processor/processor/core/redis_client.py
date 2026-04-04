@@ -1,7 +1,11 @@
 import redis.asyncio as redis
 
 from processor.core.config import get_settings
-from shared.constants import ALERT_CHANNEL, TELEMETRY_CHANNEL
+from shared.constants import ALERT_CHANNEL, HEALTH_CHANNEL, TELEMETRY_CHANNEL
+from shared.log_codes import INFRA_REDIS_CONNECTED
+from shared.observability import get_logger
+
+logger = get_logger(__name__)
 
 _redis_pool: redis.Redis | None = None
 
@@ -11,6 +15,7 @@ async def init_redis() -> redis.Redis:
     settings = get_settings()
     _redis_pool = redis.from_url(settings.redis_url, decode_responses=True)
     await _redis_pool.ping()
+    logger.info("Redis connected", code=INFRA_REDIS_CONNECTED, url=settings.redis_url)
     return _redis_pool
 
 
@@ -19,6 +24,7 @@ async def close_redis() -> None:
     if _redis_pool:
         await _redis_pool.aclose()
         _redis_pool = None
+        logger.info("Redis connection closed")
 
 
 def get_redis() -> redis.Redis:
@@ -28,8 +34,15 @@ def get_redis() -> redis.Redis:
 
 
 async def publish_telemetry(loco_id: str, payload: str) -> None:
+    """Publish raw telemetry JSON to the live telemetry channel."""
     await get_redis().publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
 
 
 async def publish_alert(payload: str) -> None:
+    """Publish an AlertEvent JSON to the global alert channel."""
     await get_redis().publish(ALERT_CHANNEL, payload)
+
+
+async def publish_health(loco_id: str, payload: str) -> None:
+    """Publish a HealthIndex JSON to the live health channel."""
+    await get_redis().publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)

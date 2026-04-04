@@ -1,5 +1,9 @@
 """Statistical anomaly detection on time-series sensor data."""
 
+from shared.observability import get_logger
+
+logger = get_logger(__name__)
+
 
 def detect_zscore_anomalies(
     values: list[float],
@@ -16,4 +20,12 @@ def detect_zscore_anomalies(
     if std == 0:
         return []
 
-    return [i for i, v in enumerate(values) if abs(v - mean) / std > threshold]
+    anomalies = [i for i, v in enumerate(values) if abs(v - mean) / std > threshold]
+    if anomalies:
+        logger.info(
+            "Z-score anomalies detected",
+            anomaly_count=len(anomalies),
+            total_values=len(values),
+            threshold=threshold,
+        )
+    return anomalies

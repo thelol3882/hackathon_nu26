@@ -63,6 +63,10 @@ ignore = [
     "RUF012",  # mutable class attributes — false positives with SQLAlchemy mapped_column
     "TCH",     # type-checking blocks — adds complexity for minimal benefit
     "SIM108",  # ternary operator — explicit if/else is more readable for complex expressions
+    "RUF001",  # ambiguous unicode — Cyrillic characters in Russian docs are intentional
+    "RUF002",  # ambiguous unicode in docstrings — same
+    "RUF003",  # ambiguous unicode in comments — same
+    "PLR2004", # magic values — math/physics constants in formulas
 ]
 
 [tool.ruff.lint.per-file-ignores]

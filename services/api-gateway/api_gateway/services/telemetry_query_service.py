@@ -26,8 +26,10 @@ class TelemetryBucket(BaseModel):
 class TelemetryRaw(BaseModel):
     time: datetime
     locomotive_id: str
+    locomotive_type: str = ""
     sensor_type: str
     value: float
+    filtered_value: float | None = None
     unit: str
     latitude: float | None = None
     longitude: float | None = None
@@ -107,8 +109,8 @@ async def query_telemetry_raw(
 ) -> list[TelemetryRaw]:
     query = text("""
         SELECT
-            time, locomotive_id::text, sensor_type,
-            value, unit, latitude, longitude
+            time, locomotive_id::text, locomotive_type, sensor_type,
+            value, filtered_value, unit, latitude, longitude
         FROM raw_telemetry
         WHERE (:loco_id IS NULL OR locomotive_id = :loco_id::uuid)
           AND (:sensor  IS NULL OR sensor_type  = :sensor)
@@ -134,8 +136,10 @@ async def query_telemetry_raw(
         TelemetryRaw(
             time=row.time,
             locomotive_id=row.locomotive_id,
+            locomotive_type=row.locomotive_type,
             sensor_type=row.sensor_type,
             value=row.value,
+            filtered_value=row.filtered_value,
             unit=row.unit,
             latitude=row.latitude,
             longitude=row.longitude,
