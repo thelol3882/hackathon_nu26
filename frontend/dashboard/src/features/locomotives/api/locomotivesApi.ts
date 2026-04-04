@@ -1,5 +1,10 @@
 import { baseApi } from '@/shared/api/baseApi';
-import type { Locomotive, LocomotiveCreate, LocomotiveListResponse, LocomotiveQueryParams } from '../types';
+import type {
+    Locomotive,
+    LocomotiveCreate,
+    LocomotiveListResponse,
+    LocomotiveQueryParams,
+} from '../types';
 
 export const locomotivesApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
@@ -25,9 +30,11 @@ export const locomotivesApi = baseApi.injectEndpoints({
                 };
             },
             forceRefetch({ currentArg, previousArg }) {
-                return currentArg?.offset !== previousArg?.offset
-                    || currentArg?.search !== previousArg?.search
-                    || currentArg?.model !== previousArg?.model;
+                return (
+                    currentArg?.offset !== previousArg?.offset ||
+                    currentArg?.search !== previousArg?.search ||
+                    currentArg?.model !== previousArg?.model
+                );
             },
             providesTags: [{ type: 'Locomotive', id: 'LIST' }],
         }),

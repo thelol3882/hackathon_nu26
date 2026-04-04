@@ -134,13 +134,18 @@ export function LocomotiveSelect({
                     w={w}
                 >
                     {selectedLabel || (
-                        <Text size="sm" c="dimmed">{placeholder}</Text>
+                        <Text size="sm" c="dimmed">
+                            {placeholder}
+                        </Text>
                     )}
                 </InputBase>
             </Combobox.Target>
 
             <Combobox.Dropdown>
-                <Box p={4} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                <Box
+                    p={4}
+                    style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+                >
                     <Combobox.Search
                         value={search}
                         onChange={(e) => {
@@ -172,7 +177,9 @@ export function LocomotiveSelect({
                     >
                         {allowAll && (
                             <Combobox.Option value="__all__" active={value === null}>
-                                <Text size="sm" fw={500}>Все</Text>
+                                <Text size="sm" fw={500}>
+                                    Все
+                                </Text>
                             </Combobox.Option>
                         )}
                         {options.length > 0 ? (

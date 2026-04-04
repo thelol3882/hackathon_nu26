@@ -53,6 +53,30 @@ def _scalar_one_result(entity):
     return result_mock
 
 
+def _mappings_result(entity):
+    """Build a mock result whose .mappings().first() returns entity fields as a dict."""
+    if entity is None:
+        row = None
+    else:
+        row = {
+            "id": entity.id,
+            "locomotive_id": entity.locomotive_id,
+            "sensor_type": entity.sensor_type,
+            "severity": entity.severity,
+            "value": entity.value,
+            "threshold_min": entity.threshold_min,
+            "threshold_max": entity.threshold_max,
+            "message": entity.message,
+            "timestamp": entity.timestamp,
+            "acknowledged": entity.acknowledged,
+        }
+    mappings_mock = MagicMock()
+    mappings_mock.first.return_value = row
+    result_mock = MagicMock()
+    result_mock.mappings.return_value = mappings_mock
+    return result_mock
+
+
 # ---------------------------------------------------------------------------
 # list_alerts
 # ---------------------------------------------------------------------------
@@ -157,7 +181,9 @@ async def test_get_alert_not_found_404(mock_session):
 @pytest.mark.asyncio
 async def test_acknowledge_alert_success(mock_session):
     entity = _make_alert_entity(acknowledged=False)
-    mock_session.execute.return_value = _scalar_one_result(entity)
+    # execute is called 3 times: 2 UPDATEs + 1 SELECT (mappings)
+    update_result = MagicMock()
+    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(entity)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 
@@ -170,7 +196,8 @@ async def test_acknowledge_alert_success(mock_session):
 @pytest.mark.asyncio
 async def test_acknowledge_alert_already_acknowledged(mock_session):
     entity = _make_alert_entity(acknowledged=True, acknowledged_at=datetime.now(UTC))
-    mock_session.execute.return_value = _scalar_one_result(entity)
+    update_result = MagicMock()
+    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(entity)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 
@@ -183,7 +210,8 @@ async def test_acknowledge_alert_already_acknowledged(mock_session):
 
 @pytest.mark.asyncio
 async def test_acknowledge_alert_not_found_404(mock_session):
-    mock_session.execute.return_value = _scalar_one_result(None)
+    update_result = MagicMock()
+    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(None)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 

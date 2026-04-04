@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
@@ -60,23 +59,27 @@ async def run_alert_persistence(
                 batch = []
                 try:
                     async with session_factory() as session:
-                        stmt = pg_insert(AlertRecord).values(
-                            [
-                                {
-                                    "id": r.id,
-                                    "locomotive_id": r.locomotive_id,
-                                    "sensor_type": r.sensor_type,
-                                    "severity": r.severity,
-                                    "value": r.value,
-                                    "threshold_min": r.threshold_min,
-                                    "threshold_max": r.threshold_max,
-                                    "message": r.message,
-                                    "timestamp": r.timestamp,
-                                    "acknowledged": r.acknowledged,
-                                }
-                                for r in to_flush
-                            ]
-                        ).on_conflict_do_nothing()
+                        stmt = (
+                            pg_insert(AlertRecord)
+                            .values(
+                                [
+                                    {
+                                        "id": r.id,
+                                        "locomotive_id": r.locomotive_id,
+                                        "sensor_type": r.sensor_type,
+                                        "severity": r.severity,
+                                        "value": r.value,
+                                        "threshold_min": r.threshold_min,
+                                        "threshold_max": r.threshold_max,
+                                        "message": r.message,
+                                        "timestamp": r.timestamp,
+                                        "acknowledged": r.acknowledged,
+                                    }
+                                    for r in to_flush
+                                ]
+                            )
+                            .on_conflict_do_nothing()
+                        )
                         await session.execute(stmt)
                         await session.commit()
                         logger.debug(
@@ -205,7 +208,11 @@ async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
 
     # Read back from alert_events
     result = await session.execute(
-        text("SELECT id, locomotive_id, sensor_type, severity, value, threshold_min, threshold_max, message, timestamp, acknowledged FROM alert_events WHERE id = CAST(:aid AS uuid)"),
+        text(
+            "SELECT id, locomotive_id, sensor_type, severity, value,"
+            " threshold_min, threshold_max, message, timestamp, acknowledged"
+            " FROM alert_events WHERE id = CAST(:aid AS uuid)"
+        ),
         {"aid": alert_id},
     )
     r = result.mappings().first()

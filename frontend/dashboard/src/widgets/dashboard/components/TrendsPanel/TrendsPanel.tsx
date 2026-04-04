@@ -116,7 +116,7 @@ function CustomTooltipContent({
                     color: 'var(--dashboard-text-secondary)',
                 }}
             >
-                {formatTime(String(label))}
+                {formatTime(new Date(Number(label)))}
             </div>
             <div style={{ color: 'var(--dashboard-text-primary)' }}>
                 {sensorLabel}: <strong>{avg.toFixed(1)}</strong> {unit}
@@ -179,12 +179,9 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
     const tickCount = rangeConfig[selectedRange].tickCount;
 
     // Drag-to-zoom handlers
-    const handleMouseDown = useCallback(
-        (e: { activeLabel?: string | number }) => {
-            if (e?.activeLabel != null) setZoomLeft(String(e.activeLabel));
-        },
-        [],
-    );
+    const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
+        if (e?.activeLabel != null) setZoomLeft(String(e.activeLabel));
+    }, []);
 
     const handleMouseMove = useCallback(
         (e: { activeLabel?: string | number }) => {
@@ -298,14 +295,10 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             width={70}
                             domain={[0, 'auto']}
                             allowDecimals={false}
-                            tickFormatter={(v: number) =>
-                                `${v}${unit ? ` ${unit}` : ''}`
-                            }
+                            tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
                         />
                         <Tooltip
-                            content={
-                                <CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />
-                            }
+                            content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />}
                         />
                         <Area
                             type="monotone"
