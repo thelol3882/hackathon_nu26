@@ -1,13 +1,10 @@
 from fastapi import FastAPI
 
-app = FastAPI()
+from processor.api.router_health import router as health_router
+from processor.api.router_ingest import router as ingest_router
+from processor.core.lifespan import lifespan
 
+app = FastAPI(title="Locomotive Telemetry Processor", lifespan=lifespan)
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
+app.include_router(ingest_router, prefix="/telemetry", tags=["telemetry"])
+app.include_router(health_router, tags=["health"])
