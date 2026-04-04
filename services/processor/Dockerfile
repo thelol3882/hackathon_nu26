@@ -1,36 +1,45 @@
+# syntax=docker/dockerfile:1
+
 # ---- Stage 1: Builder ----
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+FROM python:3.13-slim-bookworm AS builder
 
-WORKDIR /build
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /bin/
 
-# Copy dependency manifests first (cache-friendly layer)
-COPY shared/pyproject.toml /build/shared/pyproject.toml
-COPY shared/shared/ /build/shared/shared/
-COPY services/processor/pyproject.toml /build/pyproject.toml
+WORKDIR /app
 
-# Compile pinned requirements from pyproject.toml (exclude local 'shared')
-RUN uv pip compile pyproject.toml \
-    --no-emit-package shared \
-    --output-file requirements.txt
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_DEV=1
 
-# Install dependencies into system Python
-RUN uv pip install --system --no-cache -r requirements.txt \
-    && uv pip install --system --no-cache ./shared/
+# Copy workspace root manifests + shared package
+COPY pyproject.toml uv.lock ./
+COPY shared/ ./shared/
+COPY services/processor/pyproject.toml ./services/processor/pyproject.toml
 
-# Copy service source
-COPY services/processor/ /build/app/
+# Install dependencies only (cached layer)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-workspace --package processor
+
+# Copy service source and install project
+COPY services/processor/ ./services/processor/
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-editable --package processor
 
 # ---- Stage 2: Runtime ----
 FROM python:3.13-slim-bookworm
 
-RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/uvicorn
+RUN groupadd -g 1001 app && \
+    useradd -u 1001 -g app -m -d /app -s /bin/false app
 
 WORKDIR /app
-COPY --from=builder /build/app/ .
+
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Copy service source (for main.py entrypoint)
+COPY --chown=app:app services/processor/ /app/
 
 USER app
 
