@@ -115,7 +115,7 @@ async def run_health_cache(redis_client: redis.Redis) -> None:
             backoff = 1.0
             logger.info("Health cache listener started")
             async for message in pubsub.listen():
-                if message["type"] != b"pmessage":
+                if message["type"] != "pmessage":
                     continue
                 try:
                     channel: bytes = message["channel"]

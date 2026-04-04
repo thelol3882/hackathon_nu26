@@ -9,10 +9,7 @@ floor, preventing TimescaleDB from being flooded at 50 Hz.
 
 from processor.models.telemetry_entity import TelemetryRecord
 from processor.services.filter_service import ema_filter
-from shared.observability import get_logger
 from shared.schemas.telemetry import TelemetryReading
-
-logger = get_logger(__name__)
 
 # Minimum relative change required to persist a high-frequency reading.
 _HF_NOISE_FLOOR = 0.005  # 0.5 %
@@ -69,11 +66,4 @@ def flatten_reading(reading: TelemetryReading) -> list[TelemetryRecord]:
             )
         )
 
-    logger.info(
-        "Telemetry ingested",
-        locomotive_id=loco_id,
-        sensor_count=len(reading.sensors),
-        rows_persisted=len(rows),
-        is_hf=is_hf,
-    )
     return rows

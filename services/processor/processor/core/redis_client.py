@@ -40,6 +40,12 @@ def get_redis() -> redis.Redis:
     return _redis_pool
 
 
+def get_redis_raw() -> redis.Redis:
+    if _redis_raw is None:
+        raise RuntimeError("Redis not initialized. Call init_redis() first.")
+    return _redis_raw
+
+
 async def publish_telemetry(loco_id: str, payload: bytes) -> None:
     """Publish telemetry to the live channel. Payload is wire-encoded bytes."""
     if _redis_raw is None:

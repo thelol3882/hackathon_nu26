@@ -120,7 +120,12 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             tickFormatter={(v: string) => formatTimeShort(v)}
                             tick={{ fontSize: 11 }}
                         />
-                        <YAxis unit={unit ? ` ${unit}` : ''} tick={{ fontSize: 11 }} width={60} />
+                        <YAxis
+                            unit={unit ? ` ${unit}` : ''}
+                            tick={{ fontSize: 11 }}
+                            width={60}
+                            domain={[0, 'auto']}
+                        />
                         <Tooltip
                             formatter={(value: unknown) => [
                                 `${Number(value).toFixed(2)} ${unit}`,

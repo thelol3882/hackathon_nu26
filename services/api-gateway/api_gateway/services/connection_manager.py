@@ -9,7 +9,6 @@ other clients.
 from __future__ import annotations
 
 import asyncio
-import json as _json
 from dataclasses import dataclass, field
 
 import redis.asyncio as redis
@@ -28,7 +27,7 @@ from shared.log_codes import (
 from shared.observability import get_logger
 from shared.observability.prometheus import ws_connections_active
 from shared.wire import decode as wire_decode
-from shared.wire import is_binary as wire_is_binary
+from shared.wire import encode as wire_encode
 
 logger = get_logger(__name__)
 
@@ -132,7 +131,7 @@ class _ChannelRelay:
                         pass
                     # Wrap in envelope if configured
                     if self._envelope_type and parsed_msg is not None:
-                        data = _json.dumps({"type": self._envelope_type, "data": parsed_msg}).encode()
+                        data = wire_encode({"type": self._envelope_type, "data": parsed_msg})
                     else:
                         data = raw
                     async with self._lock:
@@ -171,19 +170,11 @@ class _ChannelRelay:
 
     @staticmethod
     async def _sender_loop(ws: WebSocket, queue: asyncio.Queue[bytes]) -> None:
-        """Read from the client's queue and send over WebSocket.
-
-        Wire format is global: msgpack → send_bytes (zero-copy from Redis),
-        json → decode to str → send_text.
-        """
-        binary = wire_is_binary()
+        """Read from the client's queue and send over WebSocket."""
         try:
             while True:
                 data = await queue.get()
-                if binary:
-                    await ws.send_bytes(data)
-                else:
-                    await ws.send_text(data.decode())
+                await ws.send_bytes(data)
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -309,9 +300,10 @@ class ConnectionManager:
                     ws_list = list(self._ws_refs.values())
 
                 stale: list[WebSocket] = []
+                ping_data = wire_encode({"type": "ping"})
                 for ws in ws_list:
                     try:
-                        await ws.send_json({"type": "ping"})
+                        await ws.send_bytes(ping_data)
                     except Exception:
                         stale.append(ws)
 

@@ -165,7 +165,6 @@ async def test_acknowledge_alert_success(mock_session):
 
     assert isinstance(result, AlertEvent)
     mock_session.commit.assert_awaited_once()
-    mock_session.refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio

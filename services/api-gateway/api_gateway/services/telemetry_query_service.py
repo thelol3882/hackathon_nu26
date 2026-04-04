@@ -92,7 +92,7 @@ async def query_telemetry_bucketed(
         FROM raw_telemetry
         {where}
         GROUP BY bucket, locomotive_id, sensor_type, unit
-        ORDER BY bucket DESC
+        ORDER BY bucket ASC
         OFFSET :off LIMIT :lim
     """)
 

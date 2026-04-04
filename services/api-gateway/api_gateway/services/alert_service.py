@@ -29,11 +29,14 @@ logger = get_logger(__name__)
 # --- Background persistence task ---
 
 
+_ALERT_BATCH_WINDOW = 0.2  # seconds — collect alerts then flush in one commit
+
+
 async def run_alert_persistence(
     redis_client: redis.Redis,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Subscribe to alerts:live and persist each alert to the DB.
+    """Subscribe to alerts:live and persist alerts to the DB in batches.
 
     Runs as a long-lived background asyncio task.
     """
@@ -44,6 +47,28 @@ async def run_alert_persistence(
             await pubsub.subscribe(ALERT_CHANNEL)
             backoff = 1.0
             logger.info("Alert persistence listener started", code=ALERT_LISTENER_STARTED)
+            batch: list[AlertRecord] = []
+            flush_handle: asyncio.TimerHandle | None = None
+            loop = asyncio.get_event_loop()
+
+            async def _flush() -> None:
+                nonlocal batch
+                if not batch:
+                    return
+                to_flush = batch
+                batch = []
+                try:
+                    async with session_factory() as session:
+                        session.add_all(to_flush)
+                        await session.commit()
+                        logger.debug(
+                            "Alerts persisted",
+                            code=ALERT_PERSISTED,
+                            count=len(to_flush),
+                        )
+                except Exception:
+                    logger.exception("Failed to persist alerts batch", code=ALERT_PERSIST_FAILED)
+
             async for message in pubsub.listen():
                 msg_type = message.get("type", b"")
                 if msg_type not in (b"message", "message"):
@@ -51,8 +76,8 @@ async def run_alert_persistence(
                 try:
                     data = wire_decode(message["data"])
                     alert = AlertEvent.model_validate(data)
-                    async with session_factory() as session:
-                        record = AlertRecord(
+                    batch.append(
+                        AlertRecord(
                             id=alert.id,
                             locomotive_id=alert.locomotive_id,
                             sensor_type=alert.sensor_type,
@@ -64,17 +89,15 @@ async def run_alert_persistence(
                             timestamp=alert.timestamp,
                             acknowledged=alert.acknowledged,
                         )
-                        session.add(record)
-                        await session.commit()
-                        logger.info(
-                            "Alert persisted",
-                            code=ALERT_PERSISTED,
-                            alert_id=str(alert.id),
-                            locomotive_id=str(alert.locomotive_id),
-                            severity=alert.severity,
+                    )
+                    # Schedule flush after batch window if not already scheduled
+                    if flush_handle is None or flush_handle.cancelled():
+                        flush_handle = loop.call_later(
+                            _ALERT_BATCH_WINDOW,
+                            lambda: asyncio.ensure_future(_flush()),
                         )
                 except Exception:
-                    logger.exception("Failed to persist alert", code=ALERT_PERSIST_FAILED)
+                    logger.exception("Failed to parse alert", code=ALERT_PERSIST_FAILED)
         except asyncio.CancelledError:
             break
         except Exception:
@@ -158,7 +181,6 @@ async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
     r.acknowledged = True
     r.acknowledged_at = datetime.now(UTC)
     await session.commit()
-    await session.refresh(r)
     logger.info("Alert acknowledged", code=ALERT_ACKNOWLEDGED, alert_id=alert_id)
 
     return AlertEvent(
