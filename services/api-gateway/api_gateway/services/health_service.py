@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from uuid import UUID
 
 import redis.asyncio as redis
 from fastapi import HTTPException
@@ -247,7 +248,7 @@ async def get_health_index(
         top_factors.append(factor)
 
     return HealthIndex(
-        locomotive_id=locomotive_id,
+        locomotive_id=UUID(locomotive_id),
         locomotive_type=locomotive_type,
         overall_score=round(overall, 1),
         category=_categorize(overall),

@@ -16,5 +16,6 @@ class Report(Base):
     locomotive_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     report_type: Mapped[str] = mapped_column(String(50), nullable=False)
     format: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
