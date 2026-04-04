@@ -19,3 +19,15 @@ export interface UserResponse {
     username: string;
     role: string;
 }
+
+export interface UserListItem {
+    id: string;
+    username: string;
+    role: string;
+    created_at: string;
+}
+
+export interface UsersListResponse {
+    users: UserListItem[];
+    total: number;
+}
