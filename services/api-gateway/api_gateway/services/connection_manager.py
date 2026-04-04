@@ -9,7 +9,6 @@ other clients.
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass, field
 
 import redis.asyncio as redis
@@ -26,6 +25,8 @@ from shared.log_codes import (
     WS_STALE_REMOVED,
 )
 from shared.observability import get_logger
+from shared.wire import decode as wire_decode
+from shared.wire import is_binary as wire_is_binary
 
 logger = get_logger(__name__)
 
@@ -39,7 +40,7 @@ _RECONNECT_MAX = 30.0
 class _ClientSlot:
     """Per-client state inside a ChannelRelay."""
 
-    queue: asyncio.Queue[str] = field(default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAX))
+    queue: asyncio.Queue[bytes] = field(default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAX))
     sender_task: asyncio.Task | None = None
     filter_loco_id: str | None = None  # if set, only forward messages matching this loco
 
@@ -67,7 +68,10 @@ class _ChannelRelay:
         async with self._lock:
             ws_id = id(ws)
             slot = _ClientSlot(filter_loco_id=filter_loco_id)
-            slot.sender_task = asyncio.create_task(self._sender_loop(ws, slot.queue), name=f"ws-sender-{ws_id}")
+            slot.sender_task = asyncio.create_task(
+                self._sender_loop(ws, slot.queue),
+                name=f"ws-sender-{ws_id}",
+            )
             self._clients[ws_id] = slot
             self._ws_map[ws_id] = ws
 
@@ -112,18 +116,18 @@ class _ChannelRelay:
                 backoff = _RECONNECT_BASE
                 logger.info("Redis relay started", code=WS_RELAY_STARTED, channel=self.channel)
                 async for message in pubsub.listen():
-                    if message["type"] != "message":
+                    if message["type"] != b"message":
                         continue
-                    data: str = message["data"]
+                    data: bytes = message["data"]
                     async with self._lock:
                         for slot in self._clients.values():
                             if slot.filter_loco_id:
                                 try:
-                                    parsed = json.loads(data)
+                                    parsed = wire_decode(data)
                                     msg_loco = str(parsed.get("locomotive_id", ""))
                                     if msg_loco != slot.filter_loco_id:
                                         continue
-                                except (json.JSONDecodeError, AttributeError):
+                                except Exception:
                                     pass
                             # backpressure: drop oldest if full
                             if slot.queue.full():
@@ -154,12 +158,20 @@ class _ChannelRelay:
                     pass
 
     @staticmethod
-    async def _sender_loop(ws: WebSocket, queue: asyncio.Queue[str]) -> None:
-        """Read from the client's queue and send over WebSocket."""
+    async def _sender_loop(ws: WebSocket, queue: asyncio.Queue[bytes]) -> None:
+        """Read from the client's queue and send over WebSocket.
+
+        Wire format is global: msgpack → send_bytes (zero-copy from Redis),
+        json → decode to str → send_text.
+        """
+        binary = wire_is_binary()
         try:
             while True:
                 data = await queue.get()
-                await ws.send_text(data)
+                if binary:
+                    await ws.send_bytes(data)
+                else:
+                    await ws.send_text(data.decode())
         except asyncio.CancelledError:
             pass
         except Exception:
