@@ -17,3 +17,15 @@ export interface LocomotiveCreate {
     manufacturer: string;
     year_manufactured: number;
 }
+
+export interface LocomotiveListResponse {
+    items: Locomotive[];
+    total: number;
+}
+
+export interface LocomotiveQueryParams {
+    offset?: number;
+    limit?: number;
+    search?: string;
+    model?: string;
+}

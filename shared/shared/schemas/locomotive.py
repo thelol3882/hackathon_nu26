@@ -22,3 +22,8 @@ class LocomotiveRead(LocomotiveBase):
     status: LocomotiveStatus
     created_at: datetime
     updated_at: datetime
+
+
+class LocomotiveListResponse(BaseModel):
+    items: list[LocomotiveRead]
+    total: int

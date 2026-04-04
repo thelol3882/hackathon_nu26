@@ -4,4 +4,11 @@ export {
     useGetLocomotiveQuery,
     useCreateLocomotiveMutation,
 } from './api/locomotivesApi';
-export type { Locomotive, LocomotiveCreate, LocomotiveStatus } from './types';
+export { LocomotiveSelect } from './components/LocomotiveSelect';
+export type {
+    Locomotive,
+    LocomotiveCreate,
+    LocomotiveStatus,
+    LocomotiveListResponse,
+    LocomotiveQueryParams,
+} from './types';

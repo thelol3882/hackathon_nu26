@@ -8,7 +8,6 @@ import {
     Burger,
     Group,
     NavLink,
-    Select,
     Text,
     Tooltip,
     ActionIcon,
@@ -19,31 +18,13 @@ import { useDisclosure } from '@mantine/hooks';
 import { IconSun, IconMoon, IconLogout } from '@tabler/icons-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { selectIsAdmin, selectUsername, logout } from '@/store/authSlice';
-import { useGetLocomotivesQuery } from '@/features/locomotives';
+import { LocomotiveSelect } from '@/features/locomotives';
 import { navigationItems } from './navigation';
 import { LocomotiveProvider, useLocomotive } from './LocomotiveContext';
 
 function LocomotiveSelector() {
     const { locomotiveId, setLocomotiveId } = useLocomotive();
-    const { data: locomotives = [], isLoading } = useGetLocomotivesQuery({});
-
-    const options = locomotives.map((loco) => ({
-        value: loco.id,
-        label: `${loco.model} — ${loco.serial_number}`,
-    }));
-
-    return (
-        <Select
-            placeholder="Выберите локомотив"
-            data={options}
-            value={locomotiveId}
-            onChange={setLocomotiveId}
-            searchable
-            clearable
-            disabled={isLoading}
-            w={280}
-        />
-    );
+    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotiveId} />;
 }
 
 function ConnectionStatus() {

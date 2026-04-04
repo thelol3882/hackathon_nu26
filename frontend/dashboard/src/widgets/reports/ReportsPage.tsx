@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react';
 import {
     Card,
-    Select,
     SegmentedControl,
     Button,
     Group,
@@ -18,7 +17,7 @@ import {
 import { DateInput } from '@mantine/dates';
 import { IconDownload, IconRefresh } from '@tabler/icons-react';
 import { useGetReportsQuery, useReportGeneration } from '@/features/reports';
-import { useGetLocomotivesQuery } from '@/features/locomotives';
+import { LocomotiveSelect } from '@/features/locomotives';
 import { formatDateTime, dayjs } from '@/shared/utils/date';
 import { useAppSelector } from '@/store/hooks';
 import { selectAccessToken } from '@/store/authSlice';
@@ -45,17 +44,8 @@ export function ReportsPage() {
     const [startDate, setStartDate] = useState<string | null>(null);
     const [endDate, setEndDate] = useState<string | null>(null);
 
-    const { data: locomotives = [] } = useGetLocomotivesQuery({});
     const { data: reports = [] } = useGetReportsQuery({});
     const { generate, status, isGenerating, downloadUrl, reset } = useReportGeneration();
-
-    const locomotiveOptions = [
-        { value: '', label: 'Все' },
-        ...locomotives.map((l) => ({
-            value: l.id,
-            label: `${l.model} — ${l.serial_number}`,
-        })),
-    ];
 
     const handleDownload = useCallback(
         async (url: string) => {
@@ -105,13 +95,12 @@ export function ReportsPage() {
                     <Text fw={600}>Генерация отчёта</Text>
 
                     <Group grow align="flex-end">
-                        <Select
+                        <LocomotiveSelect
                             label="Локомотив"
-                            placeholder="Выберите локомотив"
-                            data={locomotiveOptions}
-                            value={locomotiveId ?? ''}
-                            onChange={(val) => setLocomotiveId(val || null)}
-                            clearable
+                            value={locomotiveId}
+                            onChange={setLocomotiveId}
+                            allowAll
+                            w="100%"
                         />
                         <DateInput
                             label="Дата начала"

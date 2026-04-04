@@ -1,4 +1,4 @@
-"""WebSocket endpoints for real-time telemetry and alert streaming.
+"""WebSocket endpoint for real-time combined telemetry/alert/health streaming.
 
 Wire format (JSON or msgpack) is controlled globally by WIRE_FORMAT env var.
 """
@@ -19,45 +19,6 @@ router = APIRouter()
 
 def _get_manager(ws: WebSocket) -> ConnectionManager:
     return ws.app.state.ws_manager
-
-
-@router.websocket("/ws/telemetry/{loco_id}")
-async def ws_telemetry(ws: WebSocket, loco_id: str):
-    """Real-time telemetry stream for a specific locomotive."""
-    manager = _get_manager(ws)
-    if not await manager.accept(ws):
-        return
-
-    channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
-    await manager.subscribe(ws, channel)
-    logger.info("WS telemetry connected", code=WS_CONNECTED, loco_id=loco_id)
-    try:
-        while True:
-            await ws.receive_text()
-    except (WebSocketDisconnect, Exception):
-        pass
-    finally:
-        logger.info("WS telemetry disconnected", code=WS_DISCONNECTED, loco_id=loco_id)
-        await manager.disconnect(ws)
-
-
-@router.websocket("/ws/alerts")
-async def ws_alerts(ws: WebSocket):
-    """Real-time alert stream (all locomotives)."""
-    manager = _get_manager(ws)
-    if not await manager.accept(ws):
-        return
-
-    await manager.subscribe(ws, ALERT_CHANNEL)
-    logger.info("WS alerts connected", code=WS_CONNECTED)
-    try:
-        while True:
-            await ws.receive_text()
-    except (WebSocketDisconnect, Exception):
-        pass
-    finally:
-        logger.info("WS alerts disconnected", code=WS_DISCONNECTED)
-        await manager.disconnect(ws)
 
 
 @router.websocket("/ws/live/{loco_id}")

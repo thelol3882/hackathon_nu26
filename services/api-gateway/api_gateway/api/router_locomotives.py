@@ -1,18 +1,32 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from api_gateway.api.dependencies import DbSession, Redis
 from api_gateway.services import locomotive_service
 from api_gateway.services.health_service import get_health_index
 from shared.schemas.health import HealthIndex
-from shared.schemas.locomotive import LocomotiveCreate, LocomotiveRead
+from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[LocomotiveRead])
-async def list_locomotives(db: DbSession, offset: int = 0, limit: int = 50):
-    """List all registered locomotives."""
-    return await locomotive_service.list_locomotives(db, offset=offset, limit=limit)
+@router.get("/", response_model=LocomotiveListResponse)
+async def list_locomotives(
+    db: DbSession,
+    offset: int = 0,
+    limit: int = 50,
+    search: str | None = Query(None, description="Search by serial number or model"),
+    model: str | None = Query(None, description="Filter by model (e.g. TE33A, KZ8A)"),
+):
+    """List registered locomotives with optional search and filtering."""
+    return await locomotive_service.list_locomotives(
+        db, offset=offset, limit=limit, search=search, model=model,
+    )
+
+
+@router.get("/fleet", response_model=list[dict])
+async def get_fleet_ids(db: DbSession):
+    """Lightweight endpoint for simulator: returns all locomotive IDs and models."""
+    return await locomotive_service.get_fleet_ids(db)
 
 
 @router.post("/", status_code=201, response_model=LocomotiveRead)

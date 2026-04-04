@@ -1,13 +1,34 @@
 import { baseApi } from '@/shared/api/baseApi';
-import type { Locomotive, LocomotiveCreate } from '../types';
+import type { Locomotive, LocomotiveCreate, LocomotiveListResponse, LocomotiveQueryParams } from '../types';
 
 export const locomotivesApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
-        getLocomotives: builder.query<Locomotive[], { offset?: number; limit?: number }>({
-            query: ({ offset, limit } = {}) => ({
+        getLocomotives: builder.query<LocomotiveListResponse, LocomotiveQueryParams>({
+            query: ({ offset, limit, search, model } = {}) => ({
                 url: '/locomotives/',
-                params: { offset, limit },
+                params: { offset, limit, search, model },
             }),
+            serializeQueryArgs({ queryArgs }) {
+                // Key by search + model only — offset is for pagination merging
+                const { search, model } = queryArgs ?? {};
+                return { search, model };
+            },
+            merge(currentCache, newItems, { arg }) {
+                const offset = arg?.offset ?? 0;
+                if (offset === 0) {
+                    return newItems;
+                }
+                // Append new page to existing items
+                return {
+                    items: [...currentCache.items, ...newItems.items],
+                    total: newItems.total,
+                };
+            },
+            forceRefetch({ currentArg, previousArg }) {
+                return currentArg?.offset !== previousArg?.offset
+                    || currentArg?.search !== previousArg?.search
+                    || currentArg?.model !== previousArg?.model;
+            },
             providesTags: [{ type: 'Locomotive', id: 'LIST' }],
         }),
         getLocomotive: builder.query<Locomotive, string>({

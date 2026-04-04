@@ -57,14 +57,13 @@ def _fetch_locomotive_ids(gateway_url: str) -> list[dict] | None:
                 return None
             token = resp.json()["access_token"]
 
-            # Fetch locomotives
+            # Fetch all locomotive IDs via dedicated fleet endpoint
             resp = client.get(
-                f"{gateway_url}/locomotives",
+                f"{gateway_url}/locomotives/fleet",
                 headers={"Authorization": f"Bearer {token}"},
-                params={"limit": 5000},
             )
             if resp.status_code != 200:
-                logger.warning("Fetch locomotives failed: %s", resp.status_code)
+                logger.warning("Fetch fleet failed: %s", resp.status_code)
                 return None
             return resp.json()
     except Exception:
