@@ -14,13 +14,19 @@ const SENSOR_LABELS: Record<string, string> = {
     oil_pressure: 'Давл. масла',
     coolant_temp: 'Охл. жидкость',
     fuel_level: 'Ур. топлива',
+    fuel_rate: 'Расх. топлива',
     traction_motor_temp: 'Темп. тяг. двиг.',
+    crankcase_pressure: 'Давл. картера',
     speed_actual: 'Скорость',
+    speed_target: 'Скор. уставка',
     brake_pipe_pressure: 'Торм. магистраль',
+    wheel_slip_ratio: 'Буксование',
     catenary_voltage: 'Напр. контакт. сети',
     pantograph_current: 'Ток пантографа',
     transformer_temp: 'Темп. трансф.',
     igbt_temp: 'Темп. IGBT',
+    dc_link_voltage: 'Напр. DC-звена',
+    recuperation_current: 'Ток рекуперации',
 };
 
 const CIRCUMFERENCE = 2 * Math.PI * 85;

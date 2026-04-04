@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/shared/ws/hooks';
-import type { TelemetryReading } from '../types';
+import type { SensorType, TelemetryReading } from '../types';
 
 interface Position {
     latitude: number;
     longitude: number;
+}
+
+/** Shape of the telemetry envelope coming over the wire. */
+interface WireTelemetry {
+    locomotive_id: string;
+    locomotive_type: string;
+    timestamp: string;
+    gps: { latitude: number; longitude: number } | null;
+    sensors: { sensor_type: string; value: number; unit: string }[];
 }
 
 export function useLiveTelemetry(locomotiveId: string | null) {
@@ -40,17 +49,27 @@ export function useLiveTelemetry(locomotiveId: string | null) {
     // Subscribe to WebSocket messages
     useEffect(() => {
         const unsubscribe = subscribe((data: unknown) => {
-            const message = data as { type?: string; data?: TelemetryReading };
+            const message = data as { type?: string; data?: WireTelemetry };
             if (message.type !== 'telemetry' || !message.data) return;
 
-            const reading = message.data;
-            pendingUpdatesRef.current.push(reading);
+            const { locomotive_id, locomotive_type, timestamp, gps, sensors } = message.data;
 
-            if (reading.latitude != null && reading.longitude != null) {
-                pendingPositionRef.current = {
-                    latitude: reading.latitude,
-                    longitude: reading.longitude,
-                };
+            for (const s of sensors) {
+                pendingUpdatesRef.current.push({
+                    locomotive_id,
+                    locomotive_type,
+                    sensor_type: s.sensor_type as SensorType,
+                    value: s.value,
+                    filtered_value: null,
+                    unit: s.unit,
+                    timestamp,
+                    latitude: gps?.latitude ?? null,
+                    longitude: gps?.longitude ?? null,
+                });
+            }
+
+            if (gps) {
+                pendingPositionRef.current = { latitude: gps.latitude, longitude: gps.longitude };
             }
         });
 

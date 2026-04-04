@@ -25,7 +25,7 @@ export function DashboardPage() {
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
 
     const getSensor = (type: SensorType) => sensors.get(type);
-    const locoType = health?.locomotive_type;
+    const locoType = health?.locomotive_type ?? sensors.values().next().value?.locomotive_type;
 
     if (!locomotiveId) {
         return (

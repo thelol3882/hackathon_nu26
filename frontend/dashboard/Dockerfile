@@ -1,18 +1,25 @@
 # ---- Stage 1: Dependencies ----
-FROM node:22-alpine AS deps
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:20-alpine AS deps
+
+ENV COREPACK_ENABLE_STRICT=1
+RUN corepack enable
+
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml ./
 
-# ---- Stage 2: Build ----
-FROM node:22-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install --ignore-scripts
+
+# ---- Stage 2: Builder ----
+FROM node:20-alpine AS builder
+
+ENV COREPACK_ENABLE_STRICT=1
+RUN corepack enable
+
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+COPY --from=deps /app/node_modules ./node_modules
 
 ARG NEXT_PUBLIC_API_URL="/api"
 ARG NEXT_PUBLIC_WS_URL=""
@@ -21,25 +28,29 @@ ARG WIRE_FORMAT="json"
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV WIRE_FORMAT=$WIRE_FORMAT
+ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN mkdir -p public
 
 RUN pnpm build
 
 # ---- Stage 3: Runner ----
-FROM node:22-alpine AS runner
-WORKDIR /app
+FROM node:20-alpine AS runner
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+WORKDIR /app
 
-COPY --from=builder /app/public ./public
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 -G nodejs nextjs
+
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 

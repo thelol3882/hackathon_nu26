@@ -1,10 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
+import { useAppDispatch } from '@/store/hooks';
 import { reportsApi } from '../api/reportsApi';
 import type { ReportRequest, ReportStatus } from '../types';
 
 const TERMINAL_STATUSES: ReportStatus[] = ['completed', 'failed'];
 
 export function useReportGeneration() {
+    const dispatch = useAppDispatch();
     const [reportId, setReportId] = useState<string | null>(null);
     const [status, setStatus] = useState<ReportStatus | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -22,6 +24,7 @@ export function useReportGeneration() {
         setStatus(reportData.status);
         if (TERMINAL_STATUSES.includes(reportData.status)) {
             setIsGenerating(false);
+            dispatch(reportsApi.util.invalidateTags([{ type: 'Report', id: 'LIST' }]));
         }
     }
 

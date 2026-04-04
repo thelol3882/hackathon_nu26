@@ -3,11 +3,24 @@ import { renderHook, act } from '@testing-library/react';
 import { useReportGeneration } from '../useReportGeneration';
 import type { ReportRequest } from '../../types';
 
+const mockDispatch = vi.fn();
+
+vi.mock('@/store/hooks', () => ({
+    useAppDispatch: () => mockDispatch,
+    useAppSelector: vi.fn(),
+}));
+
 vi.mock('../../api/reportsApi', () => {
     return {
         reportsApi: {
             useGenerateReportMutation: vi.fn(),
             useGetReportQuery: vi.fn(),
+            util: {
+                invalidateTags: vi.fn((tags: unknown) => ({
+                    type: 'invalidateTags',
+                    payload: tags,
+                })),
+            },
         },
     };
 });

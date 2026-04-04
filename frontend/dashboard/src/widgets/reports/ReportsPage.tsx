@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
     Card,
     Select,
@@ -12,7 +12,7 @@ import {
     Badge,
     Loader,
     Text,
-    Anchor,
+    ActionIcon,
     Title,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
@@ -20,6 +20,8 @@ import { IconDownload, IconRefresh } from '@tabler/icons-react';
 import { useGetReportsQuery, useReportGeneration } from '@/features/reports';
 import { useGetLocomotivesQuery } from '@/features/locomotives';
 import { formatDateTime, dayjs } from '@/shared/utils/date';
+import { useAppSelector } from '@/store/hooks';
+import { selectAccessToken } from '@/store/authSlice';
 import type { ReportFormat, ReportStatus } from '@/features/reports/types';
 
 const STATUS_COLOR: Record<ReportStatus, string> = {
@@ -37,6 +39,7 @@ const STATUS_LABEL: Record<ReportStatus, string> = {
 };
 
 export function ReportsPage() {
+    const token = useAppSelector(selectAccessToken);
     const [locomotiveId, setLocomotiveId] = useState<string | null>(null);
     const [format, setFormat] = useState<ReportFormat>('pdf');
     const [startDate, setStartDate] = useState<string | null>(null);
@@ -48,11 +51,29 @@ export function ReportsPage() {
 
     const locomotiveOptions = [
         { value: '', label: 'Все' },
-        ...locomotives.map((l: { id: string; name?: string }) => ({
+        ...locomotives.map((l) => ({
             value: l.id,
-            label: l.name ?? l.id,
+            label: `${l.model} — ${l.serial_number}`,
         })),
     ];
+
+    const handleDownload = useCallback(
+        async (url: string) => {
+            const res = await fetch(url, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition');
+            const filename = disposition?.match(/filename="?(.+?)"?$/)?.[1] ?? 'report';
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        },
+        [token],
+    );
 
     const handleGenerate = () => {
         if (!startDate || !endDate) return;
@@ -148,15 +169,14 @@ export function ReportsPage() {
                     )}
 
                     {status === 'completed' && downloadUrl && (
-                        <Anchor href={downloadUrl} target="_blank" download>
-                            <Button
-                                variant="light"
-                                color="green"
-                                leftSection={<IconDownload size={16} />}
-                            >
-                                Скачать отчёт
-                            </Button>
-                        </Anchor>
+                        <Button
+                            variant="light"
+                            color="green"
+                            leftSection={<IconDownload size={16} />}
+                            onClick={() => handleDownload(downloadUrl)}
+                        >
+                            Скачать отчёт
+                        </Button>
                     )}
 
                     {status === 'failed' && (
@@ -194,14 +214,16 @@ export function ReportsPage() {
                                     </Table.Td>
                                     <Table.Td>
                                         {report.status === 'completed' ? (
-                                            <Anchor
-                                                href={`/api/reports/${report.report_id}/download`}
-                                                target="_blank"
-                                                download
-                                                size="sm"
+                                            <ActionIcon
+                                                variant="subtle"
+                                                onClick={() =>
+                                                    handleDownload(
+                                                        `/api/reports/${report.report_id}/download`,
+                                                    )
+                                                }
                                             >
                                                 <IconDownload size={16} />
-                                            </Anchor>
+                                            </ActionIcon>
                                         ) : (
                                             <Text size="sm" c="dimmed">
                                                 —

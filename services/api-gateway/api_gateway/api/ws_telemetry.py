@@ -75,9 +75,9 @@ async def ws_live(ws: WebSocket, loco_id: str):
 
     telemetry_channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
     health_channel = f"{HEALTH_CHANNEL}:{loco_id}"
-    await manager.subscribe(ws, telemetry_channel)
-    await manager.subscribe(ws, ALERT_CHANNEL, filter_loco_id=loco_id)
-    await manager.subscribe(ws, health_channel)
+    await manager.subscribe(ws, telemetry_channel, envelope_type="telemetry")
+    await manager.subscribe(ws, ALERT_CHANNEL, filter_loco_id=loco_id, envelope_type="alert")
+    await manager.subscribe(ws, health_channel, envelope_type="health")
     logger.info("WS live connected", code=WS_CONNECTED, loco_id=loco_id)
     try:
         while True:

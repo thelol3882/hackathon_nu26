@@ -9,6 +9,7 @@ other clients.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 from dataclasses import dataclass, field
 
 import redis.asyncio as redis
@@ -49,9 +50,10 @@ class _ClientSlot:
 class _ChannelRelay:
     """Manages a single Redis pub/sub channel shared by N WebSocket clients."""
 
-    def __init__(self, channel: str, redis_client: redis.Redis) -> None:
+    def __init__(self, channel: str, redis_client: redis.Redis, *, envelope_type: str | None = None) -> None:
         self.channel = channel
         self._redis = redis_client
+        self._envelope_type = envelope_type
         self._clients: dict[int, _ClientSlot] = {}  # id(ws) -> slot
         self._ws_map: dict[int, WebSocket] = {}
         self._listener_task: asyncio.Task | None = None
@@ -119,19 +121,26 @@ class _ChannelRelay:
                 backoff = _RECONNECT_BASE
                 logger.info("Redis relay started", code=WS_RELAY_STARTED, channel=self.channel)
                 async for message in pubsub.listen():
-                    if message["type"] != b"message":
+                    if message["type"] != "message":
                         continue
-                    data: bytes = message["data"]
+                    raw: bytes = message["data"]
+                    # Parse once for filtering and envelope wrapping
+                    parsed_msg = None
+                    try:
+                        parsed_msg = wire_decode(raw)
+                    except Exception:
+                        pass
+                    # Wrap in envelope if configured
+                    if self._envelope_type and parsed_msg is not None:
+                        data = _json.dumps({"type": self._envelope_type, "data": parsed_msg}).encode()
+                    else:
+                        data = raw
                     async with self._lock:
                         for slot in self._clients.values():
-                            if slot.filter_loco_id:
-                                try:
-                                    parsed = wire_decode(data)
-                                    msg_loco = str(parsed.get("locomotive_id", ""))
-                                    if msg_loco != slot.filter_loco_id:
-                                        continue
-                                except Exception:
-                                    pass
+                            if slot.filter_loco_id and parsed_msg is not None:
+                                msg_loco = str(parsed_msg.get("locomotive_id", ""))
+                                if msg_loco != slot.filter_loco_id:
+                                    continue
                             # backpressure: drop oldest if full
                             if slot.queue.full():
                                 try:
@@ -229,12 +238,13 @@ class ConnectionManager:
         channel: str,
         *,
         filter_loco_id: str | None = None,
+        envelope_type: str | None = None,
     ) -> None:
         """Subscribe a client to a Redis channel (shared relay)."""
         async with self._lock:
             ws_id = id(ws)
             if channel not in self._relays:
-                self._relays[channel] = _ChannelRelay(channel, self._redis)
+                self._relays[channel] = _ChannelRelay(channel, self._redis, envelope_type=envelope_type)
             self._connections.setdefault(ws_id, set()).add(channel)
 
         await self._relays[channel].add_client(ws, filter_loco_id=filter_loco_id)

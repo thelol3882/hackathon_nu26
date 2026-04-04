@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLiveTelemetry } from '../useLiveTelemetry';
-import type { TelemetryReading } from '../../types';
 
 type SubscribeHandler = (data: unknown) => void;
 
@@ -17,18 +16,17 @@ vi.mock('@/shared/ws/hooks', () => ({
     }),
 }));
 
-function makeTelemetryReading(overrides: Partial<TelemetryReading> = {}): TelemetryReading {
+/** Build a wire-format telemetry envelope matching the backend shape. */
+function makeWireTelemetry(
+    sensors: { sensor_type: string; value: number; unit: string }[],
+    gps: { latitude: number; longitude: number } | null = null,
+) {
     return {
         locomotive_id: 'loco-1',
         locomotive_type: 'TE33A',
-        sensor_type: 'diesel_rpm',
-        value: 750,
-        filtered_value: null,
-        unit: 'rpm',
         timestamp: '2026-04-04T12:00:00Z',
-        latitude: null,
-        longitude: null,
-        ...overrides,
+        gps,
+        sensors,
     };
 }
 
@@ -60,10 +58,10 @@ describe('useLiveTelemetry', () => {
 
         const { result } = renderHook(() => useLiveTelemetry('loco-1'));
 
-        const reading = makeTelemetryReading({ sensor_type: 'diesel_rpm', value: 800 });
+        const wire = makeWireTelemetry([{ sensor_type: 'diesel_rpm', value: 800, unit: 'rpm' }]);
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: reading });
+            capturedHandler!({ type: 'telemetry', data: wire });
         });
 
         // Before timer flush, state should still be empty
@@ -75,7 +73,9 @@ describe('useLiveTelemetry', () => {
         });
 
         expect(result.current.sensors.size).toBe(1);
-        expect(result.current.sensors.get('diesel_rpm')).toEqual(reading);
+        const reading = result.current.sensors.get('diesel_rpm')!;
+        expect(reading.value).toBe(800);
+        expect(reading.locomotive_id).toBe('loco-1');
     });
 
     it('updates position from readings with lat/lng', () => {
@@ -87,14 +87,13 @@ describe('useLiveTelemetry', () => {
 
         const { result } = renderHook(() => useLiveTelemetry('loco-1'));
 
-        const reading = makeTelemetryReading({
-            sensor_type: 'speed_actual',
+        const wire = makeWireTelemetry([{ sensor_type: 'speed_actual', value: 60, unit: 'km/h' }], {
             latitude: 51.1,
             longitude: 71.4,
         });
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: reading });
+            capturedHandler!({ type: 'telemetry', data: wire });
         });
 
         act(() => {
