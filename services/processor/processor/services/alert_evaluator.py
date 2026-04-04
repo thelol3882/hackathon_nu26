@@ -5,8 +5,7 @@ Alert evaluator with:
   - Contextual cross-parameter validation (oil_pressure vs diesel_rpm)
 """
 
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
 
 from shared.constants import (
     AESS_MASKED_SENSORS,
@@ -15,8 +14,13 @@ from shared.constants import (
     SensorSpec,
 )
 from shared.enums import AlertSeverity, SensorType, ThresholdType
+from shared.log_codes import ALERT_PERSISTED
+from shared.observability import get_logger
 from shared.schemas.alert import AlertEvent
 from shared.schemas.telemetry import TelemetryReading
+from shared.utils import generate_id
+
+logger = get_logger(__name__)
 
 
 def _is_aess_active(sensor_map: dict[str, float]) -> bool:
@@ -52,7 +56,6 @@ def _severity_from_spec(value: float, spec: SensorSpec) -> AlertSeverity:
     Derive severity based on how far into the critical zone the value is.
     Uses the same normalized deviation as the HI formula.
     """
-    import math
 
     if spec.threshold_type == ThresholdType.BIDIRECTIONAL:
         dev = abs(value - spec.p_nom)
@@ -83,20 +86,13 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
     """
     specs = LOCO_SPECS.get(reading.locomotive_type.value, {})
     loco_id = reading.locomotive_id
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
 
-    sensor_map: dict[str, float] = {
-        s.sensor_type.value: s.value for s in reading.sensors
-    }
-    sensor_units: dict[str, str] = {
-        s.sensor_type.value: s.unit for s in reading.sensors
-    }
+    sensor_map: dict[str, float] = {s.sensor_type.value: s.value for s in reading.sensors}
+    sensor_units: dict[str, str] = {s.sensor_type.value: s.unit for s in reading.sensors}
 
     # TE33A: detect AESS sleep mode to avoid false oil-pressure shutdowns
-    aess_active = (
-        reading.locomotive_type.value == "TE33A"
-        and _is_aess_active(sensor_map)
-    )
+    aess_active = reading.locomotive_type.value == "TE33A" and _is_aess_active(sensor_map)
 
     alerts: list[AlertEvent] = []
 
@@ -112,7 +108,7 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
         # ── Contextual masking: oil pressure needs RPM context ──────────
         if sensor_type_str == SensorType.OIL_PRESSURE.value:
             rpm = sensor_map.get(SensorType.DIESEL_RPM.value, 0.0)
-            coolant = sensor_map.get(SensorType.COOLANT_TEMP.value, 70.0)
+            _coolant = sensor_map.get(SensorType.COOLANT_TEMP.value, 70.0)
             # At low RPM (idle, Notch 0–1) minimum oil pressure is ~1.5 bar — normal
             # At high RPM (Notch 8) minimum expectation is ~3.0 bar
             min_expected = 1.5 + (rpm / 1050.0) * 1.5  # scales linearly with load
@@ -141,7 +137,7 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
 
         alerts.append(
             AlertEvent(
-                id=uuid4(),
+                id=generate_id(),
                 locomotive_id=loco_id,
                 sensor_type=sensor_type_str,  # type: ignore[arg-type]
                 severity=severity,
@@ -154,4 +150,12 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
             )
         )
 
+    if alerts:
+        logger.warning(
+            "Alerts created",
+            code=ALERT_PERSISTED,
+            locomotive_id=str(loco_id),
+            alert_count=len(alerts),
+            severities=[a.severity.value for a in alerts],
+        )
     return alerts

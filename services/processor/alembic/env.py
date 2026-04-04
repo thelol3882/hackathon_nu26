@@ -5,9 +5,9 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import processor.models
 from processor.core.config import get_settings
 from processor.models.base import Base
-import processor.models  # noqa: F401 — registers all ORM models
 
 config = context.config
 

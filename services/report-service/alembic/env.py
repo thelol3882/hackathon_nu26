@@ -5,9 +5,9 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import report_service.models.report_entity
 from report_service.core.config import get_settings
 from report_service.models.base import Base
-import report_service.models.report_entity  # noqa: F401 — register models
 
 config = context.config
 

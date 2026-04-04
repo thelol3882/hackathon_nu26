@@ -25,10 +25,7 @@ class GatewaySettings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql://{self.db_user}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
-        )
+        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # --- Redis ---
     redis_host: str = "localhost"
@@ -38,6 +35,13 @@ class GatewaySettings(BaseSettings):
     @property
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    # --- RabbitMQ ---
+    rabbitmq_url: str = "amqp://locomotive:changeme@rabbitmq:5672/"
+
+    # --- JWT Auth ---
+    jwt_secret: str = "super-secret-change-me"
+    jwt_expiry_minutes: int = 60
 
     # --- Gateway-specific ---
     cors_origins: list[str] = ["http://localhost:3000"]

@@ -32,6 +32,12 @@ async def close_db_pool() -> None:
         _session_factory = None
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    if _session_factory is None:
+        raise RuntimeError("DB not initialized. Call init_db_pool() first.")
+    return _session_factory
+
+
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
     if _session_factory is None:
         raise RuntimeError("DB not initialized. Call init_db_pool() first.")

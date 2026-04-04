@@ -10,6 +10,9 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0",
     "alembic>=1.15.0",
     "redis[hiredis]>=5.2.0",
+    "aio-pika>=9.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "PyJWT>=2.8.0",
     "shared",
 ]
 

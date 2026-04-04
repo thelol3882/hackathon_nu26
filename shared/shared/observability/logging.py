@@ -5,9 +5,7 @@ import structlog
 from opentelemetry import trace
 
 
-def _add_otel_context(
-    logger: logging.Logger, method_name: str, event_dict: dict
-) -> dict:
+def _add_otel_context(logger: logging.Logger, method_name: str, event_dict: dict) -> dict:
     span = trace.get_current_span()
     ctx = span.get_span_context()
     if ctx.trace_id:
@@ -40,9 +38,7 @@ def configure_logging(service_name: str) -> None:
             structlog.processors.UnicodeDecoder(),
             renderer,
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level, logging.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level, logging.INFO)),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

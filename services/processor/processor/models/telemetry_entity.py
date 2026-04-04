@@ -13,12 +13,8 @@ class TelemetryRecord(Base):
 
     __tablename__ = "raw_telemetry"
 
-    time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), primary_key=True
-    )
-    locomotive_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True
-    )
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    locomotive_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     locomotive_type: Mapped[str] = mapped_column(String(10), nullable=False)
     sensor_type: Mapped[str] = mapped_column(String(50), primary_key=True)
     value: Mapped[float] = mapped_column(Float, nullable=False)

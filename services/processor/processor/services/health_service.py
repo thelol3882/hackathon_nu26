@@ -20,8 +20,7 @@ Damage accumulator (Montsinger's rule for cellulosic insulation):
 """
 
 import math
-from datetime import datetime, timezone
-from uuid import UUID
+from datetime import UTC, datetime
 
 from shared.constants import (
     HI_CATEGORY_NORMAL,
@@ -32,14 +31,19 @@ from shared.constants import (
     SensorSpec,
 )
 from shared.enums import ThresholdType
+from shared.log_codes import HEALTH_COMPUTED, HEALTH_NO_DATA
+from shared.observability import get_logger
 from shared.schemas.health import HealthFactor, HealthIndex
 from shared.schemas.telemetry import SensorPayload, TelemetryReading
+
+logger = get_logger(__name__)
 
 # Damage accumulator: (locomotive_id_str, sensor_type_str) → accumulated penalty
 _damage_state: dict[tuple[str, str], float] = {}
 
 
 # ── Deviation helpers ────────────────────────────────────────────────────────
+
 
 def _raw_deviation(value: float, spec: SensorSpec) -> float:
     """Unsigned deviation from nominal, respecting threshold direction."""
@@ -63,11 +67,12 @@ def _sensor_penalty(value: float, spec: SensorSpec) -> tuple[float, float]:
     dev = _raw_deviation(value, spec)
     exceedance = max(0.0, dev - spec.delta_safe)
     normalized = min(1.0, exceedance / spec.crit_range)  # 0–1
-    penalty = spec.weight * (normalized ** spec.k)
+    penalty = spec.weight * (normalized**spec.k)
     return penalty, normalized * 100.0
 
 
 # ── Montsinger aging accumulator ─────────────────────────────────────────────
+
 
 def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpec) -> float:
     """
@@ -87,6 +92,7 @@ def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpe
 
 # ── Main public function ──────────────────────────────────────────────────────
 
+
 def calculate_health(reading: TelemetryReading) -> HealthIndex:
     """
     Compute the real-time Health Index for one telemetry reading.
@@ -98,9 +104,7 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
     loco_id = str(reading.locomotive_id)
     specs = LOCO_SPECS.get(reading.locomotive_type.value, {})
 
-    sensor_map: dict[str, SensorPayload] = {
-        s.sensor_type.value: s for s in reading.sensors
-    }
+    sensor_map: dict[str, SensorPayload] = {s.sensor_type.value: s for s in reading.sensors}
 
     penalties: list[tuple[str, float, float, float, str]] = []
     # Each entry: (sensor_type, penalty, deviation_pct, value, unit)
@@ -151,22 +155,35 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
         for name, pen, dev, val, unit in top5
     ]
 
-    return HealthIndex(
+    result = HealthIndex(
         locomotive_id=reading.locomotive_id,
         locomotive_type=reading.locomotive_type.value,
         overall_score=round(score, 2),
         category=category,
         top_factors=top_factors,
         damage_penalty=round(total_damage, 6),
-        calculated_at=datetime.now(timezone.utc),
+        calculated_at=datetime.now(UTC),
     )
+
+    if penalties:
+        logger.info(
+            "Health index computed",
+            code=HEALTH_COMPUTED,
+            locomotive_id=loco_id,
+            score=result.overall_score,
+            category=category,
+            damage_penalty=round(total_damage, 6),
+        )
+    else:
+        logger.debug(
+            "Health index computed with no sensor data",
+            code=HEALTH_NO_DATA,
+            locomotive_id=loco_id,
+        )
+
+    return result
 
 
 def get_damage_state(loco_id: str) -> dict[str, float]:
     """Return accumulated damage per sensor for a locomotive (diagnostic use)."""
-    prefix = (loco_id,)
-    return {
-        sensor: dmg
-        for (lid, sensor), dmg in _damage_state.items()
-        if lid == loco_id
-    }
+    return {sensor: dmg for (lid, sensor), dmg in _damage_state.items() if lid == loco_id}

@@ -13,7 +13,6 @@ Pipeline per reading:
 """
 
 import asyncio
-import uuid
 
 from fastapi import APIRouter
 
@@ -24,7 +23,11 @@ from processor.models.health_entity import HealthSnapshotRecord
 from processor.services.alert_evaluator import evaluate_alerts
 from processor.services.health_service import calculate_health
 from processor.services.ingestion_service import flatten_reading
+from shared.observability import get_logger
 from shared.schemas.telemetry import TelemetryReading
+from shared.utils import generate_id
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -74,7 +77,7 @@ async def _process_single(
     health = calculate_health(reading)
 
     health_record = HealthSnapshotRecord(
-        id=uuid.uuid4(),
+        id=generate_id(),
         locomotive_id=reading.locomotive_id,
         locomotive_type=reading.locomotive_type.value,
         score=health.overall_score,
@@ -90,8 +93,8 @@ async def _process_single(
 
     # ── 6. Publish to Redis async (fire-and-forget, non-blocking) ───────
     telemetry_payload = reading.model_dump_json()
-    health_payload    = health.model_dump_json()
-    alert_payloads    = [ae.model_dump_json() for ae in alert_events]
+    health_payload = health.model_dump_json()
+    alert_payloads = [ae.model_dump_json() for ae in alert_events]
 
     publish_tasks = [
         publish_telemetry(loco_id, telemetry_payload),
@@ -116,6 +119,11 @@ async def ingest_telemetry(
     redis: Redis,
 ):
     """Receive a single TelemetryReading and run the full processing pipeline."""
+    logger.info(
+        "Ingest request received",
+        locomotive_id=str(reading.locomotive_id),
+        sensor_count=len(reading.sensors),
+    )
     result = await _process_single(reading, db)
     return {"status": "accepted", **result}
 
@@ -131,6 +139,7 @@ async def ingest_batch(
     Each reading is processed independently; partial failures are captured
     and reported without aborting the whole batch.
     """
+    logger.info("Batch ingest request received", batch_size=len(readings))
     results = []
     errors: list[dict] = []
 
@@ -138,12 +147,24 @@ async def ingest_batch(
         try:
             r = await _process_single(reading, db)
             results.append(r)
-        except Exception as exc:  # noqa: BLE001
-            errors.append({
-                "locomotive_id": str(reading.locomotive_id),
-                "error": str(exc),
-            })
+        except Exception as exc:
+            logger.error(
+                "Batch item processing failed",
+                locomotive_id=str(reading.locomotive_id),
+                error=str(exc),
+            )
+            errors.append(
+                {
+                    "locomotive_id": str(reading.locomotive_id),
+                    "error": str(exc),
+                }
+            )
 
+    logger.info(
+        "Batch ingest completed",
+        processed=len(results),
+        failed=len(errors),
+    )
     return {
         "status": "accepted",
         "processed": len(results),
