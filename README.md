@@ -223,13 +223,29 @@ curl -O http://localhost/api/reports/{report_id}/download -H "Authorization: Bea
 
 ## Мониторинг
 
+Вся обсервабельность доступна из **одного интерфейса** — Grafana:
+
 | Сервис | URL | Назначение |
 |--------|-----|------------|
-| Grafana | http://localhost:3001 (admin / admin) | Дашборд метрик (предустановленный) |
-| Prometheus | http://localhost:9090 | Хранилище метрик, PromQL-запросы |
+| **Grafana** | http://localhost:3001 (admin / admin) | Единое окно: метрики, логи, трассировки |
+| Prometheus | http://localhost:9090 | PromQL-запросы (метрики) |
 | Jaeger UI | http://localhost:16686 | Распределённые трассировки (OpenTelemetry) |
+| Loki | внутренний | Агрегация структурированных JSON-логов |
 | RabbitMQ Management | http://localhost:15672 (locomotive / changeme) | Очереди и потоки сообщений |
 | Swagger UI | http://localhost/api/docs | Интерактивная документация API |
+
+### Стек обсервабельности
+
+```
+Сервисы ──→ Prometheus (/metrics)  ──→ Grafana (метрики)
+        ──→ Jaeger (OTLP :4317)    ──→ Grafana (трассировки)
+        ──→ Promtail (Docker logs)  ──→ Loki ──→ Grafana (логи)
+```
+
+- **Метрики:** Prometheus скрейпит `/metrics` каждые 5 сек → предустановленный дашборд в Grafana
+- **Трассировки:** OpenTelemetry → Jaeger → Grafana (исключены `/metrics`, `/health`, `/ready`)
+- **Логи:** structlog JSON → Docker → Promtail → Loki → Grafana (с фильтрацией по service, level, trace_id)
+- **Связь логов и трассировок:** клик по `trace_id` в логах Loki открывает трассировку в Jaeger
 
 ### Метрики (Prometheus)
 
@@ -251,9 +267,9 @@ curl -O http://localhost/api/reports/{report_id}/download -H "Authorization: Bea
 
 **Backend:** Python 3.13, FastAPI, SQLAlchemy 2.0 (async), Alembic, aio-pika, redis.asyncio
 
-**Инфра:** Docker Compose, Nginx, TimescaleDB, Redis 7, RabbitMQ 3, Jaeger
+**Инфра:** Docker Compose, Nginx, TimescaleDB, Redis 7, RabbitMQ 3
 
-**Обсервабельность:** OpenTelemetry (OTLP), structlog
+**Обсервабельность:** Prometheus + Grafana (метрики), Jaeger + OpenTelemetry (трассировки), structlog (логи)
 
 **Безопасность:** JWT (HS256), bcrypt, CORS, role-based access
 
@@ -303,36 +319,104 @@ pnpm dev  # http://localhost:3000
 ```
 ├── docker-compose.yml
 ├── Makefile
+├── pyproject.toml                     # uv workspace, Ruff конфиг, dev-зависимости
+├── uv.lock
 ├── .env.example
+│
 ├── deploy/
-│   └── nginx.conf
-├── shared/                        # Общий код (схемы, константы, enums)
+│   ├── nginx.conf                     # Обратный прокси (/api/*, /ws/*)
+│   ├── prometheus.yml                 # Конфигурация скрейпинга Prometheus
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── datasources/
+│       │   │   └── prometheus.yml     # Авто-подключение Prometheus к Grafana
+│       │   └── dashboards/
+│       │       └── dashboards.yml     # Провизионинг дашбордов
+│       └── dashboards/
+│           └── locomotive-digital-twin.json  # Предустановленный дашборд
+│
+├── shared/                            # Общая библиотека (все сервисы зависят)
 │   └── shared/
-│       ├── constants.py           # SensorSpec, EMA gains, пороги HI
-│       ├── enums.py               # LocomotiveType, SensorType, AlertSeverity
-│       └── schemas/               # Pydantic-модели (telemetry, alert, report, health)
+│       ├── constants.py               # SensorSpec, EMA gains, пороги HI
+│       ├── enums.py                   # LocomotiveType, SensorType, AlertSeverity
+│       ├── schemas/                   # Pydantic-модели (telemetry, alert, report, health)
+│       ├── wire.py                    # Сериализация (JSON / msgpack)
+│       └── observability/
+│           ├── bootstrap.py           # Инициализация OTel + логов
+│           ├── tracing.py             # OTLP-трассировка → Jaeger
+│           ├── metrics.py             # OTLP-метрики (опционально)
+│           ├── prometheus.py          # Prometheus: middleware, /metrics, бизнес-метрики
+│           ├── logging.py             # Structlog JSON-конфигурация
+│           └── middleware.py          # Request context middleware
+│
 ├── services/
-│   ├── processor/                 # Приём и обработка телеметрии
-│   │   └── processor/services/
-│   │       ├── ingestion_service.py
-│   │       ├── filter_service.py  # EMA-фильтр, дедупликация
-│   │       ├── health_service.py  # Расчёт индекса здоровья (real-time)
-│   │       └── alert_evaluator.py # Контекстная оценка алертов
-│   ├── api-gateway/               # REST API + WebSocket
+│   ├── processor/                     # Приём и обработка телеметрии
+│   │   ├── Dockerfile
+│   │   └── processor/
+│   │       ├── api/
+│   │       │   ├── router_ingest.py   # POST /telemetry/ingest[/batch]
+│   │       │   └── router_health.py   # GET /health, /ready
+│   │       ├── core/                  # Config, DB (create_all + hypertables), Redis
+│   │       ├── models/                # ORM: raw_telemetry, health_snapshots, alert_events
+│   │       ├── services/
+│   │       │   ├── ingestion_service.py   # EMA-фильтр, flatten, HF-дедупликация
+│   │       │   ├── filter_service.py      # Экспоненциальное сглаживание
+│   │       │   ├── health_service.py      # Расчёт индекса здоровья (real-time)
+│   │       │   └── alert_evaluator.py     # Контекстная оценка алертов (AESS, cross-valid)
+│   │       └── tests/
+│   │
+│   ├── api-gateway/                   # REST API + WebSocket + аутентификация
+│   │   ├── Dockerfile
 │   │   └── api_gateway/
-│   │       ├── api/               # Роуты (auth, telemetry, alerts, reports, config)
-│   │       ├── core/              # Auth, DB, Redis, RabbitMQ, middleware
-│   │       └── services/          # Бизнес-логика, ConnectionManager (WS)
-│   ├── report-service/            # Генерация отчётов (фоновый воркер)
-│   │   └── report_service/services/
-│   │       ├── report_generator.py
-│   │       ├── report_formatter.py    # JSON/CSV/PDF
-│   │       ├── health_index_calculator.py
-│   │       └── anomaly_detector.py    # Z-score детекция
-│   └── simulator/                 # Симулятор телеметрии
+│   │       ├── api/
+│   │       │   ├── router_auth.py         # POST /auth/login → JWT
+│   │       │   ├── router_telemetry.py    # GET /telemetry, /telemetry/{id}
+│   │       │   ├── router_alerts.py       # GET /alerts, POST /alerts/{id}/acknowledge
+│   │       │   ├── router_reports.py      # POST /reports/generate, GET /reports/{id}[/download]
+│   │       │   ├── router_locomotives.py  # CRUD /locomotives
+│   │       │   ├── router_config.py       # GET/PUT /config/health (admin)
+│   │       │   ├── router_health.py       # GET /health, /ready
+│   │       │   └── ws_telemetry.py        # WS /ws/telemetry/{id}, /ws/alerts, /ws/live/{id}
+│   │       ├── core/                  # Auth (JWT), DB, Redis, RabbitMQ, CORS, middleware
+│   │       ├── models/                # ORM: users, locomotives, alerts, reports, health_thresholds
+│   │       ├── services/
+│   │       │   ├── connection_manager.py  # WebSocket fan-out, Redis pub/sub, backpressure
+│   │       │   ├── health_service.py      # Кэш индекса здоровья в Redis
+│   │       │   ├── alert_service.py       # Персистенция алертов из Redis → DB
+│   │       │   └── report_request_service.py  # Создание задач отчётов → RabbitMQ
+│   │       └── tests/
+│   │
+│   ├── report-service/                # Генерация отчётов (фоновый воркер RabbitMQ)
+│   │   ├── Dockerfile
+│   │   └── report_service/
+│   │       ├── api/                   # Роуты: reports, analytics, health-index
+│   │       ├── core/                  # Config, DB, RabbitMQ consumer
+│   │       ├── models/                # ORM: generated_reports
+│   │       ├── services/
+│   │       │   ├── report_worker.py       # Обработчик задач из очереди
+│   │       │   ├── report_generator.py    # Агрегация данных (sensor stats, health trends)
+│   │       │   ├── report_formatter.py    # Форматирование: JSON / CSV / PDF
+│   │       │   ├── health_index_calculator.py  # Batch-расчёт HI для отчётов
+│   │       │   ├── anomaly_detector.py    # Z-score детекция аномалий
+│   │       │   └── fleet_analytics_service.py  # Аналитика по флоту
+│   │       └── tests/
+│   │
+│   └── simulator/                     # Генератор реалистичной телеметрии
+│       ├── Dockerfile
 │       └── simulator/
-│           ├── generators/        # TE33A, KZ8A генераторы
-│           └── scenarios/         # normal, highload, degradation, emergency
+│           ├── core/                  # Config, HTTP-клиент
+│           ├── models/                # LocomotiveState, Fleet
+│           ├── generators/
+│           │   ├── te33a.py           # Дизель-электрический (GE GEVO12)
+│           │   └── kz8a.py            # Электрический (Alstom Prima II)
+│           └── scenarios/
+│               ├── normal.py          # Штатная работа
+│               ├── highload.py        # Стресс-тест (x10)
+│               ├── degradation.py     # Постепенная деградация
+│               └── emergency.py       # Аварийные ситуации
+│
 └── frontend/
-    └── dashboard/                 # Next.js приложение (в разработке)
+    └── dashboard/                     # Next.js 16 приложение (в разработке)
+        ├── package.json               # Mantine 9, Recharts, Redux Toolkit
+        └── src/app/
 ```

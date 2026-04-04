@@ -1,0 +1,44 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Keep only our app containers (drop infra noise)
+      - source_labels: ["__meta_docker_container_name"]
+        regex: ".*(processor|api-gateway|report-service|simulator).*"
+        action: keep
+      # Use container name as "service" label
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/?(.*)"
+        target_label: service
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/?(.*)"
+        target_label: container
+    pipeline_stages:
+      # Parse JSON logs from our services
+      - json:
+          expressions:
+            level: level
+            event: event
+            logger: logger_name
+            trace_id: trace_id
+            code: code
+      - labels:
+          level:
+          logger:
+          code:
+      # Drop Prometheus scrape logs to reduce noise
+      - match:
+          selector: '{service=~".+"} |~ "/metrics"'
+          action: drop

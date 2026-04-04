@@ -21,6 +21,7 @@ app = FastAPI(
     description="Real-time telemetry streaming, health index, and fleet management API.",
     version="0.1.0",
     lifespan=lifespan,
+    root_path="/api",
 )
 
 settings = get_settings()

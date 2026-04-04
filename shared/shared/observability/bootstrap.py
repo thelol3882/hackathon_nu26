@@ -32,7 +32,7 @@ def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
 
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-        FastAPIInstrumentor.instrument_app(app)
+        FastAPIInstrumentor.instrument_app(app, excluded_urls="metrics,health,ready")
         logger.info("OpenTelemetry enabled", endpoint=otlp_endpoint)
     else:
         logger.info("OpenTelemetry disabled")
