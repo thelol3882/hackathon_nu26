@@ -262,8 +262,9 @@
       "targets": [
         {
           "queryType": "search",
-          "service": "api-gateway",
+          "serviceName": "api-gateway",
           "limit": 20,
+          "resultLimit": 20,
           "refId": "A"
         }
       ]
@@ -276,8 +277,9 @@
       "targets": [
         {
           "queryType": "search",
-          "service": "processor",
+          "serviceName": "processor",
           "limit": 20,
+          "resultLimit": 20,
           "refId": "A"
         }
       ]
