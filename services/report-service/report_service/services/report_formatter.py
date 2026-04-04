@@ -228,7 +228,17 @@ def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
 
     _pdf_cover_header(pdf, data)
     _pdf_health_overview(pdf, data.get("health_overview", {}))
-    _pdf_top_factors(pdf, data.get("health_overview", {}))
+
+    # Fleet report: show fleet stats and worst locomotives
+    fleet_stats = data.get("health_overview", {}).get("fleet_stats")
+    if fleet_stats:
+        _pdf_fleet_stats(pdf, fleet_stats)
+        worst = data.get("health_overview", {}).get("worst_locomotives", [])
+        if worst:
+            _pdf_worst_locomotives(pdf, worst)
+    else:
+        _pdf_top_factors(pdf, data.get("health_overview", {}))
+
     _pdf_sensor_stats(pdf, data.get("sensor_stats", []))
     _pdf_alerts(pdf, data.get("alert_summary", {}), data.get("alerts", []))
     _pdf_anomalies(pdf, data.get("anomalies", {}))
@@ -467,6 +477,85 @@ def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
             stripe=(i % 2 == 0),
             accent_col=2,
             accent_color=sev_color,
+        )
+    pdf.ln(4)
+
+
+def _pdf_fleet_stats(pdf: FPDF, fleet_stats: dict) -> None:
+    """Render fleet overview stats with colored category counts."""
+    _section_header(pdf, "Состояние парка", _CLR_PRIMARY)
+
+    total = fleet_stats.get("total_locomotives", 0)
+    healthy = fleet_stats.get("healthy_count", 0)
+    warning = fleet_stats.get("warning_count", 0)
+    critical = fleet_stats.get("critical_count", 0)
+
+    pdf.set_font(_FONT, "B", 10)
+    _set_color(pdf, _CLR_DARK_TEXT)
+    pdf.cell(0, 7, f"Всего локомотивов: {total}", new_x="LMARGIN", new_y="NEXT")
+
+    y = pdf.get_y()
+    x = pdf.l_margin
+    for label, count, color in [
+        ("Норма", healthy, _CLR_HEALTHY),
+        ("Внимание", warning, _CLR_WARNING),
+        ("Критично", critical, _CLR_CRITICAL),
+    ]:
+        _set_fill(pdf, color)
+        _set_color(pdf, _CLR_WHITE)
+        pdf.set_font(_FONT, "B", 9)
+        text = f" {label}: {count} "
+        w = pdf.get_string_width(text) + 8
+        pdf.set_xy(x, y)
+        pdf.cell(w, 8, text, fill=True)
+        x += w + 4
+
+    # Stacked bar showing proportions
+    pdf.set_y(y + 12)
+    bar_x = pdf.l_margin
+    bar_w = 180
+    bar_h = 8
+    if total > 0:
+        hw = bar_w * healthy / total
+        ww = bar_w * warning / total
+        cw = bar_w * critical / total
+        if hw > 0:
+            _set_fill(pdf, _CLR_HEALTHY)
+            pdf.rect(bar_x, pdf.get_y(), hw, bar_h, "F")
+        if ww > 0:
+            _set_fill(pdf, _CLR_WARNING)
+            pdf.rect(bar_x + hw, pdf.get_y(), ww, bar_h, "F")
+        if cw > 0:
+            _set_fill(pdf, _CLR_CRITICAL)
+            pdf.rect(bar_x + hw + ww, pdf.get_y(), cw, bar_h, "F")
+    pdf.set_y(pdf.get_y() + bar_h + 4)
+    _set_color(pdf, _CLR_DARK_TEXT)
+    pdf.ln(2)
+
+
+def _pdf_worst_locomotives(pdf: FPDF, worst: list[dict]) -> None:
+    """Render table of worst-performing locomotives."""
+    _section_header(pdf, "Локомотивы с наихудшими показателями", _CLR_CRITICAL)
+
+    cols = [("Локомотив", 80), ("Тип", 55), ("Ср. балл", 30), ("Мин.", 30), ("Макс.", 30)]
+    _table_header_colored(pdf, cols)
+
+    for i, loco in enumerate(worst):
+        score = loco.get("avg_score", 0)
+        color = _health_color(score)
+        _table_row_colored(
+            pdf,
+            cols,
+            [
+                str(loco.get("locomotive_id", ""))[:30],
+                _loco_type_ru(loco.get("locomotive_type", "")),
+                _fmt(score),
+                _fmt(loco.get("min_score", 0)),
+                _fmt(loco.get("max_score", 0)),
+            ],
+            stripe=(i % 2 == 0),
+            accent_col=2,
+            accent_color=color,
         )
     pdf.ln(4)
 

@@ -33,6 +33,17 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
     start = job.date_range.start
     end = job.date_range.end
 
+    # Fleet-wide report (no specific locomotive) uses aggregated queries
+    if loco_id is None:
+        return await _generate_fleet_report(session, start, end, job)
+
+    return await _generate_single_report(session, loco_id, start, end, job)
+
+
+async def _generate_single_report(
+    session: AsyncSession, loco_id: UUID, start: datetime, end: datetime, job: ReportJobMessage
+) -> dict:
+    """Generate report for a single locomotive."""
     locomotive_type = await _query_locomotive_type(session, loco_id)
     sensor_stats = await _query_sensor_stats(session, loco_id, start, end)
     health_trend = await _query_health_trend(session, loco_id, start, end)
@@ -48,15 +59,14 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
         anomaly_sensors=len(anomalies),
     )
 
-    # Calculate component health scores from average sensor values
     components = []
     for stat in sensor_stats:
         comp = calculate_component_score(stat["sensor_type"], stat["avg"], stat["unit"])
         components.append(comp)
-    overall_score = calculate_overall_score(components) * 100  # scale to 0-100
+    overall_score = calculate_overall_score(components) * 100
 
     return {
-        "locomotive_id": str(loco_id) if loco_id else None,
+        "locomotive_id": str(loco_id),
         "locomotive_type": locomotive_type,
         "report_type": job.report_type,
         "date_range": {"start": start.isoformat(), "end": end.isoformat()},
@@ -77,6 +87,151 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
         "components": [c.model_dump() for c in components],
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def _generate_fleet_report(
+    session: AsyncSession, start: datetime, end: datetime, job: ReportJobMessage
+) -> dict:
+    """Generate aggregated fleet-wide report without loading all raw data."""
+    logger.info("Generating fleet report (aggregated)")
+
+    # Fleet health overview: aggregate health_snapshots per locomotive
+    fleet_health = await _query_fleet_health(session, start, end)
+    # Fleet alerts summary (aggregated, not individual rows)
+    fleet_alerts = await _query_fleet_alert_summary(session, start, end)
+    # Fleet sensor stats (aggregated across all locomotives)
+    fleet_sensor_stats = await _query_sensor_stats(session, None, start, end)
+    # Top unhealthy locomotives
+    worst_locos = await _query_worst_locomotives(session, start, end)
+
+    total_locos = fleet_health.get("total_locomotives", 0)
+    avg_score = fleet_health.get("avg_score", 0.0)
+
+    if avg_score >= 80:
+        category = "Норма"
+    elif avg_score >= 50:
+        category = "Внимание"
+    else:
+        category = "Критично"
+
+    return {
+        "locomotive_id": None,
+        "locomotive_type": "Парк",
+        "report_type": "fleet",
+        "date_range": {"start": start.isoformat(), "end": end.isoformat()},
+        "health_overview": {
+            "calculated_score": round(avg_score, 2),
+            "avg_score": round(avg_score, 2),
+            "min_score": fleet_health.get("min_score", 0.0),
+            "max_score": fleet_health.get("max_score", 0.0),
+            "category": category,
+            "damage_penalty": 0.0,
+            "top_factors": [],
+            "trend": [],
+            "fleet_stats": {
+                "total_locomotives": total_locos,
+                "healthy_count": fleet_health.get("healthy_count", 0),
+                "warning_count": fleet_health.get("warning_count", 0),
+                "critical_count": fleet_health.get("critical_count", 0),
+            },
+            "worst_locomotives": worst_locos,
+        },
+        "sensor_stats": fleet_sensor_stats,
+        "alerts": [],  # Don't include individual alerts for fleet
+        "alert_summary": fleet_alerts,
+        "anomalies": {},  # Skip per-row anomaly detection for fleet
+        "components": [],
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def _query_fleet_health(session: AsyncSession, start: datetime, end: datetime) -> dict:
+    """Aggregate health scores across all locomotives."""
+    result = await session.execute(
+        text("""
+            WITH loco_scores AS (
+                SELECT locomotive_id,
+                       AVG(score) AS avg_score
+                FROM health_snapshots
+                WHERE calculated_at BETWEEN :start AND :end
+                GROUP BY locomotive_id
+            )
+            SELECT
+                COUNT(*) AS total_locomotives,
+                AVG(avg_score) AS fleet_avg,
+                MIN(avg_score) AS fleet_min,
+                MAX(avg_score) AS fleet_max,
+                COUNT(*) FILTER (WHERE avg_score >= 80) AS healthy_count,
+                COUNT(*) FILTER (WHERE avg_score >= 50 AND avg_score < 80) AS warning_count,
+                COUNT(*) FILTER (WHERE avg_score < 50) AS critical_count
+            FROM loco_scores
+        """),
+        {"start": start, "end": end},
+    )
+    row = result.fetchone()
+    if not row or not row.total_locomotives:
+        return {"total_locomotives": 0, "avg_score": 0, "min_score": 0, "max_score": 0,
+                "healthy_count": 0, "warning_count": 0, "critical_count": 0}
+    return {
+        "total_locomotives": int(row.total_locomotives),
+        "avg_score": round(float(row.fleet_avg), 2),
+        "min_score": round(float(row.fleet_min), 2),
+        "max_score": round(float(row.fleet_max), 2),
+        "healthy_count": int(row.healthy_count),
+        "warning_count": int(row.warning_count),
+        "critical_count": int(row.critical_count),
+    }
+
+
+async def _query_worst_locomotives(session: AsyncSession, start: datetime, end: datetime) -> list[dict]:
+    """Get top 10 worst-performing locomotives."""
+    result = await session.execute(
+        text("""
+            SELECT locomotive_id, locomotive_type,
+                   AVG(score) AS avg_score,
+                   MIN(score) AS min_score,
+                   MAX(score) AS max_score,
+                   COUNT(*) AS snapshot_count
+            FROM health_snapshots
+            WHERE calculated_at BETWEEN :start AND :end
+            GROUP BY locomotive_id, locomotive_type
+            ORDER BY AVG(score) ASC
+            LIMIT 10
+        """),
+        {"start": start, "end": end},
+    )
+    return [
+        {
+            "locomotive_id": str(row.locomotive_id),
+            "locomotive_type": row.locomotive_type,
+            "avg_score": round(float(row.avg_score), 2),
+            "min_score": round(float(row.min_score), 2),
+            "max_score": round(float(row.max_score), 2),
+        }
+        for row in result.fetchall()
+    ]
+
+
+async def _query_fleet_alert_summary(session: AsyncSession, start: datetime, end: datetime) -> dict:
+    """Get aggregated alert counts for the entire fleet."""
+    result = await session.execute(
+        text("""
+            SELECT severity, COUNT(*) AS cnt
+            FROM alert_events
+            WHERE timestamp BETWEEN :start AND :end
+            GROUP BY severity
+        """),
+        {"start": start, "end": end},
+    )
+    by_severity = {}
+    total = 0
+    for row in result.fetchall():
+        by_severity[row.severity] = int(row.cnt)
+        total += int(row.cnt)
+    return {"total": total, "by_severity": by_severity}
+
+
+# ── Single locomotive queries ────────────────────────────────────────────────
 
 
 async def _query_locomotive_type(session: AsyncSession, loco_id: UUID | None) -> str:
@@ -172,7 +327,6 @@ async def _query_latest_health(session: AsyncSession, loco_id: UUID | None, star
         where_loco = "AND locomotive_id = :loco_id"
         params["loco_id"] = loco_id
 
-    # Aggregate scores
     agg_result = await session.execute(
         text(f"""
             SELECT AVG(score) AS avg_score,
@@ -185,7 +339,6 @@ async def _query_latest_health(session: AsyncSession, loco_id: UUID | None, star
     )
     agg = agg_result.fetchone()
 
-    # Latest snapshot
     latest_result = await session.execute(
         text(f"""
             SELECT score, category, top_factors, damage_penalty
@@ -254,25 +407,23 @@ def _summarize_alerts(alerts: list[dict]) -> dict:
 async def _detect_anomalies(
     session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime
 ) -> dict[str, list[dict]]:
-    """Run z-score anomaly detection per sensor."""
-    params: dict = {"start": start, "end": end}
-    where_loco = ""
-    if loco_id:
-        where_loco = "AND locomotive_id = :loco_id"
-        params["loco_id"] = loco_id
+    """Run z-score anomaly detection per sensor for a single locomotive."""
+    if not loco_id:
+        return {}  # Skip for fleet — too expensive
+
+    params: dict = {"start": start, "end": end, "loco_id": loco_id}
 
     result = await session.execute(
-        text(f"""
+        text("""
             SELECT sensor_type, filtered_value, time
             FROM raw_telemetry
-            WHERE time BETWEEN :start AND :end {where_loco}
+            WHERE time BETWEEN :start AND :end AND locomotive_id = :loco_id
             ORDER BY sensor_type, time
         """),
         params,
     )
     rows = result.fetchall()
 
-    # Group by sensor
     series: dict[str, list[tuple[float, str]]] = {}
     for row in rows:
         s = series.setdefault(row.sensor_type, [])
@@ -285,7 +436,7 @@ async def _detect_anomalies(
         if indices:
             anomalies[sensor_type] = [
                 {"index": i, "value": round(values_times[i][0], 4), "time": values_times[i][1]}
-                for i in indices[:20]  # cap at 20 per sensor
+                for i in indices[:20]
             ]
 
     return anomalies

@@ -21,7 +21,6 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Brush,
     ReferenceArea,
     ReferenceLine,
 } from 'recharts';
@@ -373,13 +372,6 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             />
                         )}
 
-                        <Brush
-                            dataKey="ts"
-                            height={28}
-                            stroke="var(--mantine-color-ktzBlue-5)"
-                            fill="var(--dashboard-surface)"
-                            tickFormatter={fmtTick}
-                        />
                     </AreaChart>
                 </ResponsiveContainer>
             )}
