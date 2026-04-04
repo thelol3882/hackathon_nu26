@@ -142,10 +142,13 @@ services:
     env_file: .env
     environment:
       - SIMULATOR_PROCESSOR_URL=http://processor:8001
+      - SIMULATOR_GATEWAY_URL=http://api-gateway:8000
       - SIMULATOR_FLEET_SIZE=1700
       - SIMULATOR_SCENARIO=normal
     depends_on:
       processor:
+        condition: service_started
+      api-gateway:
         condition: service_started
     ports:
       - "8003:8000"

@@ -10,6 +10,7 @@ from api_gateway.core.redis_client import close_redis, get_redis, get_redis_raw,
 from api_gateway.services.alert_service import run_alert_persistence
 from api_gateway.services.connection_manager import ConnectionManager
 from api_gateway.services.health_service import init_health_config, run_health_cache
+from api_gateway.services.seed import seed_admin_user, seed_locomotives
 
 
 @asynccontextmanager
@@ -24,8 +25,10 @@ async def lifespan(app: FastAPI):
     redis_raw = get_redis_raw()
     session_factory = get_session_factory()
 
-    # Seed health config: DB → Redis cache
+    # Seed default data and health config
     async with session_factory() as session:
+        await seed_admin_user(session)
+        await seed_locomotives(session)
         await init_health_config(session, redis_client)
 
     # WebSocket connection manager (uses raw client for binary-safe pub/sub)

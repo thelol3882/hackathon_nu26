@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import random
 import uuid
+
+import httpx
 
 from shared.enums import LocomotiveType
 from shared.utils import generate_id
@@ -10,6 +13,8 @@ from simulator.models.locomotive_state import (
     LocomotiveState,
     Route,
 )
+
+logger = logging.getLogger(__name__)
 
 # Real Kazakhstan railway routes
 ROUTES: list[Route] = [
@@ -38,17 +43,73 @@ _INITIAL_MODES = [
 ]
 
 
-def generate_fleet(n: int = 1700) -> list[LocomotiveState]:
+def _fetch_locomotive_ids(gateway_url: str) -> list[dict] | None:
+    """Fetch locomotive records from api-gateway. Returns list of {id, model} or None on failure."""
+    try:
+        with httpx.Client(timeout=10) as client:
+            # Login as admin
+            resp = client.post(
+                f"{gateway_url}/auth/login",
+                json={"username": "admin", "password": "admin"},
+            )
+            if resp.status_code != 200:
+                logger.warning("Gateway login failed: %s", resp.status_code)
+                return None
+            token = resp.json()["access_token"]
+
+            # Fetch locomotives
+            resp = client.get(
+                f"{gateway_url}/locomotives",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"limit": 5000},
+            )
+            if resp.status_code != 200:
+                logger.warning("Fetch locomotives failed: %s", resp.status_code)
+                return None
+            return resp.json()
+    except Exception:
+        logger.warning("Could not reach gateway at %s, generating random fleet", gateway_url)
+        return None
+
+
+def generate_fleet(n: int = 1700, gateway_url: str | None = None) -> list[LocomotiveState]:
+    # Try to fetch real locomotive IDs from the api-gateway
+    gateway_locos = _fetch_locomotive_ids(gateway_url) if gateway_url else None
+
+    if gateway_locos:
+        # Separate by model type
+        te33a_ids = [rec for rec in gateway_locos if "TE33A" in rec.get("model", "")]
+        kz8a_ids = [rec for rec in gateway_locos if "KZ8A" in rec.get("model", "")]
+        logger.info(
+            "Fetched %d locomotives from gateway (TE33A=%d, KZ8A=%d)",
+            len(gateway_locos),
+            len(te33a_ids),
+            len(kz8a_ids),
+        )
+    else:
+        te33a_ids = []
+        kz8a_ids = []
+
     te33a_count = int(n * 0.6)
     locos: list[LocomotiveState] = []
 
     for i in range(n):
         loco_type = LocomotiveType.TE33A if i < te33a_count else LocomotiveType.KZ8A
 
+        # Use gateway ID if available, otherwise generate random
+        if loco_type == LocomotiveType.TE33A and te33a_ids:
+            idx = i % len(te33a_ids)
+            loco_id = uuid.UUID(te33a_ids[idx]["id"])
+        elif loco_type == LocomotiveType.KZ8A and kz8a_ids:
+            idx = (i - te33a_count) % len(kz8a_ids)
+            loco_id = uuid.UUID(kz8a_ids[idx]["id"])
+        else:
+            loco_id = uuid.UUID(str(generate_id()))
+
         if loco_type == LocomotiveType.KZ8A:
             route = random.choice(_ELECTRIFIED_ROUTES)
         else:
-            route = random.choice(ROUTES)  # TE33A can run on any route
+            route = random.choice(ROUTES)
 
         mode = random.choice(_INITIAL_MODES)
         speed = 0.0
@@ -65,7 +126,7 @@ def generate_fleet(n: int = 1700) -> list[LocomotiveState]:
 
         locos.append(
             LocomotiveState(
-                id=uuid.UUID(str(generate_id())),
+                id=loco_id,
                 loco_type=loco_type,
                 route=route,
                 mode=mode,

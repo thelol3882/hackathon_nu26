@@ -56,12 +56,12 @@ class SimulationRunner:
 
     def init_fleet(self) -> None:
         random.seed(settings.seed)
-        self.fleet = generate_fleet(settings.fleet_size)
+        self.fleet = generate_fleet(settings.fleet_size, gateway_url=settings.gateway_url)
         logger.info("Fleet initialized: %d locomotives", len(self.fleet))
 
     def resize_fleet(self, n: int) -> None:
         random.seed(settings.seed)
-        self.fleet = generate_fleet(n)
+        self.fleet = generate_fleet(n, gateway_url=settings.gateway_url)
         logger.info("Fleet resized to %d locomotives", n)
 
     def switch_scenario(self, name: str) -> None:

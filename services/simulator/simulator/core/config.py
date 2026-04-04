@@ -5,6 +5,7 @@ class SimulatorSettings(BaseSettings):
     model_config = {"env_prefix": "SIMULATOR_"}
 
     processor_url: str = "http://processor:8000"
+    gateway_url: str = "http://api-gateway:8000"
     fleet_size: int = 1700
     tick_interval: float = 1.0  # seconds between ticks
     batch_size: int = 100  # locomotives per batch POST
