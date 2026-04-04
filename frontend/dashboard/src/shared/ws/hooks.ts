@@ -61,7 +61,8 @@ export function useWebSocket(path: string | null) {
         (handler: (data: unknown) => void) => {
             return managerRef.current?.subscribe(handler) ?? (() => {});
         },
-        [status],
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-create when status/path changes so consumers re-subscribe after manager acquisition
+        [status, path],
     );
 
     return { status, subscribe };

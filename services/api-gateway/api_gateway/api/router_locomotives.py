@@ -19,7 +19,11 @@ async def list_locomotives(
 ):
     """List registered locomotives with optional search and filtering."""
     return await locomotive_service.list_locomotives(
-        db, offset=offset, limit=limit, search=search, model=model,
+        db,
+        offset=offset,
+        limit=limit,
+        search=search,
+        model=model,
     )
 
 

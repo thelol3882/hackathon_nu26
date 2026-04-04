@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api_gateway.models.alert_entity import AlertRecord
@@ -59,7 +60,24 @@ async def run_alert_persistence(
                 batch = []
                 try:
                     async with session_factory() as session:
-                        session.add_all(to_flush)
+                        stmt = pg_insert(AlertRecord).values(
+                            [
+                                {
+                                    "id": r.id,
+                                    "locomotive_id": r.locomotive_id,
+                                    "sensor_type": r.sensor_type,
+                                    "severity": r.severity,
+                                    "value": r.value,
+                                    "threshold_min": r.threshold_min,
+                                    "threshold_max": r.threshold_max,
+                                    "message": r.message,
+                                    "timestamp": r.timestamp,
+                                    "acknowledged": r.acknowledged,
+                                }
+                                for r in to_flush
+                            ]
+                        ).on_conflict_do_nothing()
+                        await session.execute(stmt)
                         await session.commit()
                         logger.debug(
                             "Alerts persisted",
@@ -173,25 +191,38 @@ async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
 
 
 async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
-    result = await session.execute(select(AlertRecord).where(AlertRecord.id == alert_id))
-    r = result.scalar_one_or_none()
+    # Update in alert_events (processor table — always up-to-date)
+    await session.execute(
+        text("UPDATE alert_events SET acknowledged = TRUE WHERE id = CAST(:aid AS uuid)"),
+        {"aid": alert_id},
+    )
+    # Also update in gateway alerts table if present
+    await session.execute(
+        text("UPDATE alerts SET acknowledged = TRUE, acknowledged_at = NOW() WHERE id = CAST(:aid AS uuid)"),
+        {"aid": alert_id},
+    )
+    await session.commit()
+
+    # Read back from alert_events
+    result = await session.execute(
+        text("SELECT id, locomotive_id, sensor_type, severity, value, threshold_min, threshold_max, message, timestamp, acknowledged FROM alert_events WHERE id = CAST(:aid AS uuid)"),
+        {"aid": alert_id},
+    )
+    r = result.mappings().first()
     if r is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    r.acknowledged = True
-    r.acknowledged_at = datetime.now(UTC)
-    await session.commit()
     logger.info("Alert acknowledged", code=ALERT_ACKNOWLEDGED, alert_id=alert_id)
 
     return AlertEvent(
-        id=r.id,
-        locomotive_id=r.locomotive_id,
-        sensor_type=r.sensor_type,
-        severity=r.severity,
-        value=r.value,
-        threshold_min=r.threshold_min,
-        threshold_max=r.threshold_max,
-        message=r.message,
-        timestamp=r.timestamp,
-        acknowledged=r.acknowledged,
+        id=r["id"],
+        locomotive_id=r["locomotive_id"],
+        sensor_type=r["sensor_type"],
+        severity=r["severity"],
+        value=r["value"],
+        threshold_min=r["threshold_min"],
+        threshold_max=r["threshold_max"],
+        message=r["message"],
+        timestamp=r["timestamp"],
+        acknowledged=r["acknowledged"],
     )

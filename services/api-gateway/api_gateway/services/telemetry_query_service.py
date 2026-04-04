@@ -16,10 +16,10 @@ class TelemetryBucket(BaseModel):
     bucket: datetime
     locomotive_id: str
     sensor_type: str
-    avg_value: float
-    min_value: float
-    max_value: float
-    last_value: float
+    avg_value: float | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    last_value: float | None = None
     unit: str
 
 
@@ -78,23 +78,74 @@ async def query_telemetry_bucketed(
     params: dict = {"off": offset, "lim": limit}
     where = _build_where(params, locomotive_id=locomotive_id, sensor_type=sensor_type, start=start, end=end)
 
-    # interval is safe to inline — validated against _ALLOWED_BUCKETS above
-    query = text(f"""
-        SELECT
-            time_bucket('{bucket_interval}', time) AS bucket,
-            CAST(locomotive_id AS text) AS locomotive_id,
-            sensor_type,
-            avg(value)  AS avg_value,
-            min(value)  AS min_value,
-            max(value)  AS max_value,
-            last(value, time) AS last_value,
-            unit
-        FROM raw_telemetry
-        {where}
-        GROUP BY bucket, locomotive_id, sensor_type, unit
-        ORDER BY bucket ASC
-        OFFSET :off LIMIT :lim
-    """)
+    # When start is provided, generate a full series of time buckets so the
+    # frontend always receives the complete requested window (empty buckets
+    # are filled with 0 / defaults).
+    if start is not None:
+        params["series_start"] = start
+        if end is not None:
+            params["series_end"] = end
+        # Ensure fallback params for COALESCE on empty buckets
+        params.setdefault("loco_id", "")
+        params.setdefault("sensor", "")
+
+        series_end_expr = ":series_end" if end is not None else "NOW()"
+
+        query = text(f"""
+            WITH data AS (
+                SELECT
+                    time_bucket('{bucket_interval}', time) AS bucket,
+                    CAST(locomotive_id AS text) AS locomotive_id,
+                    sensor_type,
+                    avg(value)  AS avg_value,
+                    min(value)  AS min_value,
+                    max(value)  AS max_value,
+                    last(value, time) AS last_value,
+                    unit
+                FROM raw_telemetry
+                {where}
+                GROUP BY bucket, locomotive_id, sensor_type, unit
+            ),
+            series AS (
+                SELECT time_bucket('{bucket_interval}', gs) AS bucket
+                FROM generate_series(
+                    CAST(:series_start AS timestamptz),
+                    CAST({series_end_expr} AS timestamptz),
+                    CAST('{bucket_interval}' AS interval)
+                ) AS gs
+            )
+            SELECT
+                s.bucket,
+                COALESCE(d.locomotive_id, CAST(:loco_id AS text))  AS locomotive_id,
+                COALESCE(d.sensor_type,   :sensor)    AS sensor_type,
+                d.avg_value,
+                d.min_value,
+                d.max_value,
+                d.last_value,
+                COALESCE(d.unit, '')      AS unit
+            FROM series s
+            LEFT JOIN data d ON d.bucket = s.bucket
+            ORDER BY s.bucket ASC
+            OFFSET :off LIMIT :lim
+        """)
+    else:
+        # No start → original simple query (no gap-filling)
+        query = text(f"""
+            SELECT
+                time_bucket('{bucket_interval}', time) AS bucket,
+                CAST(locomotive_id AS text) AS locomotive_id,
+                sensor_type,
+                avg(value)  AS avg_value,
+                min(value)  AS min_value,
+                max(value)  AS max_value,
+                last(value, time) AS last_value,
+                unit
+            FROM raw_telemetry
+            {where}
+            GROUP BY bucket, locomotive_id, sensor_type, unit
+            ORDER BY bucket ASC
+            OFFSET :off LIMIT :lim
+        """)
 
     result = await session.execute(query, params)
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
     Box,
     Combobox,
@@ -51,10 +51,6 @@ export function LocomotiveSelect({
     const [offset, setOffset] = useState(0);
     const [debouncedSearch] = useDebouncedValue(search, 300);
     const viewportRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        setOffset(0);
-    }, [debouncedSearch, modelFilter]);
 
     const { data, isFetching } = useGetLocomotivesQuery({
         offset,
@@ -147,7 +143,10 @@ export function LocomotiveSelect({
                 <Box p={4} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
                     <Combobox.Search
                         value={search}
-                        onChange={(e) => setSearch(e.currentTarget.value)}
+                        onChange={(e) => {
+                            setSearch(e.currentTarget.value);
+                            setOffset(0);
+                        }}
                         placeholder="Поиск..."
                         leftSection={<IconSearch size={14} />}
                         mb={6}
@@ -155,7 +154,10 @@ export function LocomotiveSelect({
                     <SegmentedControl
                         data={MODEL_FILTERS}
                         value={modelFilter}
-                        onChange={setModelFilter}
+                        onChange={(v) => {
+                            setModelFilter(v);
+                            setOffset(0);
+                        }}
                         size="xs"
                         fullWidth
                     />

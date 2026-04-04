@@ -36,10 +36,10 @@ export interface TelemetryBucket {
     bucket: string;
     locomotive_id: string;
     sensor_type: string;
-    avg_value: number;
-    min_value: number;
-    max_value: number;
-    last_value: number;
+    avg_value: number | null;
+    min_value: number | null;
+    max_value: number | null;
+    last_value: number | null;
     unit: string;
 }
 

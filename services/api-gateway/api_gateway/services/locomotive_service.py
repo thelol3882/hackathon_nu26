@@ -71,9 +71,7 @@ async def list_locomotives(
     count_result = await session.execute(select(func.count()).select_from(base.subquery()))
     total = count_result.scalar_one()
 
-    rows_result = await session.execute(
-        base.order_by(Locomotive.serial_number).offset(offset).limit(limit)
-    )
+    rows_result = await session.execute(base.order_by(Locomotive.serial_number).offset(offset).limit(limit))
     items = [LocomotiveRead.model_validate(row, from_attributes=True) for row in rows_result.scalars().all()]
 
     return LocomotiveListResponse(items=items, total=total)
@@ -81,7 +79,5 @@ async def list_locomotives(
 
 async def get_fleet_ids(session: AsyncSession) -> list[dict]:
     """Return minimal id+model for every locomotive (used by simulator)."""
-    result = await session.execute(
-        select(Locomotive.id, Locomotive.model).order_by(Locomotive.serial_number)
-    )
+    result = await session.execute(select(Locomotive.id, Locomotive.model).order_by(Locomotive.serial_number))
     return [{"id": str(row.id), "model": row.model} for row in result.all()]
