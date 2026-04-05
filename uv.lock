@@ -64,6 +64,7 @@ name = "analytics-service"
 version = "0.1.0"
 source = { editable = "services/analytics-service" }
 dependencies = [
+    { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "grpcio" },
@@ -76,6 +77,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.13.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "grpcio", specifier = ">=1.70.0" },
@@ -902,6 +904,21 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-instrumentation-grpc"
+version = "0.61b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/38/38/8c23bc3669fc0119452720171c35efac8c76a9587538e48007f0dde013ab/opentelemetry_instrumentation_grpc-0.61b0.tar.gz", hash = "sha256:47ad4ff31885153c7ae6b5c466a96a00977dff60d8f1f7281d4fa4bd1d113053", size = 31435, upload-time = "2026-03-04T14:20:34.094Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/47/1ffcd8fd36e1b7272884390d27f8d26a9c3c56da72627998822104079e13/opentelemetry_instrumentation_grpc-0.61b0-py3-none-any.whl", hash = "sha256:ec96eb28c7c904be9765e2a24402d6480c06506aac9a8fe08e2ae888866a01ee", size = 27237, upload-time = "2026-03-04T14:19:32.605Z" },
+]
+
+[[package]]
 name = "opentelemetry-instrumentation-httpx"
 version = "0.61b0"
 source = { registry = "https://pypi.org/simple" }
@@ -1473,6 +1490,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "opentelemetry-instrumentation-asyncpg" },
     { name = "opentelemetry-instrumentation-fastapi" },
+    { name = "opentelemetry-instrumentation-grpc" },
     { name = "opentelemetry-instrumentation-httpx" },
     { name = "opentelemetry-instrumentation-redis" },
     { name = "opentelemetry-sdk" },
@@ -1493,6 +1511,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.25.0" },
     { name = "opentelemetry-instrumentation-asyncpg", specifier = ">=0.46b0" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.46b0" },
+    { name = "opentelemetry-instrumentation-grpc", specifier = ">=0.46b0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.46b0" },
     { name = "opentelemetry-instrumentation-redis", specifier = ">=0.46b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.25.0" },

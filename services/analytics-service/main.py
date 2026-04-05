@@ -28,6 +28,8 @@ import sys
 
 import grpc.aio
 import uvicorn
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 
 from analytics.aggregator import FleetAggregator
@@ -70,8 +72,28 @@ async def serve_grpc(port: int) -> grpc.aio.Server:
     return server
 
 
+def _run_migrations() -> None:
+    """Apply pending Alembic migrations before accepting traffic.
+
+    Analytics Service owns the TimescaleDB schema — tables, hypertables,
+    continuous aggregates, retention and compression policies are all
+    managed here.  DB Writer only does INSERT.
+    """
+    import pathlib
+
+    ini_path = pathlib.Path(__file__).resolve().parent / "alembic.ini"
+    alembic_cfg = AlembicConfig(str(ini_path))
+    alembic_command.upgrade(alembic_cfg, "head")
+
+
 async def main() -> None:
     settings = get_settings()
+
+    # Apply migrations before anything else — DB Writer depends on
+    # tables being ready.
+    logger.info("Running Alembic migrations...")
+    _run_migrations()
+    logger.info("Migrations complete")
 
     # Initialize infrastructure
     await init_db_pool()

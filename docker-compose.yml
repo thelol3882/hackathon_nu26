@@ -154,8 +154,11 @@ services:
         condition: service_healthy
       processor:
         condition: service_started
+      analytics-service:
+        condition: service_healthy
 
-  # Analytics Service — single reader of TimescaleDB, exposes data via gRPC.
+  # Analytics Service — owns TimescaleDB schema (Alembic migrations),
+  # single reader of TimescaleDB, exposes data via gRPC.
   analytics-service:
     build:
       context: .
@@ -166,6 +169,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
   api-gateway:
     build:
