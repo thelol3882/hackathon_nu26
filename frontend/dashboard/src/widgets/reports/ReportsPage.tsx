@@ -175,7 +175,6 @@ export function ReportsPage() {
 
     const FormatIcon = FORMAT_META[format].icon;
 
-    // Stepper active step
     const activeStep =
         status === 'completed' || status === 'failed'
             ? 3
@@ -212,7 +211,6 @@ export function ReportsPage() {
             </Group>
 
             <Grid>
-                {/* Left: Report builder */}
                 <Grid.Col span={{ base: 12, lg: 7 }}>
                     <Card padding="lg" withBorder>
                         <Text fw={600} size="lg" mb="lg">
@@ -227,7 +225,6 @@ export function ReportsPage() {
                         </Stepper>
 
                         <Stack gap="md">
-                            {/* Step 1: Parameters */}
                             <Card
                                 withBorder
                                 padding="sm"
@@ -273,7 +270,6 @@ export function ReportsPage() {
                                 </Stack>
                             </Card>
 
-                            {/* Step 2: Format */}
                             <Card
                                 withBorder
                                 padding="sm"
@@ -301,7 +297,6 @@ export function ReportsPage() {
                                 </SimpleGrid>
                             </Card>
 
-                            {/* Actions */}
                             <Group>
                                 <Button
                                     onClick={handleGenerate}
@@ -328,7 +323,6 @@ export function ReportsPage() {
                                 </Button>
                             </Group>
 
-                            {/* Generation status */}
                             {isGenerating && (
                                 <Card
                                     withBorder
@@ -413,7 +407,6 @@ export function ReportsPage() {
                     </Card>
                 </Grid.Col>
 
-                {/* Right: History */}
                 <Grid.Col span={{ base: 12, lg: 5 }}>
                     <Card padding="lg" withBorder h="100%">
                         <Group gap="xs" mb="md">

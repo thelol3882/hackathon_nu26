@@ -91,14 +91,12 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
     const [trail, setTrail] = useState<[number, number][]>([]);
     const prevPosKey = useRef<string | null>(null);
 
-    // Add position to trail using a debounced effect
     useEffect(() => {
         if (!position) return;
         const key = `${position.latitude.toFixed(6)},${position.longitude.toFixed(6)}`;
         if (key === prevPosKey.current) return;
         prevPosKey.current = key;
         const pt: [number, number] = [position.latitude, position.longitude];
-        // Use timeout to avoid cascading renders
         const timer = setTimeout(() => {
             setTrail((prev) => {
                 const next = [...prev, pt];
@@ -125,7 +123,6 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
 
     return (
         <div className={classes.mapContainer}>
-            {/* Map controls */}
             <Group gap={4} className={classes.mapControls}>
                 <Tooltip label={followMode ? 'Следит за поездом' : 'Центрировать на поезде'}>
                     <ActionIcon
@@ -154,7 +151,6 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                 )}
             </Group>
 
-            {/* Coordinate display */}
             {position && (
                 <div className={classes.coordDisplay}>
                     <Text size="xs" ff="var(--font-mono), monospace" c="dimmed">
@@ -168,9 +164,7 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                 zoom={KZ_ZOOM}
                 style={{ height: 350, width: '100%' }}
                 scrollWheelZoom
-                whenReady={() => {
-                    // Disable follow mode when user drags the map
-                }}
+                whenReady={() => {}}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://carto.com/">CARTO</a>'
@@ -184,7 +178,6 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                     onUserDrag={handleUserDrag}
                 />
 
-                {/* Trail polyline */}
                 {showTrail && trail.length > 1 && (
                     <Polyline
                         positions={trail}
@@ -197,7 +190,6 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                     />
                 )}
 
-                {/* Train marker */}
                 {position && (
                     <Marker position={[position.latitude, position.longitude]} icon={trainIcon}>
                         <Popup>

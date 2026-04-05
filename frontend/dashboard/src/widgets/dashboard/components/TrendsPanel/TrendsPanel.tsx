@@ -167,7 +167,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const cfg = periodConfig[selectedPeriod];
     const isZoomed = zoomStack.length > 0;
 
-    // Zoom takes priority over period selector and replay range
     const currentWindow = useMemo(() => {
         if (isZoomed) {
             const top = zoomStack[zoomStack.length - 1];
@@ -244,7 +243,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         if (dragStart != null && dragEnd != null && dragStart !== dragEnd) {
             const left = Math.min(dragStart, dragEnd);
             const right = Math.max(dragStart, dragEnd);
-            // Ignore tiny selections (< 10s) to prevent accidental zooms
             if (right - left > 10_000) {
                 setZoomStack((prev) => [
                     ...prev,
