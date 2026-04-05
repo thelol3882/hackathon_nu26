@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useWebSocket } from '@/shared/ws/hooks';
-import type { AlertEvent } from '../types';
+import {useCallback, useEffect, useState} from 'react';
+import {useWebSocket} from '@/shared/ws/hooks';
+import type {AlertEvent} from '../types';
 
 const MAX_ALERTS = 50;
 
 export function useLiveAlerts(locomotiveId: string | null) {
     const path = locomotiveId ? `/ws/live/${locomotiveId}` : null;
-    const { status, subscribe } = useWebSocket(path);
+    const {status, subscribe} = useWebSocket(path);
     const [alerts, setAlerts] = useState<AlertEvent[]>([]);
 
     useEffect(() => {

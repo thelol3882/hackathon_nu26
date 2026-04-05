@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { reportsApi } from '../api/reportsApi';
-import type { ReportRequest, ReportStatus } from '../types';
+import {useState, useCallback, useMemo} from 'react';
+import {useAppDispatch} from '@/store/hooks';
+import {reportsApi} from '../api/reportsApi';
+import type {ReportRequest, ReportStatus} from '../types';
 
 const TERMINAL_STATUSES: ReportStatus[] = ['completed', 'failed'];
 
@@ -11,11 +11,11 @@ export function useReportGeneration() {
     const [status, setStatus] = useState<ReportStatus | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const [generateMutation, { error: mutationError }] = reportsApi.useGenerateReportMutation();
+    const [generateMutation, {error: mutationError}] = reportsApi.useGenerateReportMutation();
 
     const shouldPoll = reportId !== null && status !== null && !TERMINAL_STATUSES.includes(status);
 
-    const { data: reportData, error: queryError } = reportsApi.useGetReportQuery(reportId!, {
+    const {data: reportData, error: queryError} = reportsApi.useGetReportQuery(reportId!, {
         skip: !reportId,
         pollingInterval: shouldPoll ? 2000 : 0,
     });
@@ -24,7 +24,7 @@ export function useReportGeneration() {
         setStatus(reportData.status);
         if (TERMINAL_STATUSES.includes(reportData.status)) {
             setIsGenerating(false);
-            dispatch(reportsApi.util.invalidateTags([{ type: 'Report', id: 'LIST' }]));
+            dispatch(reportsApi.util.invalidateTags([{type: 'Report', id: 'LIST'}]));
         }
     }
 
@@ -58,5 +58,5 @@ export function useReportGeneration() {
 
     const error = mutationError || queryError || null;
 
-    return { generate, status, isGenerating, downloadUrl, reset, error };
+    return {generate, status, isGenerating, downloadUrl, reset, error};
 }

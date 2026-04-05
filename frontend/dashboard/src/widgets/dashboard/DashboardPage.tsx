@@ -1,37 +1,37 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Box, Text, Center, Loader, Group, Badge, Stack, ThemeIcon, Slider } from '@mantine/core';
-import { DateTimePicker } from '@mantine/dates';
-import { IconTrain, IconPlayerPlay, IconBroadcast } from '@tabler/icons-react';
-import { ActionIcon, Tooltip } from '@mantine/core';
-import { useLocomotive } from '@/widgets/layout/LocomotiveContext';
-import { useLiveTelemetry, useGetTelemetrySnapshotQuery } from '@/features/telemetry';
-import { useHealthIndex } from '@/features/health';
-import { healthApi } from '@/features/health/api/healthApi';
-import { useLiveAlerts } from '@/features/alerts';
-import { alertsApi } from '@/features/alerts/api/alertsApi';
-import type { SensorType, TelemetryReading } from '@/features/telemetry/types';
-import { getRelativeTime, formatDateTime, dayjs } from '@/shared/utils/date';
+import {useMemo} from 'react';
+import {Box, Text, Center, Loader, Group, Badge, Stack, ThemeIcon, Slider} from '@mantine/core';
+import {DateTimePicker} from '@mantine/dates';
+import {IconTrain, IconPlayerPlay, IconBroadcast} from '@tabler/icons-react';
+import {ActionIcon, Tooltip} from '@mantine/core';
+import {useLocomotive} from '@/widgets/layout/LocomotiveContext';
+import {useLiveTelemetry, useGetTelemetrySnapshotQuery} from '@/features/telemetry';
+import {useHealthIndex} from '@/features/health';
+import {healthApi} from '@/features/health/api/healthApi';
+import {useLiveAlerts} from '@/features/alerts';
+import {alertsApi} from '@/features/alerts/api/alertsApi';
+import type {SensorType, TelemetryReading} from '@/features/telemetry/types';
+import {getRelativeTime, formatDateTime, dayjs} from '@/shared/utils/date';
 
-import { HealthIndexGauge } from './components/HealthIndexGauge/HealthIndexGauge';
+import {HealthIndexGauge} from './components/HealthIndexGauge/HealthIndexGauge';
 import SpeedPanel from './components/SpeedPanel/SpeedPanel';
 import FuelEnergyPanel from './components/FuelEnergyPanel/FuelEnergyPanel';
 import PressureTemperaturePanel from './components/PressureTemperaturePanel/PressureTemperaturePanel';
 import ElectricalPanel from './components/ElectricalPanel/ElectricalPanel';
 import AlertsPanel from './components/AlertsPanel/AlertsPanel';
 import TrendsPanel from './components/TrendsPanel/TrendsPanel';
-import { RouteMap } from './components/RouteMap/RouteMap';
+import {RouteMap} from './components/RouteMap/RouteMap';
 
 import styles from './DashboardPage.module.css';
 
 function StatusStrip({
-    locomotiveId,
-    locomotiveLabel,
-    connectionStatus,
-    latestTimestamp,
-    sensorCount,
-}: {
+                         locomotiveId,
+                         locomotiveLabel,
+                         connectionStatus,
+                         latestTimestamp,
+                         sensorCount,
+                     }: {
     locomotiveId: string;
     locomotiveLabel: string | null;
     connectionStatus: string;
@@ -44,7 +44,7 @@ function StatusStrip({
         <Box className={styles.statusStrip}>
             <Group px="md" py={8} justify="space-between">
                 <Group gap="sm">
-                    <IconTrain size={14} style={{ opacity: 0.5 }} />
+                    <IconTrain size={14} style={{opacity: 0.5}}/>
                     <Text
                         size="xs"
                         fw={600}
@@ -94,9 +94,9 @@ function EmptyDashboard() {
                         radius="xl"
                         variant="light"
                         color="ktzBlue"
-                        style={{ opacity: 0.8 }}
+                        style={{opacity: 0.8}}
                     >
-                        <IconTrain size={40} stroke={1.2} />
+                        <IconTrain size={40} stroke={1.2}/>
                     </ThemeIcon>
                 </div>
                 <Stack align="center" gap={4}>
@@ -124,15 +124,15 @@ function EmptyDashboard() {
 }
 
 function ReplayControls() {
-    const { replay, setReplay } = useLocomotive();
+    const {replay, setReplay} = useLocomotive();
 
     const toggleReplay = () => {
         if (replay.enabled) {
-            setReplay({ enabled: false, start: null, end: null, cursor: null });
+            setReplay({enabled: false, start: null, end: null, cursor: null});
         } else {
             const end = dayjs().toISOString();
             const start = dayjs().subtract(15, 'minute').toISOString();
-            setReplay({ enabled: true, start, end, cursor: end });
+            setReplay({enabled: true, start, end, cursor: end});
         }
     };
 
@@ -141,7 +141,7 @@ function ReplayControls() {
         const startMs = dayjs(replay.start).valueOf();
         const endMs = dayjs(replay.end).valueOf();
         const cursorMs = startMs + (endMs - startMs) * (pct / 100);
-        setReplay({ ...replay, cursor: dayjs(cursorMs).toISOString() });
+        setReplay({...replay, cursor: dayjs(cursorMs).toISOString()});
     };
 
     const cursorPct = useMemo(() => {
@@ -166,9 +166,9 @@ function ReplayControls() {
                             onClick={toggleReplay}
                         >
                             {replay.enabled ? (
-                                <IconBroadcast size={16} />
+                                <IconBroadcast size={16}/>
                             ) : (
-                                <IconPlayerPlay size={16} />
+                                <IconPlayerPlay size={16}/>
                             )}
                         </ActionIcon>
                     </Tooltip>
@@ -178,7 +178,7 @@ function ReplayControls() {
                             size="sm"
                             variant="filled"
                             color="ktzGold"
-                            leftSection={<IconPlayerPlay size={10} />}
+                            leftSection={<IconPlayerPlay size={10}/>}
                         >
                             REPLAY
                         </Badge>
@@ -190,11 +190,11 @@ function ReplayControls() {
                 </Group>
 
                 {replay.enabled && (
-                    <Group gap="sm" wrap="wrap" style={{ flex: 1 }}>
+                    <Group gap="sm" wrap="wrap" style={{flex: 1}}>
                         <DateTimePicker
                             size="xs"
                             value={replay.start}
-                            onChange={(v) => v && setReplay({ ...replay, start: v, cursor: v })}
+                            onChange={(v) => v && setReplay({...replay, start: v, cursor: v})}
                             maxDate={dayjs().toDate()}
                             w={170}
                             placeholder="Начало"
@@ -202,7 +202,7 @@ function ReplayControls() {
                         <DateTimePicker
                             size="xs"
                             value={replay.end}
-                            onChange={(v) => v && setReplay({ ...replay, end: v })}
+                            onChange={(v) => v && setReplay({...replay, end: v})}
                             maxDate={dayjs().toDate()}
                             w={170}
                             placeholder="Конец"
@@ -238,7 +238,7 @@ function ReplayControls() {
                                 value: 0,
                                 label: replay.start ? dayjs(replay.start).format('HH:mm') : '',
                             },
-                            { value: 50 },
+                            {value: 50},
                             {
                                 value: 100,
                                 label: replay.end ? dayjs(replay.end).format('HH:mm') : '',
@@ -251,11 +251,11 @@ function ReplayControls() {
     );
 }
 
-function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
-    const { locomotiveLabel } = useLocomotive();
-    const { sensors, position, connectionStatus } = useLiveTelemetry(locomotiveId);
-    const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
-    const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
+function LiveDashboardContent({locomotiveId}: { locomotiveId: string }) {
+    const {locomotiveLabel} = useLocomotive();
+    const {sensors, position, connectionStatus} = useLiveTelemetry(locomotiveId);
+    const {health, isLoading: healthLoading} = useHealthIndex(locomotiveId);
+    const {alerts, clearAlerts} = useLiveAlerts(locomotiveId);
     const getSensor = (type: SensorType) => sensors.get(type);
     const locoType = health?.locomotive_type ?? sensors.values().next().value?.locomotive_type;
 
@@ -263,7 +263,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
         return (
             <Center h="50vh">
                 <Stack align="center" gap="md">
-                    <Loader size="lg" color="ktzBlue" />
+                    <Loader size="lg" color="ktzBlue"/>
                     <Text size="sm" c="dimmed">
                         Подключение...
                     </Text>
@@ -301,25 +301,25 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     );
 }
 
-function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
-    const { replay, locomotiveLabel } = useLocomotive();
+function ReplayDashboardContent({locomotiveId}: { locomotiveId: string }) {
+    const {replay, locomotiveLabel} = useLocomotive();
     const cursorIso = replay.cursor ? dayjs(replay.cursor).toISOString() : '';
 
-    const { data: snapshot, isFetching: snapFetching } = useGetTelemetrySnapshotQuery(
-        { locomotive_id: locomotiveId, at: cursorIso },
-        { skip: !cursorIso },
+    const {data: snapshot, isFetching: snapFetching} = useGetTelemetrySnapshotQuery(
+        {locomotive_id: locomotiveId, at: cursorIso},
+        {skip: !cursorIso},
     );
 
-    const { data: health, isFetching: healthFetching } = healthApi.useGetHealthAtQuery(
-        { locomotiveId, at: cursorIso },
-        { skip: !cursorIso },
+    const {data: health, isFetching: healthFetching} = healthApi.useGetHealthAtQuery(
+        {locomotiveId, at: cursorIso},
+        {skip: !cursorIso},
     );
 
     const startIso = replay.start ? dayjs(replay.start).toISOString() : undefined;
     const endIso = replay.cursor ? dayjs(replay.cursor).toISOString() : undefined;
-    const { data: alerts = [] } = alertsApi.useGetAlertsQuery(
-        { locomotive_id: locomotiveId, start: startIso, end: endIso, limit: 50 },
-        { skip: !startIso || !endIso },
+    const {data: alerts = []} = alertsApi.useGetAlertsQuery(
+        {locomotive_id: locomotiveId, start: startIso, end: endIso, limit: 50},
+        {skip: !startIso || !endIso},
     );
 
     const sensorMap = useMemo(() => {
@@ -347,7 +347,7 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const position = useMemo(() => {
         if (!snapshot) return null;
         const withGps = snapshot.find((s) => s.latitude != null && s.longitude != null);
-        return withGps ? { latitude: withGps.latitude!, longitude: withGps.longitude! } : null;
+        return withGps ? {latitude: withGps.latitude!, longitude: withGps.longitude!} : null;
     }, [snapshot]);
 
     const isLoading = snapFetching || healthFetching;
@@ -356,7 +356,7 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
         return (
             <Center h="50vh">
                 <Stack align="center" gap="md">
-                    <Loader size="lg" color="ktzGold" />
+                    <Loader size="lg" color="ktzGold"/>
                     <Text size="sm" c="dimmed">
                         Загрузка данных за {replay.cursor ? formatDateTime(replay.cursor) : '...'}
                         ...
@@ -370,16 +370,16 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
         <>
             <Box
                 className={styles.statusStrip}
-                style={{ borderColor: 'var(--mantine-color-ktzGold-5)' }}
+                style={{borderColor: 'var(--mantine-color-ktzGold-5)'}}
             >
                 <Group px="md" py={8} justify="space-between">
                     <Group gap="sm">
-                        <IconTrain size={14} style={{ opacity: 0.5 }} />
+                        <IconTrain size={14} style={{opacity: 0.5}}/>
                         <Text size="xs" fw={600} ff="var(--font-mono), monospace">
                             {locomotiveLabel ?? locomotiveId.slice(0, 8)}
                         </Text>
                         <div
-                            style={{ width: 1, height: 14, background: 'var(--dashboard-border)' }}
+                            style={{width: 1, height: 14, background: 'var(--dashboard-border)'}}
                         />
                         <Badge size="xs" variant="filled" color="ktzGold">
                             REPLAY
@@ -401,7 +401,8 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 healthLoading={isLoading}
                 locoType={locoType}
                 alerts={alerts}
-                clearAlerts={() => {}}
+                clearAlerts={() => {
+                }}
                 locomotiveId={locomotiveId}
                 position={position}
                 isReplay={true}
@@ -427,22 +428,22 @@ interface DashboardGridProps {
 }
 
 function DashboardGrid({
-    getSensor,
-    health,
-    healthLoading,
-    locoType,
-    alerts,
-    clearAlerts,
-    locomotiveId,
-    position,
-    isReplay,
-    replayStart,
-    replayEnd,
-}: DashboardGridProps) {
+                           getSensor,
+                           health,
+                           healthLoading,
+                           locoType,
+                           alerts,
+                           clearAlerts,
+                           locomotiveId,
+                           position,
+                           isReplay,
+                           replayStart,
+                           replayEnd,
+                       }: DashboardGridProps) {
     return (
         <Box className={styles.grid}>
             <Box className={styles.health}>
-                <HealthIndexGauge health={health} isLoading={healthLoading} />
+                <HealthIndexGauge health={health} isLoading={healthLoading}/>
             </Box>
             <Box className={styles.speed}>
                 <SpeedPanel
@@ -479,7 +480,7 @@ function DashboardGrid({
                 />
             </Box>
             <Box className={styles.alerts}>
-                <AlertsPanel alerts={alerts} onClear={clearAlerts} isReplay={isReplay} />
+                <AlertsPanel alerts={alerts} onClear={clearAlerts} isReplay={isReplay}/>
             </Box>
             <Box className={styles.trends}>
                 <TrendsPanel
@@ -489,24 +490,24 @@ function DashboardGrid({
                 />
             </Box>
             <Box className={styles.map}>
-                <RouteMap position={position} />
+                <RouteMap position={position}/>
             </Box>
         </Box>
     );
 }
 
 export function DashboardPage() {
-    const { locomotiveId, replay } = useLocomotive();
+    const {locomotiveId, replay} = useLocomotive();
 
-    if (!locomotiveId) return <EmptyDashboard />;
+    if (!locomotiveId) return <EmptyDashboard/>;
 
     return (
         <>
-            <ReplayControls />
+            <ReplayControls/>
             {replay.enabled && replay.cursor ? (
-                <ReplayDashboardContent locomotiveId={locomotiveId} />
+                <ReplayDashboardContent locomotiveId={locomotiveId}/>
             ) : (
-                <LiveDashboardContent locomotiveId={locomotiveId} />
+                <LiveDashboardContent locomotiveId={locomotiveId}/>
             )}
         </>
     );

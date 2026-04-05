@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import {useState} from 'react';
 import {
     Card,
     Text,
@@ -14,10 +14,10 @@ import {
     Tooltip,
     ThemeIcon,
 } from '@mantine/core';
-import { IconCheck, IconAlertTriangle, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
-import type { AlertEvent } from '@/features/alerts/types';
-import { useAcknowledgeAlertMutation } from '@/features/alerts';
-import { getRelativeTime } from '@/shared/utils/date';
+import {IconCheck, IconAlertTriangle, IconAlertCircle, IconInfoCircle} from '@tabler/icons-react';
+import type {AlertEvent} from '@/features/alerts/types';
+import {useAcknowledgeAlertMutation} from '@/features/alerts';
+import {getRelativeTime} from '@/shared/utils/date';
 import classes from './AlertsPanel.module.css';
 
 interface AlertsPanelProps {
@@ -57,13 +57,13 @@ const severityLabels: Record<string, string> = {
 };
 
 function AlertItem({
-    alert,
-    onAcknowledged,
-}: {
+                       alert,
+                       onAcknowledged,
+                   }: {
     alert: AlertEvent;
     onAcknowledged?: (id: string) => void;
 }) {
-    const [acknowledge, { isLoading }] = useAcknowledgeAlertMutation();
+    const [acknowledge, {isLoading}] = useAcknowledgeAlertMutation();
     const [acked, setAcked] = useState(alert.acknowledged);
     const isEmergency = alert.severity === 'emergency';
     const isCritical = alert.severity === 'critical';
@@ -91,7 +91,7 @@ function AlertItem({
                 size="sm"
                 className={!acked && (isEmergency || isCritical) ? classes.iconPulse : ''}
             >
-                <SeverityIcon size={14} />
+                <SeverityIcon size={14}/>
             </ThemeIcon>
             <div className={classes.alertContent}>
                 <Stack gap={2}>
@@ -131,12 +131,12 @@ function AlertItem({
                             onClick={handleAck}
                             aria-label="Подтвердить"
                         >
-                            <IconCheck size={14} />
+                            <IconCheck size={14}/>
                         </ActionIcon>
                     </Tooltip>
                 ) : (
                     <Badge size="xs" variant="filled" color="green" radius="xl">
-                        <IconCheck size={10} />
+                        <IconCheck size={10}/>
                     </Badge>
                 )}
             </div>
@@ -144,7 +144,7 @@ function AlertItem({
     );
 }
 
-export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelProps) {
+export default function AlertsPanel({alerts, onClear, isReplay}: AlertsPanelProps) {
     const [filter, setFilter] = useState<SeverityFilter>('all');
     const [localAcked, setLocalAcked] = useState<Set<string>>(new Set());
 
@@ -154,7 +154,7 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
 
     // Overlay local acknowledgements on top of server-provided alert data
     const mergedAlerts = alerts.map((a) =>
-        localAcked.has(a.id) ? { ...a, acknowledged: true } : a,
+        localAcked.has(a.id) ? {...a, acknowledged: true} : a,
     );
 
     const filteredAlerts =
@@ -237,10 +237,10 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
                     value={filter}
                     onChange={(v) => setFilter(v as SeverityFilter)}
                     data={[
-                        { label: `Все (${mergedAlerts.length})`, value: 'all' },
-                        { label: `Авария (${counts.emergency})`, value: 'emergency' },
-                        { label: `Крит. (${counts.critical})`, value: 'critical' },
-                        { label: `Вним. (${counts.warning})`, value: 'warning' },
+                        {label: `Все (${mergedAlerts.length})`, value: 'all'},
+                        {label: `Авария (${counts.emergency})`, value: 'emergency'},
+                        {label: `Крит. (${counts.critical})`, value: 'critical'},
+                        {label: `Вним. (${counts.warning})`, value: 'warning'},
                     ]}
                     mb="sm"
                     fullWidth

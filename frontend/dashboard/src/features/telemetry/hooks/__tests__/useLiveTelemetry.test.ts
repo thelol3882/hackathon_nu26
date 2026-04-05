@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useLiveTelemetry } from '../useLiveTelemetry';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import {renderHook, act} from '@testing-library/react';
+import {useLiveTelemetry} from '../useLiveTelemetry';
 
 type SubscribeHandler = (data: unknown) => void;
 
@@ -33,7 +33,8 @@ function makeWireTelemetry(
 describe('useLiveTelemetry', () => {
     beforeEach(() => {
         vi.useFakeTimers();
-        mockSubscribe.mockImplementation(() => () => {});
+        mockSubscribe.mockImplementation(() => () => {
+        });
         mockStatus.mockReturnValue('disconnected');
     });
 
@@ -43,7 +44,7 @@ describe('useLiveTelemetry', () => {
     });
 
     it('returns empty sensors map when no locomotiveId', () => {
-        const { result } = renderHook(() => useLiveTelemetry(null));
+        const {result} = renderHook(() => useLiveTelemetry(null));
 
         expect(result.current.sensors.size).toBe(0);
         expect(result.current.position).toBeNull();
@@ -53,15 +54,16 @@ describe('useLiveTelemetry', () => {
         let capturedHandler: SubscribeHandler | null = null;
         mockSubscribe.mockImplementation((handler) => {
             capturedHandler = handler;
-            return () => {};
+            return () => {
+            };
         });
 
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
+        const {result} = renderHook(() => useLiveTelemetry('loco-1'));
 
-        const wire = makeWireTelemetry([{ sensor_type: 'diesel_rpm', value: 800, unit: 'rpm' }]);
+        const wire = makeWireTelemetry([{sensor_type: 'diesel_rpm', value: 800, unit: 'rpm'}]);
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: wire });
+            capturedHandler!({type: 'telemetry', data: wire});
         });
 
         expect(result.current.sensors.size).toBe(0);
@@ -80,31 +82,32 @@ describe('useLiveTelemetry', () => {
         let capturedHandler: SubscribeHandler | null = null;
         mockSubscribe.mockImplementation((handler) => {
             capturedHandler = handler;
-            return () => {};
+            return () => {
+            };
         });
 
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
+        const {result} = renderHook(() => useLiveTelemetry('loco-1'));
 
-        const wire = makeWireTelemetry([{ sensor_type: 'speed_actual', value: 60, unit: 'km/h' }], {
+        const wire = makeWireTelemetry([{sensor_type: 'speed_actual', value: 60, unit: 'km/h'}], {
             latitude: 51.1,
             longitude: 71.4,
         });
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: wire });
+            capturedHandler!({type: 'telemetry', data: wire});
         });
 
         act(() => {
             vi.advanceTimersByTime(250);
         });
 
-        expect(result.current.position).toEqual({ latitude: 51.1, longitude: 71.4 });
+        expect(result.current.position).toEqual({latitude: 51.1, longitude: 71.4});
     });
 
     it('connectionStatus reflects WS status', () => {
         mockStatus.mockReturnValue('connected');
 
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
+        const {result} = renderHook(() => useLiveTelemetry('loco-1'));
 
         expect(result.current.connectionStatus).toBe('connected');
     });

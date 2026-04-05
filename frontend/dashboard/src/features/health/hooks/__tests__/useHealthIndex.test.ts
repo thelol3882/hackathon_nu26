@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import type { HealthIndex } from '../../types';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {renderHook, act} from '@testing-library/react';
+import type {HealthIndex} from '../../types';
 
-const { mockSubscribe, mockUnsubscribe, mockUseGetHealthQuery } = vi.hoisted(() => ({
+const {mockSubscribe, mockUnsubscribe, mockUseGetHealthQuery} = vi.hoisted(() => ({
     mockSubscribe: vi.fn(),
     mockUnsubscribe: vi.fn(),
     mockUseGetHealthQuery: vi.fn(),
@@ -21,8 +21,8 @@ vi.mock('../../api/healthApi', () => ({
     },
 }));
 
-import { useHealthIndex } from '../useHealthIndex';
-import { useWebSocket } from '@/shared/ws/hooks';
+import {useHealthIndex} from '../useHealthIndex';
+import {useWebSocket} from '@/shared/ws/hooks';
 
 const fakeHealth: HealthIndex = {
     locomotive_id: 'loc-1',
@@ -55,11 +55,11 @@ beforeEach(() => {
 
 describe('useHealthIndex', () => {
     it('returns null health when no locomotiveId', () => {
-        const { result } = renderHook(() => useHealthIndex(null));
+        const {result} = renderHook(() => useHealthIndex(null));
 
         expect(result.current.health).toBeNull();
         expect(result.current.isLoading).toBe(false);
-        expect(mockUseGetHealthQuery).toHaveBeenCalledWith('', { skip: true });
+        expect(mockUseGetHealthQuery).toHaveBeenCalledWith('', {skip: true});
         expect(useWebSocket).toHaveBeenCalledWith(null);
     });
 
@@ -70,7 +70,7 @@ describe('useHealthIndex', () => {
             error: undefined,
         });
 
-        const { result } = renderHook(() => useHealthIndex('loc-1'));
+        const {result} = renderHook(() => useHealthIndex('loc-1'));
 
         expect(result.current.health).toEqual(fakeHealth);
         expect(result.current.isLoading).toBe(false);
@@ -83,13 +83,13 @@ describe('useHealthIndex', () => {
             error: undefined,
         });
 
-        const { result } = renderHook(() => useHealthIndex('loc-1'));
+        const {result} = renderHook(() => useHealthIndex('loc-1'));
 
         const handler = mockSubscribe.mock.calls[0][0];
         expect(handler).toBeDefined();
 
         act(() => {
-            handler({ type: 'health', data: fakeLiveHealth });
+            handler({type: 'health', data: fakeLiveHealth});
         });
 
         expect(result.current.health).toEqual(fakeLiveHealth);
@@ -102,7 +102,7 @@ describe('useHealthIndex', () => {
             error: undefined,
         });
 
-        const { result } = renderHook(() => useHealthIndex('loc-1'));
+        const {result} = renderHook(() => useHealthIndex('loc-1'));
 
         expect(result.current.isLoading).toBe(true);
     });

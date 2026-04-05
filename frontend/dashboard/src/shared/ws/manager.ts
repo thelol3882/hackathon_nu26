@@ -1,5 +1,5 @@
-import { decode } from '@msgpack/msgpack';
-import { encode } from '@msgpack/msgpack';
+import {decode} from '@msgpack/msgpack';
+import {encode} from '@msgpack/msgpack';
 
 type MessageHandler = (data: unknown) => void;
 
@@ -98,7 +98,7 @@ export class WebSocketManager {
     private sendPong() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
         try {
-            this.ws.send(encode({ type: 'pong' }));
+            this.ws.send(encode({type: 'pong'}));
         } catch {
         }
     }

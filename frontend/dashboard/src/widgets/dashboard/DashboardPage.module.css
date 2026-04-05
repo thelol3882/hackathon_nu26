@@ -20,8 +20,12 @@
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 /* Dashboard grid */
@@ -44,14 +48,37 @@
     height: 100%;
 }
 
-.health { grid-area: health; }
-.speed { grid-area: speed; }
-.fuel { grid-area: fuel; }
-.press { grid-area: press; }
-.elec { grid-area: elec; }
-.alerts { grid-area: alerts; }
-.trends { grid-area: trends; }
-.map { grid-area: map; }
+.health {
+    grid-area: health;
+}
+
+.speed {
+    grid-area: speed;
+}
+
+.fuel {
+    grid-area: fuel;
+}
+
+.press {
+    grid-area: press;
+}
+
+.elec {
+    grid-area: elec;
+}
+
+.alerts {
+    grid-area: alerts;
+}
+
+.trends {
+    grid-area: trends;
+}
+
+.map {
+    grid-area: map;
+}
 
 /* Medium: 2 columns */
 @media (min-width: 768px) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import {useState, useCallback, useRef} from 'react';
 import {
     Box,
     Combobox,
@@ -13,15 +13,15 @@ import {
     Text,
     useCombobox,
 } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { IconSearch } from '@tabler/icons-react';
-import { useGetLocomotivesQuery } from '../api/locomotivesApi';
+import {useDebouncedValue} from '@mantine/hooks';
+import {IconSearch} from '@tabler/icons-react';
+import {useGetLocomotivesQuery} from '../api/locomotivesApi';
 
 const PAGE_SIZE = 50;
 const MODEL_FILTERS = [
-    { value: '', label: 'Все' },
-    { value: 'TE33A', label: 'TE33A' },
-    { value: 'KZ8A', label: 'KZ8A' },
+    {value: '', label: 'Все'},
+    {value: 'TE33A', label: 'TE33A'},
+    {value: 'KZ8A', label: 'KZ8A'},
 ];
 
 interface LocomotiveSelectProps {
@@ -35,13 +35,13 @@ interface LocomotiveSelectProps {
 }
 
 export function LocomotiveSelect({
-    value,
-    onChange,
-    allowAll = false,
-    label,
-    placeholder = 'Выберите локомотив',
-    w = 280,
-}: LocomotiveSelectProps) {
+                                     value,
+                                     onChange,
+                                     allowAll = false,
+                                     label,
+                                     placeholder = 'Выберите локомотив',
+                                     w = 280,
+                                 }: LocomotiveSelectProps) {
     const combobox = useCombobox({
         onDropdownClose: () => combobox.resetSelectedOption(),
     });
@@ -52,7 +52,7 @@ export function LocomotiveSelect({
     const [debouncedSearch] = useDebouncedValue(search, 300);
     const viewportRef = useRef<HTMLDivElement>(null);
 
-    const { data, isFetching } = useGetLocomotivesQuery({
+    const {data, isFetching} = useGetLocomotivesQuery({
         offset,
         limit: PAGE_SIZE,
         search: debouncedSearch || undefined,
@@ -67,16 +67,16 @@ export function LocomotiveSelect({
     const selectedLabel = selectedLoco
         ? `${selectedLoco.model} — ${selectedLoco.serial_number}`
         : value
-          ? `Локомотив ${value.slice(0, 8)}…`
-          : allowAll
-            ? 'Все'
-            : null;
+            ? `Локомотив ${value.slice(0, 8)}…`
+            : allowAll
+                ? 'Все'
+                : null;
 
     const handleScrollPositionChange = useCallback(
         (pos: { x: number; y: number }) => {
             const viewport = viewportRef.current;
             if (!viewport || isFetching || !hasMore) return;
-            const { scrollHeight, clientHeight } = viewport;
+            const {scrollHeight, clientHeight} = viewport;
             if (pos.y + clientHeight >= scrollHeight - 20) {
                 setOffset(items.length);
             }
@@ -87,7 +87,7 @@ export function LocomotiveSelect({
     const options = items.map((loco) => (
         <Combobox.Option key={loco.id} value={loco.id} active={loco.id === value}>
             <Group gap="xs" wrap="nowrap">
-                <Text size="xs" c="dimmed" fw={600} w={48} style={{ flexShrink: 0 }}>
+                <Text size="xs" c="dimmed" fw={600} w={48} style={{flexShrink: 0}}>
                     {loco.model}
                 </Text>
                 <Text size="sm" truncate>
@@ -130,7 +130,7 @@ export function LocomotiveSelect({
                                 }}
                             />
                         ) : (
-                            <Combobox.Chevron />
+                            <Combobox.Chevron/>
                         )
                     }
                     rightSectionPointerEvents={value ? 'auto' : 'none'}
@@ -148,7 +148,7 @@ export function LocomotiveSelect({
             <Combobox.Dropdown>
                 <Box
                     p={4}
-                    style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+                    style={{borderBottom: '1px solid var(--mantine-color-default-border)'}}
                 >
                     <Combobox.Search
                         value={search}
@@ -157,7 +157,7 @@ export function LocomotiveSelect({
                             setOffset(0);
                         }}
                         placeholder="Поиск..."
-                        leftSection={<IconSearch size={14} />}
+                        leftSection={<IconSearch size={14}/>}
                         mb={6}
                     />
                     <SegmentedControl
@@ -195,7 +195,7 @@ export function LocomotiveSelect({
                         )}
                         {isFetching && items.length > 0 && (
                             <Box ta="center" py={8}>
-                                <Loader size="xs" />
+                                <Loader size="xs"/>
                             </Box>
                         )}
                     </ScrollArea.Autosize>

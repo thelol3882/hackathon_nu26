@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {createSlice, type PayloadAction} from '@reduxjs/toolkit';
 
 const STORAGE_KEY = 'ktz_auth';
 
@@ -92,7 +92,7 @@ const authSlice = createSlice({
     },
 });
 
-export const { hydrateAuth, setCredentials, logout } = authSlice.actions;
+export const {hydrateAuth, setCredentials, logout} = authSlice.actions;
 export const {
     selectAccessToken,
     selectUsername,

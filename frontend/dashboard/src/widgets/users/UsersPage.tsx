@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import {useState} from 'react';
 import {
     Alert,
     Badge,
@@ -19,7 +19,7 @@ import {
     ThemeIcon,
     Title,
 } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
+import {showNotification} from '@mantine/notifications';
 import {
     IconAlertCircle,
     IconCheck,
@@ -28,15 +28,15 @@ import {
     IconUserPlus,
     IconUsers,
 } from '@tabler/icons-react';
-import { useGetUsersQuery, useRegisterMutation } from '@/features/auth';
-import { useAppSelector } from '@/store/hooks';
-import { selectIsAdmin } from '@/store/authSlice';
-import { formatDateTime } from '@/shared/utils/date';
+import {useGetUsersQuery, useRegisterMutation} from '@/features/auth';
+import {useAppSelector} from '@/store/hooks';
+import {selectIsAdmin} from '@/store/authSlice';
+import {formatDateTime} from '@/shared/utils/date';
 
 export function UsersPage() {
     const isAdmin = useAppSelector(selectIsAdmin);
-    const { data, isLoading } = useGetUsersQuery(undefined, { skip: !isAdmin });
-    const [register, { isLoading: isRegistering }] = useRegisterMutation();
+    const {data, isLoading} = useGetUsersQuery(undefined, {skip: !isAdmin});
+    const [register, {isLoading: isRegistering}] = useRegisterMutation();
     const users = data?.users ?? [];
     const total = data?.total ?? 0;
 
@@ -50,7 +50,7 @@ export function UsersPage() {
             <Center h="50vh">
                 <Stack align="center" gap="md">
                     <ThemeIcon size={64} radius="xl" variant="light" color="red">
-                        <IconAlertCircle size={32} />
+                        <IconAlertCircle size={32}/>
                     </ThemeIcon>
                     <Text size="lg" fw={600}>
                         Доступ запрещён
@@ -83,7 +83,7 @@ export function UsersPage() {
                 title: 'Пользователь создан',
                 message: `${newUsername} (${newRole === 'admin' ? 'администратор' : 'оператор'})`,
                 color: 'green',
-                icon: <IconCheck size={16} />,
+                icon: <IconCheck size={16}/>,
             });
             setNewUsername('');
             setNewPassword('');
@@ -98,7 +98,7 @@ export function UsersPage() {
             <Group justify="space-between">
                 <Group gap="sm">
                     <ThemeIcon variant="light" color="ktzBlue" size="lg">
-                        <IconUsers size={20} />
+                        <IconUsers size={20}/>
                     </ThemeIcon>
                     <Title order={3}>Пользователи</Title>
                 </Group>
@@ -106,17 +106,17 @@ export function UsersPage() {
                     color="ktzGold"
                     variant="light"
                     size="lg"
-                    leftSection={<IconShieldCheck size={12} />}
+                    leftSection={<IconShieldCheck size={12}/>}
                 >
                     Администратор
                 </Badge>
             </Group>
 
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+            <SimpleGrid cols={{base: 1, sm: 3}}>
                 <Card padding="md" withBorder>
                     <Group gap="sm">
                         <ThemeIcon variant="light" color="ktzBlue" size="lg">
-                            <IconUsers size={20} />
+                            <IconUsers size={20}/>
                         </ThemeIcon>
                         <div>
                             <Text size="xs" c="dimmed">
@@ -131,7 +131,7 @@ export function UsersPage() {
                 <Card padding="md" withBorder>
                     <Group gap="sm">
                         <ThemeIcon variant="light" color="ktzGold" size="lg">
-                            <IconShieldCheck size={20} />
+                            <IconShieldCheck size={20}/>
                         </ThemeIcon>
                         <div>
                             <Text size="xs" c="dimmed">
@@ -146,7 +146,7 @@ export function UsersPage() {
                 <Card padding="md" withBorder>
                     <Group gap="sm">
                         <ThemeIcon variant="light" color="healthy" size="lg">
-                            <IconUser size={20} />
+                            <IconUser size={20}/>
                         </ThemeIcon>
                         <div>
                             <Text size="xs" c="dimmed">
@@ -163,14 +163,14 @@ export function UsersPage() {
             <Card padding="lg" withBorder>
                 <Group gap="xs" mb="md">
                     <ThemeIcon variant="light" color="ktzBlue" size="md">
-                        <IconUserPlus size={16} />
+                        <IconUserPlus size={16}/>
                     </ThemeIcon>
                     <Text fw={600} size="lg">
                         Создать пользователя
                     </Text>
                 </Group>
                 {formError && (
-                    <Alert color="red" variant="light" icon={<IconAlertCircle size={14} />} mb="md">
+                    <Alert color="red" variant="light" icon={<IconAlertCircle size={14}/>} mb="md">
                         {formError}
                     </Alert>
                 )}
@@ -190,14 +190,14 @@ export function UsersPage() {
                     <Select
                         label="Роль"
                         data={[
-                            { value: 'operator', label: 'Оператор (машинист/диспетчер)' },
-                            { value: 'admin', label: 'Администратор' },
+                            {value: 'operator', label: 'Оператор (машинист/диспетчер)'},
+                            {value: 'admin', label: 'Администратор'},
                         ]}
                         value={newRole}
                         onChange={(v) => v && setNewRole(v)}
                     />
                     <Button
-                        leftSection={<IconUserPlus size={16} />}
+                        leftSection={<IconUserPlus size={16}/>}
                         onClick={handleCreate}
                         loading={isRegistering}
                     >
@@ -213,13 +213,13 @@ export function UsersPage() {
 
                 {isLoading ? (
                     <Center py="xl">
-                        <Loader size="md" />
+                        <Loader size="md"/>
                     </Center>
                 ) : users.length === 0 ? (
                     <Center py="xl">
                         <Stack align="center" gap="xs">
                             <ThemeIcon variant="light" color="gray" size="xl" radius="xl">
-                                <IconUsers size={24} />
+                                <IconUsers size={24}/>
                             </ThemeIcon>
                             <Text c="dimmed">Нет пользователей</Text>
                         </Stack>
@@ -248,9 +248,9 @@ export function UsersPage() {
                                                 radius="xl"
                                             >
                                                 {user.role === 'admin' ? (
-                                                    <IconShieldCheck size={14} />
+                                                    <IconShieldCheck size={14}/>
                                                 ) : (
-                                                    <IconUser size={14} />
+                                                    <IconUser size={14}/>
                                                 )}
                                             </ThemeIcon>
                                             <Text size="sm" fw={500}>

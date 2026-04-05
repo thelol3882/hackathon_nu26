@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import {createContext, useContext, useState, type ReactNode} from 'react';
 
 export interface ReplayState {
     enabled: boolean;
@@ -17,17 +17,19 @@ interface LocomotiveContextValue {
     setReplay: (replay: ReplayState) => void;
 }
 
-const defaultReplay: ReplayState = { enabled: false, start: null, end: null, cursor: null };
+const defaultReplay: ReplayState = {enabled: false, start: null, end: null, cursor: null};
 
 const LocomotiveContext = createContext<LocomotiveContextValue>({
     locomotiveId: null,
     locomotiveLabel: null,
-    setLocomotive: () => {},
+    setLocomotive: () => {
+    },
     replay: defaultReplay,
-    setReplay: () => {},
+    setReplay: () => {
+    },
 });
 
-export function LocomotiveProvider({ children }: { children: ReactNode }) {
+export function LocomotiveProvider({children}: { children: ReactNode }) {
     const [locomotiveId, setLocomotiveId] = useState<string | null>(null);
     const [locomotiveLabel, setLocomotiveLabel] = useState<string | null>(null);
     const [replay, setReplay] = useState<ReplayState>(defaultReplay);
@@ -39,7 +41,7 @@ export function LocomotiveProvider({ children }: { children: ReactNode }) {
 
     return (
         <LocomotiveContext
-            value={{ locomotiveId, locomotiveLabel, setLocomotive, replay, setReplay }}
+            value={{locomotiveId, locomotiveLabel, setLocomotive, replay, setReplay}}
         >
             {children}
         </LocomotiveContext>

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useLiveAlerts } from '../useLiveAlerts';
-import type { AlertEvent } from '../../types';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {renderHook, act} from '@testing-library/react';
+import {useLiveAlerts} from '../useLiveAlerts';
+import type {AlertEvent} from '../../types';
 
 type MessageHandler = (message: unknown) => void;
 
@@ -36,7 +36,7 @@ function makeAlertData(overrides: Partial<AlertEvent> = {}): AlertEvent {
 }
 
 function makeAlertEnvelope(overrides: Partial<AlertEvent> = {}) {
-    return { type: 'alert', data: makeAlertData(overrides) };
+    return {type: 'alert', data: makeAlertData(overrides)};
 }
 
 describe('useLiveAlerts', () => {
@@ -46,15 +46,15 @@ describe('useLiveAlerts', () => {
     });
 
     it('returns empty alerts when no locomotiveId', () => {
-        const { result } = renderHook(() => useLiveAlerts(null));
+        const {result} = renderHook(() => useLiveAlerts(null));
         expect(result.current.alerts).toEqual([]);
     });
 
     it('adds alert when alert message arrives via subscribe callback', () => {
-        const { result } = renderHook(() => useLiveAlerts('loco-1'));
+        const {result} = renderHook(() => useLiveAlerts('loco-1'));
 
         act(() => {
-            capturedHandler!(makeAlertEnvelope({ id: 'a1' }));
+            capturedHandler!(makeAlertEnvelope({id: 'a1'}));
         });
 
         expect(result.current.alerts).toHaveLength(1);
@@ -62,13 +62,13 @@ describe('useLiveAlerts', () => {
     });
 
     it('alerts are prepended (newest first)', () => {
-        const { result } = renderHook(() => useLiveAlerts('loco-1'));
+        const {result} = renderHook(() => useLiveAlerts('loco-1'));
 
         act(() => {
-            capturedHandler!(makeAlertEnvelope({ id: 'first' }));
+            capturedHandler!(makeAlertEnvelope({id: 'first'}));
         });
         act(() => {
-            capturedHandler!(makeAlertEnvelope({ id: 'second' }));
+            capturedHandler!(makeAlertEnvelope({id: 'second'}));
         });
 
         expect(result.current.alerts[0].id).toBe('second');
@@ -76,11 +76,11 @@ describe('useLiveAlerts', () => {
     });
 
     it('caps at 50 alerts', () => {
-        const { result } = renderHook(() => useLiveAlerts('loco-1'));
+        const {result} = renderHook(() => useLiveAlerts('loco-1'));
 
         act(() => {
             for (let i = 0; i < 55; i++) {
-                capturedHandler!(makeAlertEnvelope({ id: `alert-${i}` }));
+                capturedHandler!(makeAlertEnvelope({id: `alert-${i}`}));
             }
         });
 
@@ -89,11 +89,11 @@ describe('useLiveAlerts', () => {
     });
 
     it('clearAlerts empties the array', () => {
-        const { result } = renderHook(() => useLiveAlerts('loco-1'));
+        const {result} = renderHook(() => useLiveAlerts('loco-1'));
 
         act(() => {
-            capturedHandler!(makeAlertEnvelope({ id: 'a1' }));
-            capturedHandler!(makeAlertEnvelope({ id: 'a2' }));
+            capturedHandler!(makeAlertEnvelope({id: 'a1'}));
+            capturedHandler!(makeAlertEnvelope({id: 'a2'}));
         });
 
         expect(result.current.alerts).toHaveLength(2);

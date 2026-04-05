@@ -1,6 +1,6 @@
 'use client';
 
-import { Group, Text, Progress, Stack, Tooltip } from '@mantine/core';
+import {Group, Text, Progress, Stack, Tooltip} from '@mantine/core';
 
 interface SensorRowProps {
     label: string;
@@ -40,14 +40,14 @@ function clamp(val: number, lo: number, hi: number): number {
 }
 
 export default function SensorRow({
-    label,
-    value,
-    unit,
-    min = 0,
-    max = 100,
-    warningMin,
-    warningMax,
-}: SensorRowProps) {
+                                      label,
+                                      value,
+                                      unit,
+                                      min = 0,
+                                      max = 100,
+                                      warningMin,
+                                      warningMax,
+                                  }: SensorRowProps) {
     const percentage = value === null ? 0 : clamp(((value - min) / (max - min)) * 100, 0, 100);
     const status = getStatus(value, min, max, warningMin, warningMax);
     const color = statusColors[status];

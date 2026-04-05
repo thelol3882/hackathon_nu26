@@ -17,7 +17,9 @@ class MockWebSocket {
         this.url = url;
     }
 
-    send() {}
+    send() {
+    }
+
     close() {
         this.readyState = MockWebSocket.CLOSED;
     }
@@ -28,12 +30,12 @@ class MockWebSocket {
     }
 
     simulateMessage(data: unknown) {
-        this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(data) }));
+        this.onmessage?.(new MessageEvent('message', {data: JSON.stringify(data)}));
     }
 
     simulateClose(code = 1000, reason = '') {
         this.readyState = MockWebSocket.CLOSED;
-        this.onclose?.({ code, reason, wasClean: code === 1000 } as CloseEvent);
+        this.onclose?.({code, reason, wasClean: code === 1000} as CloseEvent);
     }
 
     simulateError() {

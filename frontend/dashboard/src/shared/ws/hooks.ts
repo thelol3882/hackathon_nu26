@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketManager, type WsStatus } from './manager';
+import {useEffect, useRef, useState, useCallback} from 'react';
+import {WebSocketManager, type WsStatus} from './manager';
 
 function getWsBaseUrl(): string {
     if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
@@ -20,8 +20,8 @@ function acquireManager(url: string, onStatusChange: (s: WsStatus) => void): Web
         existing.refCount++;
         return existing.manager;
     }
-    const manager = new WebSocketManager({ url, onStatusChange });
-    sharedManagers.set(url, { manager, refCount: 1 });
+    const manager = new WebSocketManager({url, onStatusChange});
+    sharedManagers.set(url, {manager, refCount: 1});
     manager.connect();
     return manager;
 }
@@ -58,11 +58,12 @@ export function useWebSocket(path: string | null) {
 
     const subscribe = useCallback(
         (handler: (data: unknown) => void) => {
-            return managerRef.current?.subscribe(handler) ?? (() => {});
+            return managerRef.current?.subscribe(handler) ?? (() => {
+            });
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-create when status/path changes so consumers re-subscribe after manager acquisition
         [status, path],
     );
 
-    return { status, subscribe };
+    return {status, subscribe};
 }

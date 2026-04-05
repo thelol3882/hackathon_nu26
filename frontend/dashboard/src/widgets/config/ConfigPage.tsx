@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import {useState} from 'react';
 import {
     Alert,
     Badge,
@@ -19,7 +19,7 @@ import {
     Title,
     Tooltip,
 } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
+import {showNotification} from '@mantine/notifications';
 import {
     IconAlertCircle,
     IconDeviceFloppy,
@@ -35,8 +35,8 @@ import {
     useGetWeightsQuery,
     useUpdateWeightMutation,
 } from '@/features/config';
-import { useAppSelector } from '@/store/hooks';
-import { selectIsAdmin } from '@/store/authSlice';
+import {useAppSelector} from '@/store/hooks';
+import {selectIsAdmin} from '@/store/authSlice';
 
 const SENSOR_LABELS: Record<string, string> = {
     diesel_rpm: 'Обороты дизеля',
@@ -79,7 +79,7 @@ const SENSOR_UNITS: Record<string, string> = {
 };
 
 function ThresholdsTab() {
-    const { data: thresholds = [], isLoading } = useGetThresholdsQuery();
+    const {data: thresholds = [], isLoading} = useGetThresholdsQuery();
     const [updateThreshold] = useUpdateThresholdMutation();
     const [edits, setEdits] = useState<Record<string, { min_value: number; max_value: number }>>(
         {},
@@ -118,7 +118,7 @@ function ThresholdsTab() {
             });
             return;
         }
-        setSaving((p) => ({ ...p, [sensorType]: true }));
+        setSaving((p) => ({...p, [sensorType]: true}));
         try {
             await updateThreshold({
                 sensor_type: sensorType,
@@ -129,17 +129,17 @@ function ThresholdsTab() {
                 title: 'Сохранено',
                 message: `Пороги «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлены`,
                 color: 'green',
-                icon: <IconCheck size={16} />,
+                icon: <IconCheck size={16}/>,
             });
             setEdits((p) => {
-                const n = { ...p };
+                const n = {...p};
                 delete n[sensorType];
                 return n;
             });
         } catch {
-            showNotification({ title: 'Ошибка', message: 'Не удалось сохранить', color: 'red' });
+            showNotification({title: 'Ошибка', message: 'Не удалось сохранить', color: 'red'});
         } finally {
-            setSaving((p) => ({ ...p, [sensorType]: false }));
+            setSaving((p) => ({...p, [sensorType]: false}));
         }
     };
 
@@ -148,7 +148,7 @@ function ThresholdsTab() {
     return (
         <Stack gap="md">
             {modifiedCount > 0 && (
-                <Alert color="ktzGold" variant="light" icon={<IconInfoCircle size={16} />}>
+                <Alert color="ktzGold" variant="light" icon={<IconInfoCircle size={16}/>}>
                     {modifiedCount} несохр. изменений
                 </Alert>
             )}
@@ -160,7 +160,7 @@ function ThresholdsTab() {
                         <Table.Th>Минимум</Table.Th>
                         <Table.Th>Максимум</Table.Th>
                         <Table.Th>Диапазон</Table.Th>
-                        <Table.Th />
+                        <Table.Th/>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -173,7 +173,7 @@ function ThresholdsTab() {
                                 key={t.sensor_type}
                                 style={
                                     modified
-                                        ? { backgroundColor: 'rgba(254,198,4,0.04)' }
+                                        ? {backgroundColor: 'rgba(254,198,4,0.04)'}
                                         : undefined
                                 }
                             >
@@ -201,11 +201,11 @@ function ThresholdsTab() {
                                         styles={
                                             modified
                                                 ? {
-                                                      input: {
-                                                          borderColor:
-                                                              'var(--mantine-color-ktzGold-5)',
-                                                      },
-                                                  }
+                                                    input: {
+                                                        borderColor:
+                                                            'var(--mantine-color-ktzGold-5)',
+                                                    },
+                                                }
                                                 : {}
                                         }
                                     />
@@ -221,11 +221,11 @@ function ThresholdsTab() {
                                         styles={
                                             modified
                                                 ? {
-                                                      input: {
-                                                          borderColor:
-                                                              'var(--mantine-color-ktzGold-5)',
-                                                      },
-                                                  }
+                                                    input: {
+                                                        borderColor:
+                                                            'var(--mantine-color-ktzGold-5)',
+                                                    },
+                                                }
                                                 : {}
                                         }
                                     />
@@ -250,7 +250,7 @@ function ThresholdsTab() {
                                         size="xs"
                                         variant={modified ? 'filled' : 'subtle'}
                                         color={modified ? 'ktzGold' : 'gray'}
-                                        leftSection={<IconDeviceFloppy size={14} />}
+                                        leftSection={<IconDeviceFloppy size={14}/>}
                                         onClick={() => handleSave(t.sensor_type, t)}
                                         loading={saving[t.sensor_type]}
                                         disabled={!modified}
@@ -277,7 +277,7 @@ function ThresholdsTab() {
 }
 
 function WeightsTab() {
-    const { data: weights = [], isLoading } = useGetWeightsQuery();
+    const {data: weights = [], isLoading} = useGetWeightsQuery();
     const [updateWeight] = useUpdateWeightMutation();
     const [edits, setEdits] = useState<Record<string, number>>({});
     const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -286,24 +286,24 @@ function WeightsTab() {
 
     const handleSave = async (sensorType: string, originalWeight: number) => {
         const weight = edits[sensorType] ?? originalWeight;
-        setSaving((p) => ({ ...p, [sensorType]: true }));
+        setSaving((p) => ({...p, [sensorType]: true}));
         try {
-            await updateWeight({ sensor_type: sensorType, weight }).unwrap();
+            await updateWeight({sensor_type: sensorType, weight}).unwrap();
             showNotification({
                 title: 'Сохранено',
                 message: `Вес «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлён`,
                 color: 'green',
-                icon: <IconCheck size={16} />,
+                icon: <IconCheck size={16}/>,
             });
             setEdits((p) => {
-                const n = { ...p };
+                const n = {...p};
                 delete n[sensorType];
                 return n;
             });
         } catch {
-            showNotification({ title: 'Ошибка', message: 'Не удалось сохранить', color: 'red' });
+            showNotification({title: 'Ошибка', message: 'Не удалось сохранить', color: 'red'});
         } finally {
-            setSaving((p) => ({ ...p, [sensorType]: false }));
+            setSaving((p) => ({...p, [sensorType]: false}));
         }
     };
 
@@ -339,7 +339,7 @@ function WeightsTab() {
                         <Table.Th>Датчик</Table.Th>
                         <Table.Th>Вес</Table.Th>
                         <Table.Th w={180}>Визуализация</Table.Th>
-                        <Table.Th />
+                        <Table.Th/>
                     </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -351,7 +351,7 @@ function WeightsTab() {
                                 key={w.sensor_type}
                                 style={
                                     modified
-                                        ? { backgroundColor: 'rgba(254,198,4,0.04)' }
+                                        ? {backgroundColor: 'rgba(254,198,4,0.04)'}
                                         : undefined
                                 }
                             >
@@ -367,7 +367,7 @@ function WeightsTab() {
                                     <NumberInput
                                         value={val}
                                         onChange={(v) =>
-                                            setEdits((p) => ({ ...p, [w.sensor_type]: Number(v) }))
+                                            setEdits((p) => ({...p, [w.sensor_type]: Number(v)}))
                                         }
                                         min={0}
                                         max={1}
@@ -378,11 +378,11 @@ function WeightsTab() {
                                         styles={
                                             modified
                                                 ? {
-                                                      input: {
-                                                          borderColor:
-                                                              'var(--mantine-color-ktzGold-5)',
-                                                      },
-                                                  }
+                                                    input: {
+                                                        borderColor:
+                                                            'var(--mantine-color-ktzGold-5)',
+                                                    },
+                                                }
                                                 : {}
                                         }
                                     />
@@ -394,8 +394,8 @@ function WeightsTab() {
                                             val > 0.15
                                                 ? 'critical'
                                                 : val > 0.08
-                                                  ? 'ktzGold'
-                                                  : 'ktzBlue'
+                                                    ? 'ktzGold'
+                                                    : 'ktzBlue'
                                         }
                                         size="md"
                                         radius="xl"
@@ -406,7 +406,7 @@ function WeightsTab() {
                                         size="xs"
                                         variant={modified ? 'filled' : 'subtle'}
                                         color={modified ? 'ktzGold' : 'gray'}
-                                        leftSection={<IconDeviceFloppy size={14} />}
+                                        leftSection={<IconDeviceFloppy size={14}/>}
                                         onClick={() => handleSave(w.sensor_type, w.weight)}
                                         loading={saving[w.sensor_type]}
                                         disabled={!modified}
@@ -440,7 +440,7 @@ export function ConfigPage() {
             <Center h="50vh">
                 <Stack align="center" gap="md">
                     <ThemeIcon size={64} radius="xl" variant="light" color="red">
-                        <IconAlertCircle size={32} />
+                        <IconAlertCircle size={32}/>
                     </ThemeIcon>
                     <Text size="lg" fw={600}>
                         Доступ запрещён
@@ -458,7 +458,7 @@ export function ConfigPage() {
             <Group justify="space-between">
                 <Group gap="sm">
                     <ThemeIcon variant="light" color="ktzBlue" size="lg">
-                        <IconAdjustments size={20} />
+                        <IconAdjustments size={20}/>
                     </ThemeIcon>
                     <Title order={3}>Настройки системы</Title>
                 </Group>
@@ -466,7 +466,7 @@ export function ConfigPage() {
                     color="ktzGold"
                     variant="light"
                     size="lg"
-                    leftSection={<IconShieldCheck size={12} />}
+                    leftSection={<IconShieldCheck size={12}/>}
                 >
                     Администратор
                 </Badge>
@@ -475,10 +475,10 @@ export function ConfigPage() {
             <Card padding="lg" withBorder>
                 <Tabs defaultValue="thresholds">
                     <Tabs.List>
-                        <Tabs.Tab value="thresholds" leftSection={<IconGauge size={16} />}>
+                        <Tabs.Tab value="thresholds" leftSection={<IconGauge size={16}/>}>
                             Пороги
                         </Tabs.Tab>
-                        <Tabs.Tab value="weights" leftSection={<IconAdjustments size={16} />}>
+                        <Tabs.Tab value="weights" leftSection={<IconAdjustments size={16}/>}>
                             Веса
                         </Tabs.Tab>
                     </Tabs.List>
@@ -488,14 +488,14 @@ export function ConfigPage() {
                             Допустимые диапазоны значений для каждого датчика. Выход за пределы
                             влияет на индекс здоровья.
                         </Text>
-                        <ThresholdsTab />
+                        <ThresholdsTab/>
                     </Tabs.Panel>
 
                     <Tabs.Panel value="weights" pt="md">
                         <Text size="sm" c="dimmed" mb="md">
                             Весовые коэффициенты вклада каждого датчика в общий индекс здоровья.
                         </Text>
-                        <WeightsTab />
+                        <WeightsTab/>
                     </Tabs.Panel>
                 </Tabs>
             </Card>

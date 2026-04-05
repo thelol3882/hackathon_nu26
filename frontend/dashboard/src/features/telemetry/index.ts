@@ -5,4 +5,4 @@ export {
     useGetRawTelemetryQuery,
     useGetTelemetrySnapshotQuery,
 } from './api/telemetryApi';
-export { useLiveTelemetry } from './hooks/useLiveTelemetry';
+export {useLiveTelemetry} from './hooks/useLiveTelemetry';

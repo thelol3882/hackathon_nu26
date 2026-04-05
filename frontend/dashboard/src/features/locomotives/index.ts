@@ -4,7 +4,7 @@ export {
     useGetLocomotiveQuery,
     useCreateLocomotiveMutation,
 } from './api/locomotivesApi';
-export { LocomotiveSelect } from './components/LocomotiveSelect';
+export {LocomotiveSelect} from './components/LocomotiveSelect';
 export type {
     Locomotive,
     LocomotiveCreate,
