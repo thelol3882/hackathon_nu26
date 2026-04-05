@@ -36,10 +36,12 @@ const trainIcon = L.divIcon({
 function MapUpdater({
     position,
     followMode,
+    centerTrigger,
     onFirstPosition,
 }: {
     position: { latitude: number; longitude: number } | null;
     followMode: boolean;
+    centerTrigger: number;
     onFirstPosition: () => void;
 }) {
     const map = useMap();
@@ -49,18 +51,24 @@ function MapUpdater({
         if (!position) return;
 
         if (!hasInitialized.current) {
-            // First time — center on the position
             map.setView([position.latitude, position.longitude], POSITION_ZOOM);
             hasInitialized.current = true;
             onFirstPosition();
             return;
         }
 
-        // Subsequent updates — only pan if follow mode is on, no zoom change
         if (followMode) {
             map.panTo([position.latitude, position.longitude], { animate: true, duration: 0.5 });
         }
     }, [map, position, followMode, onFirstPosition]);
+
+    // Immediately center when button is pressed
+    useEffect(() => {
+        if (centerTrigger > 0 && position) {
+            map.flyTo([position.latitude, position.longitude], POSITION_ZOOM, { duration: 0.8 });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [centerTrigger]);
 
     return null;
 }
@@ -95,8 +103,11 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
         setFollowMode(true);
     }, []);
 
+    const [centerTrigger, setCenterTrigger] = useState(0);
+
     const handleCenterOnTrain = useCallback(() => {
         setFollowMode(true);
+        setCenterTrigger((n) => n + 1);
     }, []);
 
     return (
@@ -155,6 +166,7 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                 <MapUpdater
                     position={position}
                     followMode={followMode}
+                    centerTrigger={centerTrigger}
                     onFirstPosition={handleFirstPosition}
                 />
 
