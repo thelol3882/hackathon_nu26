@@ -1,24 +1,25 @@
 """Analytics Service entry point.
 
 ARCHITECTURE:
-  This service runs TWO servers concurrently:
+  This service runs THREE concurrent subsystems:
 
   1. gRPC server (port 50051) — handles RPC calls from API Gateway
-     and Report Service. This is the primary interface.
+     and Report Service. This is the primary query interface.
 
   2. HTTP server (port 8020) — serves Prometheus /metrics and a /health
      endpoint for Docker/Kubernetes readiness probes.
+
+  3. Fleet aggregator — background task that subscribes to health:live:*,
+     maintains in-memory fleet state, and publishes fleet:summary +
+     fleet:changes to Redis Pub/Sub for the fleet dashboard.
+
+  Plus the existing health cache listener (caches individual locomotive
+  health indices from processor pub/sub into Redis keys).
 
   WHY TWO SERVERS:
     gRPC uses HTTP/2 with binary protobuf — Prometheus can't scrape it.
     Prometheus expects plain HTTP GET /metrics with text/plain response.
     So we run a tiny FastAPI app alongside for observability only.
-
-HOW TO START:
-  python main.py
-
-  Or via Docker:
-  CMD ["python", "main.py"]
 """
 
 import asyncio
@@ -29,6 +30,7 @@ import grpc.aio
 import uvicorn
 from fastapi import FastAPI
 
+from analytics.aggregator import FleetAggregator
 from analytics.background.health_cache import run_health_cache
 from analytics.core.config import get_settings
 from analytics.core.database import close_db_pool, init_db_pool
@@ -75,12 +77,23 @@ async def main() -> None:
     await init_db_pool()
     await init_redis()
 
-    # Start background health cache task
     redis_raw = get_redis_raw()
+
+    # Background task: cache individual locomotive health from pub/sub
     health_task = asyncio.create_task(
         run_health_cache(redis_raw),
         name="health-cache",
     )
+
+    # Background task: fleet aggregator — subscribes to health:live:*,
+    # maintains in-memory state of all 1700 locos, publishes fleet:summary
+    # and fleet:changes every 2 seconds for the fleet dashboard.
+    aggregator = FleetAggregator(redis_raw)
+    aggregator_task = asyncio.create_task(
+        aggregator.run(),
+        name="fleet-aggregator",
+    )
+    logger.info("Fleet aggregator started")
 
     # Start gRPC server
     grpc_server = await serve_grpc(settings.grpc_port)
@@ -92,7 +105,10 @@ async def main() -> None:
 
     @metrics_app.get("/health")
     async def health():
-        return {"status": "healthy"}
+        return {
+            "status": "healthy",
+            "fleet_aggregator_size": aggregator.fleet_size,
+        }
 
     config = uvicorn.Config(
         metrics_app,
@@ -121,6 +137,8 @@ async def main() -> None:
         await stop_event.wait()
 
     logger.info("Shutting down...")
+    aggregator.stop()
+    aggregator_task.cancel()
     health_task.cancel()
     await grpc_server.stop(grace=5)
     http_server.should_exit = True

@@ -121,6 +121,25 @@ stream_consumer_lag = Gauge(
     registry=registry,
 )
 
+# ── Fleet aggregator metrics (Analytics Service) ─────────────────────
+fleet_aggregator_size = Gauge(
+    "fleet_aggregator_size",
+    "Number of locomotives tracked by fleet aggregator",
+    registry=registry,
+)
+
+fleet_summary_published = Counter(
+    "fleet_summary_published_total",
+    "Total fleet summary publishes",
+    registry=registry,
+)
+
+fleet_changes_detected = Counter(
+    "fleet_changes_detected_total",
+    "Total category changes detected across fleet",
+    registry=registry,
+)
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """Collects request count, latency, and in-progress gauge per route."""

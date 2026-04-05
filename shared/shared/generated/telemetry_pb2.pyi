@@ -426,9 +426,7 @@ class AlertsListResponse(_message.Message):
     TOTAL_FIELD_NUMBER: _ClassVar[int]
     alerts: _containers.RepeatedCompositeFieldContainer[AlertEvent]
     total: int
-    def __init__(
-        self, alerts: _Iterable[AlertEvent | _Mapping] | None = ..., total: int | None = ...
-    ) -> None: ...
+    def __init__(self, alerts: _Iterable[AlertEvent | _Mapping] | None = ..., total: int | None = ...) -> None: ...
 
 class AlertGetRequest(_message.Message):
     __slots__ = ("alert_id",)
@@ -464,9 +462,7 @@ class FleetHealthRequest(_message.Message):
     start: str
     end: str
     locomotive_type: str
-    def __init__(
-        self, start: str | None = ..., end: str | None = ..., locomotive_type: str | None = ...
-    ) -> None: ...
+    def __init__(self, start: str | None = ..., end: str | None = ..., locomotive_type: str | None = ...) -> None: ...
 
 class FleetHealthResponse(_message.Message):
     __slots__ = ("stats",)
@@ -506,9 +502,7 @@ class SensorStatsRequest(_message.Message):
     locomotive_id: str
     start: str
     end: str
-    def __init__(
-        self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...
-    ) -> None: ...
+    def __init__(self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...) -> None: ...
 
 class SensorStatsResponse(_message.Message):
     __slots__ = ("locomotive_type", "stats")
@@ -528,9 +522,7 @@ class HealthTrendRequest(_message.Message):
     locomotive_id: str
     start: str
     end: str
-    def __init__(
-        self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...
-    ) -> None: ...
+    def __init__(self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...) -> None: ...
 
 class HealthTrendPoint(_message.Message):
     __slots__ = ("avg_score", "max_score", "min_score", "time")
@@ -564,9 +556,7 @@ class LatestHealthRequest(_message.Message):
     locomotive_id: str
     start: str
     end: str
-    def __init__(
-        self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...
-    ) -> None: ...
+    def __init__(self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...) -> None: ...
 
 class LatestHealthResponse(_message.Message):
     __slots__ = ("avg_score", "category", "damage_penalty", "max_score", "min_score", "top_factors")
@@ -640,9 +630,7 @@ class ReportAlertsRequest(_message.Message):
     locomotive_id: str
     start: str
     end: str
-    def __init__(
-        self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...
-    ) -> None: ...
+    def __init__(self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...) -> None: ...
 
 class ReportAlertsResponse(_message.Message):
     __slots__ = ("alerts",)
@@ -658,9 +646,7 @@ class RawForAnomaliesRequest(_message.Message):
     locomotive_id: str
     start: str
     end: str
-    def __init__(
-        self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...
-    ) -> None: ...
+    def __init__(self, locomotive_id: str | None = ..., start: str | None = ..., end: str | None = ...) -> None: ...
 
 class AnomalyDataPoint(_message.Message):
     __slots__ = ("filtered_value", "sensor_type", "time")

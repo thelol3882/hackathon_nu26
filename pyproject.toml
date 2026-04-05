@@ -78,6 +78,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ARG001", "PLR2004"]
 "**/alembic/**/*.py" = ["F401", "E501"]
+"shared/shared/generated/*.py" = ["E501", "N802", "ARG002"]  # generated protobuf/grpc code
+"shared/shared/generated/*.pyi" = ["A002"]  # generated type stubs may use proto field names like id/min/max
 "**/models/*.py" = ["A003"]  # allow 'id', 'format' field names in ORM models
 "**/ws_telemetry.py" = ["S110"]  # try-except-pass expected for WS disconnect
 "**/connection_manager.py" = ["S110", "SIM105", "PLR0912"]  # try-except-pass for best-effort cleanup, queue backpressure
@@ -93,6 +95,7 @@ ignore = [
 "**/repositories/telemetry_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "**/repositories/alert_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "**/repositories/health_snapshot_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"services/analytics-service/**/aggregator.py" = ["S110"]  # best-effort pubsub cleanup
 "services/analytics-service/**/servicer.py" = ["S608", "N802", "ARG002"]  # gRPC method names are PascalCase, context is required by gRPC signature
 "services/analytics-service/**/repositories/*.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses
 "services/analytics-service/main.py" = ["S104"]  # bind to 0.0.0.0 — expected in containers
