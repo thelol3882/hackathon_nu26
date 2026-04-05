@@ -172,12 +172,13 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
 
     // Current window: zoom overrides period
     const currentWindow = useMemo(() => {
-        if (isReplay) {
-            return { start: replayStart!, end: replayEnd! };
-        }
+        // Zoom always takes priority (works in both live and replay)
         if (isZoomed) {
             const top = zoomStack[zoomStack.length - 1];
             return { start: top.start, end: top.end };
+        }
+        if (isReplay) {
+            return { start: replayStart!, end: replayEnd! };
         }
         return { start: cfg.getStart(), end: new Date().toISOString() };
         // eslint-disable-next-line react-hooks/exhaustive-deps
