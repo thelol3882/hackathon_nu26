@@ -46,16 +46,25 @@ async def main() -> None:
     # Create one consumer per stream
     consumers = [
         StreamConsumer(
-            redis_client, session_factory, TELEMETRY_STREAM,
-            settings.consumer_name, TelemetryRecord,
+            redis_client,
+            session_factory,
+            TELEMETRY_STREAM,
+            settings.consumer_name,
+            TelemetryRecord,
         ),
         StreamConsumer(
-            redis_client, session_factory, ALERTS_STREAM,
-            settings.consumer_name, AlertRecord,
+            redis_client,
+            session_factory,
+            ALERTS_STREAM,
+            settings.consumer_name,
+            AlertRecord,
         ),
         StreamConsumer(
-            redis_client, session_factory, HEALTH_STREAM,
-            settings.consumer_name, HealthSnapshotRecord,
+            redis_client,
+            session_factory,
+            HEALTH_STREAM,
+            settings.consumer_name,
+            HealthSnapshotRecord,
         ),
     ]
 

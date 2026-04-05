@@ -11,8 +11,6 @@ from sqlalchemy.orm import DeclarativeBase
 class AppBase(DeclarativeBase):
     """Base for application tables in PostgreSQL."""
 
-    pass
-
 
 # Backward-compatible alias used by existing entity imports
 Base = AppBase

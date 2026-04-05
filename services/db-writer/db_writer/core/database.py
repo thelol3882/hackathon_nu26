@@ -102,10 +102,7 @@ async def _setup_continuous_aggregates(conn) -> None:
         try:
             # Check if the view already exists to avoid "already exists" errors.
             exists = await conn.execute(
-                text(
-                    "SELECT 1 FROM timescaledb_information.continuous_aggregates "
-                    "WHERE view_name = :vn"
-                ),
+                text("SELECT 1 FROM timescaledb_information.continuous_aggregates WHERE view_name = :vn"),
                 {"vn": view_name},
             )
             if exists.fetchone() is not None:

@@ -23,9 +23,9 @@ HEALTH_STREAM = "stream:health"
 DB_WRITER_GROUP = "db-writers"
 
 # ── Tuning knobs ──────────────────────────────────────────────────────
-STREAM_BATCH_SIZE = 500   # max messages per XREADGROUP call
-STREAM_BLOCK_MS = 1000    # block timeout in milliseconds
-STREAM_MAXLEN = 100_000   # approximate cap per stream (~ safety valve)
+STREAM_BATCH_SIZE = 500  # max messages per XREADGROUP call
+STREAM_BLOCK_MS = 1000  # block timeout in milliseconds
+STREAM_MAXLEN = 100_000  # approximate cap per stream (~ safety valve)
 
 
 async def ensure_consumer_group(
