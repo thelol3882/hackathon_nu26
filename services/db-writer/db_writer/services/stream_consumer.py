@@ -33,8 +33,12 @@ FLOW PER ITERATION:
 from __future__ import annotations
 
 import asyncio
+import uuid
+from datetime import datetime
 
 import redis.asyncio as aioredis
+from sqlalchemy import DateTime, inspect
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -53,6 +57,40 @@ logger = get_logger(__name__)
 # asyncpg limits query arguments to 32767.  TelemetryRecord has 10 columns,
 # so max rows per INSERT = 32767 // 10 ≈ 3276.  Use 3000 for safety.
 _INSERT_CHUNK = 3000
+
+# Cache of column types per model class, built lazily on first use.
+_COERCE_CACHE: dict[type, dict[str, str]] = {}
+
+
+def _get_coerce_map(model_class) -> dict[str, str]:
+    """Inspect the ORM model and return {column_name: type_tag} for columns
+    that need coercion from the wire format (msgpack produces strings for
+    datetime and UUID values, but asyncpg expects native Python types).
+    """
+    if model_class not in _COERCE_CACHE:
+        mapping: dict[str, str] = {}
+        mapper = inspect(model_class)
+        for col in mapper.columns:
+            col_type = col.type
+            if isinstance(col_type, DateTime):
+                mapping[col.key] = "datetime"
+            elif isinstance(col_type, UUID):
+                mapping[col.key] = "uuid"
+        _COERCE_CACHE[model_class] = mapping
+    return _COERCE_CACHE[model_class]
+
+
+def _coerce_row(row: dict, coerce_map: dict[str, str]) -> dict:
+    """Convert string values to native Python types where needed."""
+    for key, type_tag in coerce_map.items():
+        val = row.get(key)
+        if val is None:
+            continue
+        if type_tag == "datetime" and isinstance(val, str):
+            row[key] = datetime.fromisoformat(val)
+        elif type_tag == "uuid" and isinstance(val, str):
+            row[key] = uuid.UUID(val)
+    return row
 
 
 class StreamConsumer:
@@ -181,6 +219,12 @@ class StreamConsumer:
         ON CONFLICT DO NOTHING makes this idempotent — safe to retry
         the same batch without duplicate data.
         """
+        # Coerce string timestamps/UUIDs from msgpack to native Python types
+        # that asyncpg expects.
+        coerce_map = _get_coerce_map(self._model_class)
+        if coerce_map:
+            rows = [_coerce_row(row, coerce_map) for row in rows]
+
         async with self._session_factory() as session:
             try:
                 for i in range(0, len(rows), _INSERT_CHUNK):

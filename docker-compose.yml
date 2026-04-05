@@ -158,6 +158,23 @@ services:
       analytics-service:
         condition: service_healthy
 
+  db-writer-2:
+    build:
+      context: .
+      dockerfile: services/db-writer/Dockerfile
+    env_file: .env
+    environment:
+      - DB_WRITER_CONSUMER_NAME=writer-2
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      processor:
+        condition: service_started
+      analytics-service:
+        condition: service_healthy
+
   # Analytics Service — owns TimescaleDB schema (Alembic migrations),
   # single reader of TimescaleDB, exposes data via gRPC.
   analytics-service:
