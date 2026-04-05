@@ -24,6 +24,15 @@ const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
 export const baseApi = createApi({
     reducerPath: 'api',
     baseQuery: baseQueryWithReauth,
-    tagTypes: ['Locomotive', 'Telemetry', 'Alert', 'Health', 'Report', 'Threshold', 'Weight', 'User'],
+    tagTypes: [
+        'Locomotive',
+        'Telemetry',
+        'Alert',
+        'Health',
+        'Report',
+        'Threshold',
+        'Weight',
+        'User',
+    ],
     endpoints: () => ({}),
 });

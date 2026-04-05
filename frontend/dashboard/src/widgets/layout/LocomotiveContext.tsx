@@ -4,9 +4,9 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export interface ReplayState {
     enabled: boolean;
-    start: Date | null;
-    end: Date | null;
-    cursor: Date | null; // current "playhead" time
+    start: string | null; // ISO string or Mantine DateStringValue
+    end: string | null;
+    cursor: string | null; // current "playhead" time as ISO string
 }
 
 interface LocomotiveContextValue {

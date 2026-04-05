@@ -63,7 +63,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                         <Group gap="sm">
                             <Burger opened={opened} onClick={toggle} size="sm" />
                             <Group gap={6} visibleFrom="sm">
-                                <IconTrain size={20} style={{ color: 'var(--mantine-color-ktzBlue-5)' }} />
+                                <IconTrain
+                                    size={20}
+                                    style={{ color: 'var(--mantine-color-ktzBlue-5)' }}
+                                />
                                 <Text
                                     fw={700}
                                     size="md"
@@ -132,7 +135,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                                     <Text size="sm" fw={500} truncate>
                                         {username ?? 'Гость'}
                                     </Text>
-                                    <Badge size="xs" variant="light" color={role === 'admin' ? 'ktzGold' : 'ktzBlue'}>
+                                    <Badge
+                                        size="xs"
+                                        variant="light"
+                                        color={role === 'admin' ? 'ktzGold' : 'ktzBlue'}
+                                    >
                                         {role === 'admin' ? 'Администратор' : 'Оператор'}
                                     </Badge>
                                 </Stack>

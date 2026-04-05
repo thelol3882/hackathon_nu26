@@ -69,7 +69,9 @@ export default function SensorRow({
                                 backgroundColor: color,
                                 flexShrink: 0,
                                 boxShadow: isCritical ? `0 0 6px ${color}` : undefined,
-                                animation: isCritical ? 'pulse-led 1.5s ease-in-out infinite' : undefined,
+                                animation: isCritical
+                                    ? 'pulse-led 1.5s ease-in-out infinite'
+                                    : undefined,
                             }}
                         />
                         <Text size="xs" c="var(--dashboard-text-secondary)">

@@ -89,9 +89,7 @@ async def _generate_single_report(
     }
 
 
-async def _generate_fleet_report(
-    session: AsyncSession, start: datetime, end: datetime, job: ReportJobMessage
-) -> dict:
+async def _generate_fleet_report(session: AsyncSession, start: datetime, end: datetime, job: ReportJobMessage) -> dict:
     """Generate aggregated fleet-wide report without loading all raw data."""
     logger.info("Generating fleet report (aggregated)")
 
@@ -170,8 +168,15 @@ async def _query_fleet_health(session: AsyncSession, start: datetime, end: datet
     )
     row = result.fetchone()
     if not row or not row.total_locomotives:
-        return {"total_locomotives": 0, "avg_score": 0, "min_score": 0, "max_score": 0,
-                "healthy_count": 0, "warning_count": 0, "critical_count": 0}
+        return {
+            "total_locomotives": 0,
+            "avg_score": 0,
+            "min_score": 0,
+            "max_score": 0,
+            "healthy_count": 0,
+            "warning_count": 0,
+            "critical_count": 0,
+        }
     return {
         "total_locomotives": int(row.total_locomotives),
         "avg_score": round(float(row.fleet_avg), 2),
@@ -435,8 +440,7 @@ async def _detect_anomalies(
         indices = detect_zscore_anomalies(values, threshold=3.0)
         if indices:
             anomalies[sensor_type] = [
-                {"index": i, "value": round(values_times[i][0], 4), "time": values_times[i][1]}
-                for i in indices[:20]
+                {"index": i, "value": round(values_times[i][0], 4), "time": values_times[i][1]} for i in indices[:20]
             ]
 
     return anomalies

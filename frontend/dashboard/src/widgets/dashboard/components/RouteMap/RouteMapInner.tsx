@@ -72,18 +72,23 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
     const [followMode, setFollowMode] = useState(true);
     const [showTrail, setShowTrail] = useState(true);
     const [trail, setTrail] = useState<[number, number][]>([]);
-    const prevPos = useRef<string | null>(null);
+    const prevPosKey = useRef<string | null>(null);
 
-    // Add position to trail when it changes
+    // Add position to trail using a debounced effect
     useEffect(() => {
         if (!position) return;
         const key = `${position.latitude.toFixed(6)},${position.longitude.toFixed(6)}`;
-        if (key === prevPos.current) return;
-        prevPos.current = key;
-        setTrail((prev) => {
-            const next = [...prev, [position.latitude, position.longitude] as [number, number]];
-            return next.length > MAX_TRAIL_POINTS ? next.slice(-MAX_TRAIL_POINTS) : next;
-        });
+        if (key === prevPosKey.current) return;
+        prevPosKey.current = key;
+        const pt: [number, number] = [position.latitude, position.longitude];
+        // Use timeout to avoid cascading renders
+        const timer = setTimeout(() => {
+            setTrail((prev) => {
+                const next = [...prev, pt];
+                return next.length > MAX_TRAIL_POINTS ? next.slice(-MAX_TRAIL_POINTS) : next;
+            });
+        }, 0);
+        return () => clearTimeout(timer);
     }, [position]);
 
     const handleFirstPosition = useCallback(() => {

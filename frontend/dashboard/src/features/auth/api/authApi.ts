@@ -1,5 +1,11 @@
 import { baseApi } from '@/shared/api/baseApi';
-import type { LoginRequest, LoginResponse, RegisterRequest, UserResponse, UserListItem, UsersListResponse } from '../types';
+import type {
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    UserResponse,
+    UsersListResponse,
+} from '../types';
 
 export const authApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({

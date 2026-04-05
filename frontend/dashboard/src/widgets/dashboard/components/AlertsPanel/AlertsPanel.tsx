@@ -91,7 +91,11 @@ function AlertItem({ alert, isNew }: { alert: AlertEvent; isNew: boolean }) {
                     </ThemeIcon>
                     <div className={classes.alertContent}>
                         <Stack gap={2}>
-                            <Text size="sm" lineClamp={2} fw={isCritical || isEmergency ? 600 : 400}>
+                            <Text
+                                size="sm"
+                                lineClamp={2}
+                                fw={isCritical || isEmergency ? 600 : 400}
+                            >
                                 {alert.message}
                             </Text>
                             <Group gap="xs">
@@ -127,7 +131,10 @@ function AlertItem({ alert, isNew }: { alert: AlertEvent; isNew: boolean }) {
                             </Tooltip>
                         ) : (
                             <Tooltip label="Подтверждено">
-                                <IconCheck size={16} style={{ opacity: 0.35, color: 'var(--mantine-color-green-5)' }} />
+                                <IconCheck
+                                    size={16}
+                                    style={{ opacity: 0.35, color: 'var(--mantine-color-green-5)' }}
+                                />
                             </Tooltip>
                         )}
                     </div>
@@ -179,8 +186,7 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
         prevCountRef.current = alerts.length;
     }, [alerts, soundEnabled, isReplay]);
 
-    const filteredAlerts =
-        filter === 'all' ? alerts : alerts.filter((a) => a.severity === filter);
+    const filteredAlerts = filter === 'all' ? alerts : alerts.filter((a) => a.severity === filter);
 
     const counts = {
         emergency: alerts.filter((a) => a.severity === 'emergency').length,
@@ -194,13 +200,26 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
     const acknowledgedCount = alerts.filter((a) => a.acknowledged).length;
 
     return (
-        <Card style={{ borderTop: `2px solid var(--mantine-color-${isReplay ? 'ktzGold' : 'critical'}-5)` }}>
+        <Card
+            style={{
+                borderTop: `2px solid var(--mantine-color-${isReplay ? 'ktzGold' : 'critical'}-5)`,
+            }}
+        >
             <Group justify="space-between" mb="xs">
                 <Group gap="xs">
                     <Text className="panel-label">ОПОВЕЩЕНИЯ</Text>
-                    {isReplay && <Badge size="xs" variant="light" color="ktzGold">REPLAY</Badge>}
+                    {isReplay && (
+                        <Badge size="xs" variant="light" color="ktzGold">
+                            REPLAY
+                        </Badge>
+                    )}
                     {unacknowledgedCount > 0 && (
-                        <Badge size="sm" color="red" variant="filled" className={!isReplay && unacknowledgedCount > 0 ? 'led-pulse' : ''}>
+                        <Badge
+                            size="sm"
+                            color="red"
+                            variant="filled"
+                            className={!isReplay && unacknowledgedCount > 0 ? 'led-pulse' : ''}
+                        >
                             {unacknowledgedCount}
                         </Badge>
                     )}
@@ -220,7 +239,11 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
                                     color={soundEnabled ? 'ktzBlue' : 'gray'}
                                     onClick={() => setSoundEnabled(!soundEnabled)}
                                 >
-                                    {soundEnabled ? <IconBell size={14} /> : <IconBellOff size={14} />}
+                                    {soundEnabled ? (
+                                        <IconBell size={14} />
+                                    ) : (
+                                        <IconBellOff size={14} />
+                                    )}
                                 </ActionIcon>
                             </Tooltip>
                             <Button variant="subtle" size="xs" onClick={onClear}>
@@ -234,22 +257,42 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
             {/* Severity summary counters */}
             <Group gap="xs" mb="xs">
                 {counts.emergency > 0 && (
-                    <Badge color="red" variant="filled" size="xs" leftSection={<IconAlertCircle size={10} />}>
+                    <Badge
+                        color="red"
+                        variant="filled"
+                        size="xs"
+                        leftSection={<IconAlertCircle size={10} />}
+                    >
                         {counts.emergency}
                     </Badge>
                 )}
                 {counts.critical > 0 && (
-                    <Badge color="critical" variant="light" size="xs" leftSection={<IconAlertCircle size={10} />}>
+                    <Badge
+                        color="critical"
+                        variant="light"
+                        size="xs"
+                        leftSection={<IconAlertCircle size={10} />}
+                    >
                         {counts.critical}
                     </Badge>
                 )}
                 {counts.warning > 0 && (
-                    <Badge color="ktzGold" variant="light" size="xs" leftSection={<IconAlertTriangle size={10} />}>
+                    <Badge
+                        color="ktzGold"
+                        variant="light"
+                        size="xs"
+                        leftSection={<IconAlertTriangle size={10} />}
+                    >
                         {counts.warning}
                     </Badge>
                 )}
                 {counts.info > 0 && (
-                    <Badge color="ktzBlue" variant="light" size="xs" leftSection={<IconInfoCircle size={10} />}>
+                    <Badge
+                        color="ktzBlue"
+                        variant="light"
+                        size="xs"
+                        leftSection={<IconInfoCircle size={10} />}
+                    >
                         {counts.info}
                     </Badge>
                 )}
@@ -272,16 +315,14 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
 
             {filteredAlerts.length === 0 ? (
                 <Text c="dimmed" ta="center" py="xl">
-                    {filter === 'all' ? 'Нет оповещений' : `Нет оповещений уровня "${severityLabels[filter]}"`}
+                    {filter === 'all'
+                        ? 'Нет оповещений'
+                        : `Нет оповещений уровня "${severityLabels[filter]}"`}
                 </Text>
             ) : (
                 <ScrollArea.Autosize mah={350}>
                     {filteredAlerts.map((alert) => (
-                        <AlertItem
-                            key={alert.id}
-                            alert={alert}
-                            isNew={newAlertIds.has(alert.id)}
-                        />
+                        <AlertItem key={alert.id} alert={alert} isNew={newAlertIds.has(alert.id)} />
                     ))}
                 </ScrollArea.Autosize>
             )}

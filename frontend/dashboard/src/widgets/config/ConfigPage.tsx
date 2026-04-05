@@ -85,7 +85,9 @@ const SENSOR_UNITS: Record<string, string> = {
 function ThresholdsTab() {
     const { data: thresholds = [], isLoading } = useGetThresholdsQuery();
     const [updateThreshold] = useUpdateThresholdMutation();
-    const [edits, setEdits] = useState<Record<string, { min_value: number; max_value: number }>>({});
+    const [edits, setEdits] = useState<Record<string, { min_value: number; max_value: number }>>(
+        {},
+    );
     const [saving, setSaving] = useState<Record<string, boolean>>({});
 
     const getValue = (sensorType: string, field: 'min_value' | 'max_value', original: number) =>
@@ -107,17 +109,37 @@ function ThresholdsTab() {
         }));
     };
 
-    const handleSave = async (sensorType: string, original: { min_value: number; max_value: number }) => {
+    const handleSave = async (
+        sensorType: string,
+        original: { min_value: number; max_value: number },
+    ) => {
         const values = edits[sensorType] ?? original;
         if (values.min_value >= values.max_value) {
-            showNotification({ title: 'Ошибка', message: 'Минимум должен быть меньше максимума', color: 'red' });
+            showNotification({
+                title: 'Ошибка',
+                message: 'Минимум должен быть меньше максимума',
+                color: 'red',
+            });
             return;
         }
         setSaving((p) => ({ ...p, [sensorType]: true }));
         try {
-            await updateThreshold({ sensor_type: sensorType, min_value: values.min_value, max_value: values.max_value }).unwrap();
-            showNotification({ title: 'Сохранено', message: `Пороги «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлены`, color: 'green', icon: <IconCheck size={16} /> });
-            setEdits((p) => { const n = { ...p }; delete n[sensorType]; return n; });
+            await updateThreshold({
+                sensor_type: sensorType,
+                min_value: values.min_value,
+                max_value: values.max_value,
+            }).unwrap();
+            showNotification({
+                title: 'Сохранено',
+                message: `Пороги «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлены`,
+                color: 'green',
+                icon: <IconCheck size={16} />,
+            });
+            setEdits((p) => {
+                const n = { ...p };
+                delete n[sensorType];
+                return n;
+            });
         } catch {
             showNotification({ title: 'Ошибка', message: 'Не удалось сохранить', color: 'red' });
         } finally {
@@ -151,28 +173,92 @@ function ThresholdsTab() {
                         const max = getValue(t.sensor_type, 'max_value', t.max_value);
                         const modified = !!edits[t.sensor_type];
                         return (
-                            <Table.Tr key={t.sensor_type} style={modified ? { backgroundColor: 'rgba(254,198,4,0.04)' } : undefined}>
+                            <Table.Tr
+                                key={t.sensor_type}
+                                style={
+                                    modified
+                                        ? { backgroundColor: 'rgba(254,198,4,0.04)' }
+                                        : undefined
+                                }
+                            >
                                 <Table.Td>
-                                    <Text size="sm" fw={500}>{SENSOR_LABELS[t.sensor_type] ?? t.sensor_type}</Text>
-                                    <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">{t.sensor_type}</Text>
+                                    <Text size="sm" fw={500}>
+                                        {SENSOR_LABELS[t.sensor_type] ?? t.sensor_type}
+                                    </Text>
+                                    <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
+                                        {t.sensor_type}
+                                    </Text>
                                 </Table.Td>
-                                <Table.Td><Badge size="xs" variant="outline" color="gray">{SENSOR_UNITS[t.sensor_type] ?? '—'}</Badge></Table.Td>
                                 <Table.Td>
-                                    <NumberInput value={min} onChange={(v) => setEdit(t.sensor_type, 'min_value', Number(v), t)} size="xs" w={100} styles={modified ? { input: { borderColor: 'var(--mantine-color-ktzGold-5)' } } : {}} />
+                                    <Badge size="xs" variant="outline" color="gray">
+                                        {SENSOR_UNITS[t.sensor_type] ?? '—'}
+                                    </Badge>
                                 </Table.Td>
                                 <Table.Td>
-                                    <NumberInput value={max} onChange={(v) => setEdit(t.sensor_type, 'max_value', Number(v), t)} size="xs" w={100} styles={modified ? { input: { borderColor: 'var(--mantine-color-ktzGold-5)' } } : {}} />
+                                    <NumberInput
+                                        value={min}
+                                        onChange={(v) =>
+                                            setEdit(t.sensor_type, 'min_value', Number(v), t)
+                                        }
+                                        size="xs"
+                                        w={100}
+                                        styles={
+                                            modified
+                                                ? {
+                                                      input: {
+                                                          borderColor:
+                                                              'var(--mantine-color-ktzGold-5)',
+                                                      },
+                                                  }
+                                                : {}
+                                        }
+                                    />
+                                </Table.Td>
+                                <Table.Td>
+                                    <NumberInput
+                                        value={max}
+                                        onChange={(v) =>
+                                            setEdit(t.sensor_type, 'max_value', Number(v), t)
+                                        }
+                                        size="xs"
+                                        w={100}
+                                        styles={
+                                            modified
+                                                ? {
+                                                      input: {
+                                                          borderColor:
+                                                              'var(--mantine-color-ktzGold-5)',
+                                                      },
+                                                  }
+                                                : {}
+                                        }
+                                    />
                                 </Table.Td>
                                 <Table.Td>
                                     <Tooltip label={`${min} — ${max}`}>
                                         <Box w={70}>
-                                            <Progress value={100} color={max - min > 0 ? 'ktzBlue' : 'critical'} size="xs" radius="xl" />
-                                            <Text size="xs" c="dimmed" ta="center">{(max - min).toFixed(0)}</Text>
+                                            <Progress
+                                                value={100}
+                                                color={max - min > 0 ? 'ktzBlue' : 'critical'}
+                                                size="xs"
+                                                radius="xl"
+                                            />
+                                            <Text size="xs" c="dimmed" ta="center">
+                                                {(max - min).toFixed(0)}
+                                            </Text>
                                         </Box>
                                     </Tooltip>
                                 </Table.Td>
                                 <Table.Td>
-                                    <Button size="xs" variant={modified ? 'filled' : 'subtle'} color={modified ? 'ktzGold' : 'gray'} leftSection={<IconDeviceFloppy size={14} />} onClick={() => handleSave(t.sensor_type, t)} loading={saving[t.sensor_type]} disabled={!modified}>
+                                    <Button
+                                        size="xs"
+                                        variant={modified ? 'filled' : 'subtle'}
+                                        color={modified ? 'ktzGold' : 'gray'}
+                                        leftSection={<IconDeviceFloppy size={14} />}
+                                        onClick={() => handleSave(t.sensor_type, t)}
+                                        loading={saving[t.sensor_type]}
+                                        disabled={!modified}
+                                    >
                                         Сохранить
                                     </Button>
                                 </Table.Td>
@@ -180,7 +266,13 @@ function ThresholdsTab() {
                         );
                     })}
                     {thresholds.length === 0 && !isLoading && (
-                        <Table.Tr><Table.Td colSpan={6}><Text ta="center" c="dimmed" size="sm">Нет данных</Text></Table.Td></Table.Tr>
+                        <Table.Tr>
+                            <Table.Td colSpan={6}>
+                                <Text ta="center" c="dimmed" size="sm">
+                                    Нет данных
+                                </Text>
+                            </Table.Td>
+                        </Table.Tr>
                     )}
                 </Table.Tbody>
             </Table>
@@ -201,8 +293,17 @@ function WeightsTab() {
         setSaving((p) => ({ ...p, [sensorType]: true }));
         try {
             await updateWeight({ sensor_type: sensorType, weight }).unwrap();
-            showNotification({ title: 'Сохранено', message: `Вес «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлён`, color: 'green', icon: <IconCheck size={16} /> });
-            setEdits((p) => { const n = { ...p }; delete n[sensorType]; return n; });
+            showNotification({
+                title: 'Сохранено',
+                message: `Вес «${SENSOR_LABELS[sensorType] ?? sensorType}» обновлён`,
+                color: 'green',
+                icon: <IconCheck size={16} />,
+            });
+            setEdits((p) => {
+                const n = { ...p };
+                delete n[sensorType];
+                return n;
+            });
         } catch {
             showNotification({ title: 'Ошибка', message: 'Не удалось сохранить', color: 'red' });
         } finally {
@@ -217,11 +318,22 @@ function WeightsTab() {
         <Stack gap="md">
             <Card padding="xs" withBorder>
                 <Group gap="md">
-                    <Text size="sm" c="dimmed">Сумма весов:</Text>
-                    <Text size="md" fw={700} c={sumOk ? 'green' : 'ktzGold'} ff="var(--font-mono), monospace">
+                    <Text size="sm" c="dimmed">
+                        Сумма весов:
+                    </Text>
+                    <Text
+                        size="md"
+                        fw={700}
+                        c={sumOk ? 'green' : 'ktzGold'}
+                        ff="var(--font-mono), monospace"
+                    >
                         {totalWeight.toFixed(3)}
                     </Text>
-                    {!sumOk && <Text size="xs" c="ktzGold">Рекомендуется 1.000</Text>}
+                    {!sumOk && (
+                        <Text size="xs" c="ktzGold">
+                            Рекомендуется 1.000
+                        </Text>
+                    )}
                 </Group>
             </Card>
 
@@ -239,19 +351,70 @@ function WeightsTab() {
                         const val = getValue(w.sensor_type, w.weight);
                         const modified = w.sensor_type in edits;
                         return (
-                            <Table.Tr key={w.sensor_type} style={modified ? { backgroundColor: 'rgba(254,198,4,0.04)' } : undefined}>
+                            <Table.Tr
+                                key={w.sensor_type}
+                                style={
+                                    modified
+                                        ? { backgroundColor: 'rgba(254,198,4,0.04)' }
+                                        : undefined
+                                }
+                            >
                                 <Table.Td>
-                                    <Text size="sm" fw={500}>{SENSOR_LABELS[w.sensor_type] ?? w.sensor_type}</Text>
-                                    <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">{w.sensor_type}</Text>
+                                    <Text size="sm" fw={500}>
+                                        {SENSOR_LABELS[w.sensor_type] ?? w.sensor_type}
+                                    </Text>
+                                    <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
+                                        {w.sensor_type}
+                                    </Text>
                                 </Table.Td>
                                 <Table.Td>
-                                    <NumberInput value={val} onChange={(v) => setEdits((p) => ({ ...p, [w.sensor_type]: Number(v) }))} min={0} max={1} step={0.01} decimalScale={3} size="xs" w={90} styles={modified ? { input: { borderColor: 'var(--mantine-color-ktzGold-5)' } } : {}} />
+                                    <NumberInput
+                                        value={val}
+                                        onChange={(v) =>
+                                            setEdits((p) => ({ ...p, [w.sensor_type]: Number(v) }))
+                                        }
+                                        min={0}
+                                        max={1}
+                                        step={0.01}
+                                        decimalScale={3}
+                                        size="xs"
+                                        w={90}
+                                        styles={
+                                            modified
+                                                ? {
+                                                      input: {
+                                                          borderColor:
+                                                              'var(--mantine-color-ktzGold-5)',
+                                                      },
+                                                  }
+                                                : {}
+                                        }
+                                    />
                                 </Table.Td>
                                 <Table.Td>
-                                    <Progress value={val * 100} color={val > 0.15 ? 'critical' : val > 0.08 ? 'ktzGold' : 'ktzBlue'} size="md" radius="xl" />
+                                    <Progress
+                                        value={val * 100}
+                                        color={
+                                            val > 0.15
+                                                ? 'critical'
+                                                : val > 0.08
+                                                  ? 'ktzGold'
+                                                  : 'ktzBlue'
+                                        }
+                                        size="md"
+                                        radius="xl"
+                                    />
                                 </Table.Td>
                                 <Table.Td>
-                                    <Button size="xs" variant={modified ? 'filled' : 'subtle'} color={modified ? 'ktzGold' : 'gray'} leftSection={<IconDeviceFloppy size={14} />} onClick={() => handleSave(w.sensor_type, w.weight)} loading={saving[w.sensor_type]} disabled={!modified}>
+                                    <Button
+                                        size="xs"
+                                        variant={modified ? 'filled' : 'subtle'}
+                                        color={modified ? 'ktzGold' : 'gray'}
+                                        leftSection={<IconDeviceFloppy size={14} />}
+                                        onClick={() => handleSave(w.sensor_type, w.weight)}
+                                        loading={saving[w.sensor_type]}
+                                        disabled={!modified}
+                                    >
                                         Сохранить
                                     </Button>
                                 </Table.Td>
@@ -259,7 +422,13 @@ function WeightsTab() {
                         );
                     })}
                     {weights.length === 0 && !isLoading && (
-                        <Table.Tr><Table.Td colSpan={4}><Text ta="center" c="dimmed" size="sm">Нет данных</Text></Table.Td></Table.Tr>
+                        <Table.Tr>
+                            <Table.Td colSpan={4}>
+                                <Text ta="center" c="dimmed" size="sm">
+                                    Нет данных
+                                </Text>
+                            </Table.Td>
+                        </Table.Tr>
                     )}
                 </Table.Tbody>
             </Table>
@@ -281,8 +450,12 @@ function UsersTab() {
                             <IconUsers size={16} />
                         </ThemeIcon>
                         <div>
-                            <Text size="xs" c="dimmed">Всего</Text>
-                            <Text size="lg" fw={700} ff="var(--font-mono), monospace">{total}</Text>
+                            <Text size="xs" c="dimmed">
+                                Всего
+                            </Text>
+                            <Text size="lg" fw={700} ff="var(--font-mono), monospace">
+                                {total}
+                            </Text>
                         </div>
                     </Group>
                 </Card>
@@ -292,7 +465,9 @@ function UsersTab() {
                             <IconShieldCheck size={16} />
                         </ThemeIcon>
                         <div>
-                            <Text size="xs" c="dimmed">Администраторы</Text>
+                            <Text size="xs" c="dimmed">
+                                Администраторы
+                            </Text>
                             <Text size="lg" fw={700} ff="var(--font-mono), monospace">
                                 {users.filter((u) => u.role === 'admin').length}
                             </Text>
@@ -305,7 +480,9 @@ function UsersTab() {
                             <IconUser size={16} />
                         </ThemeIcon>
                         <div>
-                            <Text size="xs" c="dimmed">Операторы</Text>
+                            <Text size="xs" c="dimmed">
+                                Операторы
+                            </Text>
                             <Text size="lg" fw={700} ff="var(--font-mono), monospace">
                                 {users.filter((u) => u.role === 'operator').length}
                             </Text>
@@ -315,9 +492,13 @@ function UsersTab() {
             </Group>
 
             {isLoading ? (
-                <Center py="xl"><Text c="dimmed">Загрузка...</Text></Center>
+                <Center py="xl">
+                    <Text c="dimmed">Загрузка...</Text>
+                </Center>
             ) : users.length === 0 ? (
-                <Center py="xl"><Text c="dimmed">Нет пользователей</Text></Center>
+                <Center py="xl">
+                    <Text c="dimmed">Нет пользователей</Text>
+                </Center>
             ) : (
                 <Table striped highlightOnHover verticalSpacing="sm">
                     <Table.Thead>
@@ -333,10 +514,21 @@ function UsersTab() {
                             <Table.Tr key={user.id}>
                                 <Table.Td>
                                     <Group gap="sm">
-                                        <ThemeIcon variant="light" color={user.role === 'admin' ? 'ktzGold' : 'ktzBlue'} size="sm" radius="xl">
-                                            {user.role === 'admin' ? <IconShieldCheck size={12} /> : <IconUser size={12} />}
+                                        <ThemeIcon
+                                            variant="light"
+                                            color={user.role === 'admin' ? 'ktzGold' : 'ktzBlue'}
+                                            size="sm"
+                                            radius="xl"
+                                        >
+                                            {user.role === 'admin' ? (
+                                                <IconShieldCheck size={12} />
+                                            ) : (
+                                                <IconUser size={12} />
+                                            )}
                                         </ThemeIcon>
-                                        <Text size="sm" fw={500}>{user.username}</Text>
+                                        <Text size="sm" fw={500}>
+                                            {user.username}
+                                        </Text>
                                     </Group>
                                 </Table.Td>
                                 <Table.Td>
@@ -377,7 +569,9 @@ export function ConfigPage() {
                     <ThemeIcon size={64} radius="xl" variant="light" color="red">
                         <IconAlertCircle size={32} />
                     </ThemeIcon>
-                    <Text size="lg" fw={600}>Доступ запрещён</Text>
+                    <Text size="lg" fw={600}>
+                        Доступ запрещён
+                    </Text>
                     <Text size="sm" c="dimmed" ta="center" maw={300}>
                         Только администраторы могут просматривать и изменять настройки системы
                     </Text>
@@ -395,7 +589,12 @@ export function ConfigPage() {
                     </ThemeIcon>
                     <Title order={3}>Настройки системы</Title>
                 </Group>
-                <Badge color="ktzGold" variant="light" size="lg" leftSection={<IconShieldCheck size={12} />}>
+                <Badge
+                    color="ktzGold"
+                    variant="light"
+                    size="lg"
+                    leftSection={<IconShieldCheck size={12} />}
+                >
                     Администратор
                 </Badge>
             </Group>
@@ -416,7 +615,8 @@ export function ConfigPage() {
 
                     <Tabs.Panel value="thresholds" pt="md">
                         <Text size="sm" c="dimmed" mb="md">
-                            Допустимые диапазоны значений для каждого датчика. Выход за пределы влияет на индекс здоровья.
+                            Допустимые диапазоны значений для каждого датчика. Выход за пределы
+                            влияет на индекс здоровья.
                         </Text>
                         <ThresholdsTab />
                     </Tabs.Panel>

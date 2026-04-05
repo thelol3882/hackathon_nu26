@@ -6,7 +6,6 @@ Wire format (JSON or msgpack) is controlled globally by WIRE_FORMAT env var.
 from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from starlette.websockets import WebSocketState
 
 from api_gateway.services.connection_manager import ConnectionManager
 from shared.constants import ALERT_CHANNEL, HEALTH_CHANNEL, TELEMETRY_CHANNEL
@@ -56,6 +55,7 @@ async def ws_live(ws: WebSocket, loco_id: str):
                     data = wire_decode(raw)
                 else:
                     import json
+
                     data = json.loads(raw)
                 if isinstance(data, dict) and data.get("type") == "pong":
                     manager.mark_pong(ws)

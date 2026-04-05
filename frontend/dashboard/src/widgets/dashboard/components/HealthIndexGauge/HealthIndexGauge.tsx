@@ -59,10 +59,14 @@ function getProgressColor(score: number): string {
 
 function getCategoryColor(category: string): string {
     switch (category) {
-        case 'Норма': return 'green';
-        case 'Внимание': return 'yellow';
-        case 'Критично': return 'red';
-        default: return 'gray';
+        case 'Норма':
+            return 'green';
+        case 'Внимание':
+            return 'yellow';
+        case 'Критично':
+            return 'red';
+        default:
+            return 'gray';
     }
 }
 
@@ -73,7 +77,9 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                 <div className={classes.loaderWrap}>
                     <Stack align="center" gap="sm">
                         <Loader size="lg" color="ktzBlue" />
-                        <Text size="xs" c="dimmed">Загрузка индекса...</Text>
+                        <Text size="xs" c="dimmed">
+                            Загрузка индекса...
+                        </Text>
                     </Stack>
                 </div>
             </Card>
@@ -88,7 +94,9 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                         <ThemeIcon size={48} variant="light" color="gray" radius="xl">
                             <IconHeartbeat size={24} stroke={1.2} />
                         </ThemeIcon>
-                        <Text c="dimmed" size="sm">Ожидание данных...</Text>
+                        <Text c="dimmed" size="sm">
+                            Ожидание данных...
+                        </Text>
                     </Stack>
                 </div>
             </Card>
@@ -105,11 +113,7 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
         <Card className={glowClass}>
             <Group gap={4} mb="xs">
                 <Text className="panel-label">ИНДЕКС ЗДОРОВЬЯ</Text>
-                <Badge
-                    size="sm"
-                    variant="filled"
-                    color={getCategoryColor(health.category)}
-                >
+                <Badge size="sm" variant="filled" color={getCategoryColor(health.category)}>
                     {health.category}
                 </Badge>
             </Group>
@@ -203,13 +207,17 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                                     size="sm"
                                     radius="xl"
                                 />
-                                <span className={classes.factorValue} style={{
-                                    color: factor.deviation_pct > 20
-                                        ? 'var(--mantine-color-critical-5)'
-                                        : factor.deviation_pct > 10
-                                            ? 'var(--mantine-color-ktzGold-5)'
-                                            : undefined,
-                                }}>
+                                <span
+                                    className={classes.factorValue}
+                                    style={{
+                                        color:
+                                            factor.deviation_pct > 20
+                                                ? 'var(--mantine-color-critical-5)'
+                                                : factor.deviation_pct > 10
+                                                  ? 'var(--mantine-color-ktzGold-5)'
+                                                  : undefined,
+                                    }}
+                                >
                                     {factor.deviation_pct > 0 ? '+' : ''}
                                     {factor.deviation_pct.toFixed(1)}%
                                 </span>

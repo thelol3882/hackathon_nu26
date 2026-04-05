@@ -155,13 +155,7 @@ export function LoginPage() {
                                 required
                                 size="md"
                             />
-                            <Button
-                                type="submit"
-                                fullWidth
-                                loading={isLoading}
-                                mt="sm"
-                                size="md"
-                            >
+                            <Button type="submit" fullWidth loading={isLoading} mt="sm" size="md">
                                 Войти в систему
                             </Button>
                         </Stack>

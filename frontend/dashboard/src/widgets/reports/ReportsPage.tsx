@@ -134,7 +134,9 @@ export function ReportsPage() {
                         <ThemeIcon variant="light" color="ktzBlue" size="md">
                             <IconFileText size={18} />
                         </ThemeIcon>
-                        <Text fw={600} size="lg">Генерация отчёта</Text>
+                        <Text fw={600} size="lg">
+                            Генерация отчёта
+                        </Text>
                     </Group>
 
                     <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
@@ -161,12 +163,15 @@ export function ReportsPage() {
 
                     {!locomotiveId && (
                         <Alert color="ktzGold" variant="light" icon={<IconAlertCircle size={16} />}>
-                            Без выбора локомотива будет сгенерирован сводный отчёт по парку. Данные агрегируются — это может занять время.
+                            Без выбора локомотива будет сгенерирован сводный отчёт по парку. Данные
+                            агрегируются — это может занять время.
                         </Alert>
                     )}
 
                     <Group>
-                        <Text size="sm" fw={500}>Формат:</Text>
+                        <Text size="sm" fw={500}>
+                            Формат:
+                        </Text>
                         <SegmentedControl
                             value={format}
                             onChange={(val) => setFormat(val as ReportFormat)}
@@ -201,11 +206,17 @@ export function ReportsPage() {
 
                     {/* Generation progress */}
                     {isGenerating && (
-                        <Card withBorder padding="sm" style={{ borderColor: 'var(--mantine-color-ktzBlue-5)' }}>
+                        <Card
+                            withBorder
+                            padding="sm"
+                            style={{ borderColor: 'var(--mantine-color-ktzBlue-5)' }}
+                        >
                             <Group gap="sm">
                                 <Loader size="sm" />
                                 <Stack gap={2} style={{ flex: 1 }}>
-                                    <Text size="sm" fw={500}>Генерация отчёта...</Text>
+                                    <Text size="sm" fw={500}>
+                                        Генерация отчёта...
+                                    </Text>
                                     <Progress value={100} size="xs" animated color="ktzBlue" />
                                 </Stack>
                             </Group>
@@ -213,15 +224,23 @@ export function ReportsPage() {
                     )}
 
                     {status === 'completed' && downloadUrl && (
-                        <Card withBorder padding="sm" style={{ borderColor: 'var(--mantine-color-healthy-5)' }}>
+                        <Card
+                            withBorder
+                            padding="sm"
+                            style={{ borderColor: 'var(--mantine-color-healthy-5)' }}
+                        >
                             <Group justify="space-between">
                                 <Group gap="sm">
                                     <ThemeIcon variant="filled" color="green" size="md" radius="xl">
                                         <IconCheck size={16} />
                                     </ThemeIcon>
                                     <Stack gap={0}>
-                                        <Text size="sm" fw={600}>Отчёт готов</Text>
-                                        <Text size="xs" c="dimmed">Формат: {format.toUpperCase()}</Text>
+                                        <Text size="sm" fw={600}>
+                                            Отчёт готов
+                                        </Text>
+                                        <Text size="xs" c="dimmed">
+                                            Формат: {format.toUpperCase()}
+                                        </Text>
                                     </Stack>
                                 </Group>
                                 <Button
@@ -237,8 +256,14 @@ export function ReportsPage() {
                     )}
 
                     {status === 'failed' && (
-                        <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />} title="Ошибка генерации">
-                            Не удалось сгенерировать отчёт. Попробуйте уменьшить диапазон дат или выбрать конкретный локомотив.
+                        <Alert
+                            color="red"
+                            variant="light"
+                            icon={<IconAlertCircle size={16} />}
+                            title="Ошибка генерации"
+                        >
+                            Не удалось сгенерировать отчёт. Попробуйте уменьшить диапазон дат или
+                            выбрать конкретный локомотив.
                         </Alert>
                     )}
                 </Stack>
@@ -251,7 +276,9 @@ export function ReportsPage() {
                         <ThemeIcon variant="light" color="ktzCyan" size="md">
                             <IconClock size={18} />
                         </ThemeIcon>
-                        <Text fw={600} size="lg">История отчётов</Text>
+                        <Text fw={600} size="lg">
+                            История отчётов
+                        </Text>
                         <Badge size="sm" variant="light" color="gray">
                             {reports.length}
                         </Badge>
@@ -263,8 +290,12 @@ export function ReportsPage() {
                                 <ThemeIcon variant="light" color="gray" size="xl" radius="xl">
                                     <IconFileText size={24} />
                                 </ThemeIcon>
-                                <Text c="dimmed" size="sm">Нет сгенерированных отчётов</Text>
-                                <Text c="dimmed" size="xs">Создайте первый отчёт выше</Text>
+                                <Text c="dimmed" size="sm">
+                                    Нет сгенерированных отчётов
+                                </Text>
+                                <Text c="dimmed" size="xs">
+                                    Создайте первый отчёт выше
+                                </Text>
                             </Stack>
                         </Center>
                     ) : (
@@ -286,7 +317,9 @@ export function ReportsPage() {
                                     return (
                                         <Table.Tr key={report.report_id}>
                                             <Table.Td>
-                                                <Text size="sm">{formatDateTime(report.created_at)}</Text>
+                                                <Text size="sm">
+                                                    {formatDateTime(report.created_at)}
+                                                </Text>
                                             </Table.Td>
                                             <Table.Td>
                                                 <Badge size="xs" variant="outline" color="gray">
@@ -328,7 +361,9 @@ export function ReportsPage() {
                                                 ) : report.status === 'processing' ? (
                                                     <Loader size="xs" />
                                                 ) : (
-                                                    <Text size="sm" c="dimmed">—</Text>
+                                                    <Text size="sm" c="dimmed">
+                                                        —
+                                                    </Text>
                                                 )}
                                             </Table.Td>
                                         </Table.Tr>

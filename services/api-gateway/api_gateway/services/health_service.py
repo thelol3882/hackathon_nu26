@@ -280,17 +280,19 @@ async def get_health_at(
         raise HTTPException(status_code=404, detail="No health data at this time")
 
     top_factors = row.top_factors or []
-    factors = []
-    for f in (top_factors if isinstance(top_factors, list) else []):
-        if isinstance(f, dict):
-            factors.append(HealthFactor(
-                sensor_type=f.get("sensor_type", ""),
-                value=f.get("value", 0),
-                unit=f.get("unit", ""),
-                penalty=f.get("penalty", 0),
-                contribution_pct=f.get("contribution_pct", 0),
-                deviation_pct=f.get("deviation_pct", 0),
-            ))
+    factor_list = top_factors if isinstance(top_factors, list) else []
+    factors = [
+        HealthFactor(
+            sensor_type=f.get("sensor_type", ""),
+            value=f.get("value", 0),
+            unit=f.get("unit", ""),
+            penalty=f.get("penalty", 0),
+            contribution_pct=f.get("contribution_pct", 0),
+            deviation_pct=f.get("deviation_pct", 0),
+        )
+        for f in factor_list
+        if isinstance(f, dict)
+    ]
 
     return HealthIndex(
         locomotive_id=UUID(locomotive_id),

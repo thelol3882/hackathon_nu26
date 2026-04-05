@@ -123,11 +123,8 @@ def _format_json(data: dict) -> dict:
 
 def _format_csv(data: dict) -> dict:
     """Flatten report data into rows for CSV export."""
-    rows: list[dict] = []
-
-    # Sensor stats
-    for stat in data.get("sensor_stats", []):
-        rows.append({
+    rows: list[dict] = [
+        {
             "section": "sensor_stats",
             "sensor_type": stat["sensor_type"],
             "unit": stat["unit"],
@@ -141,11 +138,12 @@ def _format_csv(data: dict) -> dict:
             "timestamp": "",
             "locomotive_id": "",
             "avg_score": "",
-        })
+        }
+        for stat in data.get("sensor_stats", [])
+    ]
 
-    # Alerts (single loco only)
-    for alert in data.get("alerts", []):
-        rows.append({
+    rows.extend(
+        {
             "section": "alert",
             "sensor_type": alert["sensor_type"],
             "unit": "",
@@ -159,13 +157,15 @@ def _format_csv(data: dict) -> dict:
             "timestamp": alert["timestamp"],
             "locomotive_id": "",
             "avg_score": "",
-        })
+        }
+        for alert in data.get("alerts", [])
+    )
 
     # Fleet: worst locomotives
     overview = data.get("health_overview", {})
     worst = overview.get("worst_locomotives", [])
-    for loco in worst:
-        rows.append({
+    rows.extend(
+        {
             "section": "worst_locomotive",
             "sensor_type": "",
             "unit": "",
@@ -179,7 +179,9 @@ def _format_csv(data: dict) -> dict:
             "timestamp": "",
             "locomotive_id": loco.get("locomotive_id", ""),
             "avg_score": loco.get("avg_score", ""),
-        })
+        }
+        for loco in worst
+    )
 
     summary = dict(overview)
     # Include fleet stats in summary if present
@@ -364,10 +366,10 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
     """Render health index as a prominent visual block."""
     _section_header(pdf, "Индекс здоровья", _CLR_PRIMARY)
 
-    score = overview.get("calculated_score", None)
-    avg_score = overview.get("avg_score", None)
-    min_score = overview.get("min_score", None)
-    max_score = overview.get("max_score", None)
+    score = overview.get("calculated_score")
+    avg_score = overview.get("avg_score")
+    min_score = overview.get("min_score")
+    max_score = overview.get("max_score")
     category = overview.get("category", "N/A")
     damage = overview.get("damage_penalty", 0.0)
 

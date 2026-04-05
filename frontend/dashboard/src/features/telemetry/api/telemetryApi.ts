@@ -22,7 +22,10 @@ export const telemetryApi = baseApi.injectEndpoints({
                 params,
             }),
         }),
-        getTelemetrySnapshot: builder.query<TelemetrySnapshotItem[], { locomotive_id: string; at: string }>({
+        getTelemetrySnapshot: builder.query<
+            TelemetrySnapshotItem[],
+            { locomotive_id: string; at: string }
+        >({
             query: (params) => ({
                 url: '/telemetry/snapshot',
                 params,
@@ -31,4 +34,5 @@ export const telemetryApi = baseApi.injectEndpoints({
     }),
 });
 
-export const { useGetTelemetryQuery, useGetRawTelemetryQuery, useGetTelemetrySnapshotQuery } = telemetryApi;
+export const { useGetTelemetryQuery, useGetRawTelemetryQuery, useGetTelemetrySnapshotQuery } =
+    telemetryApi;
