@@ -23,15 +23,19 @@ from simulator.models.locomotive_state import (
 )
 from simulator.scenarios.degradation import apply_degradation
 from simulator.scenarios.degradation import reset as reset_degradation
+from simulator.scenarios.driving import apply_driving
 from simulator.scenarios.emergency import apply_emergency
 from simulator.scenarios.emergency import reset as reset_emergency
 from simulator.scenarios.highload import apply_highload
+from simulator.scenarios.highspeed import apply_highspeed
 from simulator.scenarios.normal import apply_normal
 
 logger = logging.getLogger(__name__)
 
 SCENARIO_HANDLERS = {
     "normal": apply_normal,
+    "driving": apply_driving,
+    "highspeed": apply_highspeed,
     "highload": apply_highload,
     "degradation": apply_degradation,
     "emergency": apply_emergency,
@@ -186,15 +190,14 @@ class SimulationRunner:
         if self.effective_multiplier > 1:
             batch_size = 200  # larger batches for highload
 
-        for i in range(0, len(readings), batch_size):
-            batch = readings[i : i + batch_size]
-            result = await post_batch(batch)
-            if result is not None:
+        batches = [readings[i : i + batch_size] for i in range(0, len(readings), batch_size)]
+        results = await asyncio.gather(*[post_batch(b) for b in batches], return_exceptions=True)
+        for batch, result in zip(batches, results, strict=True):
+            if result is not None and not isinstance(result, BaseException):
                 self.events_sent += len(batch)
                 self._events_since_log += len(batch)
             else:
                 self.errors += 1
-                # Buffer failed readings
                 for r in batch:
                     self.buffer.append(r)
 

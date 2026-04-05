@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -82,6 +83,9 @@ async def test_create_report_job_success(mock_publish, mock_session):
         from api_gateway.services.report_request_service import create_report_job
 
         result = await create_report_job(mock_session, request)
+
+    # Let the background publish task run
+    await asyncio.sleep(0)
 
     assert isinstance(result, ReportResponse)
     mock_session.add.assert_called_once()

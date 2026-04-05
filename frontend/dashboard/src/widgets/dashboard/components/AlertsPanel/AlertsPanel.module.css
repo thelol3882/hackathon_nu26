@@ -1,0 +1,95 @@
+.alertItem {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--dashboard-border);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.alertItem:hover {
+    background-color: var(--dashboard-surface-elevated);
+}
+
+.alertItem:last-child {
+    border-bottom: none;
+}
+
+.alertNew {
+    background-color: rgba(var(--mantine-color-ktzBlue-5-rgb, 3, 136, 230), 0.05);
+}
+
+.severityStripe {
+    width: 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.severityInfo {
+    background-color: var(--mantine-color-ktzBlue-5);
+}
+
+.severityWarning {
+    background-color: var(--mantine-color-ktzGold-5);
+}
+
+.severityCritical {
+    background-color: var(--mantine-color-critical-5);
+}
+
+.severityEmergency {
+    background: linear-gradient(180deg, var(--mantine-color-critical-5), var(--mantine-color-critical-7));
+}
+
+.alertEmergency {
+    animation: pulse 1.5s ease-in-out infinite;
+    border-left: 2px solid var(--mantine-color-critical-5);
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+        background-color: transparent;
+    }
+    50% {
+        opacity: 0.85;
+        background-color: rgba(239, 68, 68, 0.08);
+    }
+}
+
+.iconPulse {
+    animation: iconGlow 2s ease-in-out infinite;
+}
+
+@keyframes iconGlow {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.alertContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.alertAction {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Acknowledged alert — dimmed with green left border */
+.alertAcknowledged {
+    opacity: 0.55;
+    border-left: 2px solid var(--mantine-color-green-5);
+}
+
+.alertAcknowledged:hover {
+    opacity: 0.75;
+}

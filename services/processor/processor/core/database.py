@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncGenerator
 
 from sqlalchemy import text
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import (
 
 from processor.core.config import get_settings
 
+logger = logging.getLogger(__name__)
+
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -18,6 +21,60 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 _HYPERTABLES = [
     ("raw_telemetry", "time"),
 ]
+
+
+async def _setup_retention_policies(conn, settings) -> None:
+    """Configure TimescaleDB compression and retention policies."""
+    # Enable compression on raw_telemetry (compress chunks older than N hours)
+    try:
+        await conn.execute(
+            text(
+                "ALTER TABLE raw_telemetry SET ("
+                "  timescaledb.compress,"
+                "  timescaledb.compress_segmentby = 'locomotive_id, sensor_type',"
+                "  timescaledb.compress_orderby = 'time DESC'"
+                ")"
+            )
+        )
+        await conn.execute(
+            text(
+                f"SELECT add_compression_policy('raw_telemetry', "
+                f"INTERVAL '{settings.compression_after_hours} hours', if_not_exists => TRUE)"
+            )
+        )
+        logger.info("Compression policy set: compress after %dh", settings.compression_after_hours)
+    except Exception as e:
+        logger.warning("Could not set compression policy: %s", e)
+
+    # Retention policy: auto-drop old telemetry chunks
+    try:
+        await conn.execute(
+            text(
+                f"SELECT add_retention_policy('raw_telemetry', "
+                f"INTERVAL '{settings.retention_telemetry_hours} hours', if_not_exists => TRUE)"
+            )
+        )
+        logger.info("Retention policy set: drop telemetry after %dh", settings.retention_telemetry_hours)
+    except Exception as e:
+        logger.warning("Could not set retention policy: %s", e)
+
+    # Cleanup old alerts and health snapshots (regular tables — use simple DELETE)
+    try:
+        await conn.execute(
+            text("DELETE FROM alert_events WHERE timestamp < NOW() - make_interval(hours => :h)"),
+            {"h": settings.retention_alerts_hours},
+        )
+        await conn.execute(
+            text("DELETE FROM health_snapshots WHERE calculated_at < NOW() - make_interval(hours => :h)"),
+            {"h": settings.retention_health_hours},
+        )
+        logger.info(
+            "Cleaned old alerts (>%dh) and health snapshots (>%dh)",
+            settings.retention_alerts_hours,
+            settings.retention_health_hours,
+        )
+    except Exception as e:
+        logger.warning("Could not clean old records: %s", e)
 
 
 async def init_db_pool() -> None:
@@ -39,8 +96,13 @@ async def init_db_pool() -> None:
         await conn.run_sync(Base.metadata.create_all)
         for table, col in _HYPERTABLES:
             await conn.execute(
-                text(f"SELECT create_hypertable('{table}', '{col}', if_not_exists => TRUE, migrate_data => TRUE)")
+                text(
+                    f"SELECT create_hypertable('{table}', '{col}', "
+                    f"chunk_time_interval => INTERVAL '1 hour', "
+                    f"if_not_exists => TRUE, migrate_data => TRUE)"
+                )
             )
+        await _setup_retention_policies(conn, settings)
 
 
 async def close_db_pool() -> None:
@@ -49,6 +111,10 @@ async def close_db_pool() -> None:
         await _engine.dispose()
         _engine = None
         _session_factory = None
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
+    return _session_factory
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession]:

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.models.locomotive_entity import Locomotive
-from shared.schemas.locomotive import LocomotiveCreate, LocomotiveRead
+from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 from shared.utils import generate_id
 
 
@@ -38,8 +38,46 @@ async def get_locomotive(session: AsyncSession, locomotive_id: str) -> Locomotiv
     return LocomotiveRead.model_validate(entity, from_attributes=True)
 
 
-async def list_locomotives(session: AsyncSession, offset: int = 0, limit: int = 50) -> list[LocomotiveRead]:
-    result = await session.execute(
-        select(Locomotive).order_by(Locomotive.created_at.desc()).offset(offset).limit(limit)
-    )
-    return [LocomotiveRead.model_validate(row, from_attributes=True) for row in result.scalars().all()]
+def _apply_filters(
+    stmt,
+    *,
+    search: str | None = None,
+    model: str | None = None,
+):
+    if model:
+        stmt = stmt.where(Locomotive.model.ilike(f"{model}%"))
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                Locomotive.serial_number.ilike(pattern),
+                Locomotive.model.ilike(pattern),
+            )
+        )
+    return stmt
+
+
+async def list_locomotives(
+    session: AsyncSession,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+    search: str | None = None,
+    model: str | None = None,
+) -> LocomotiveListResponse:
+    base = select(Locomotive)
+    base = _apply_filters(base, search=search, model=model)
+
+    count_result = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = count_result.scalar_one()
+
+    rows_result = await session.execute(base.order_by(Locomotive.serial_number).offset(offset).limit(limit))
+    items = [LocomotiveRead.model_validate(row, from_attributes=True) for row in rows_result.scalars().all()]
+
+    return LocomotiveListResponse(items=items, total=total)
+
+
+async def get_fleet_ids(session: AsyncSession) -> list[dict]:
+    """Return minimal id+model for every locomotive (used by simulator)."""
+    result = await session.execute(select(Locomotive.id, Locomotive.model).order_by(Locomotive.serial_number))
+    return [{"id": str(row.id), "model": row.model} for row in result.all()]

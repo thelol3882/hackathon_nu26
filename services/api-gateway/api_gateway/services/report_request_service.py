@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.core.rabbitmq import publish_report_job
 from api_gateway.models.report_entity import Report
+from shared.observability import get_logger
 from shared.schemas.report import (
     ReportJobMessage,
     ReportRequest,
@@ -17,6 +19,11 @@ from shared.schemas.report import (
     ReportStatus,
 )
 from shared.utils import generate_id
+
+logger = get_logger(__name__)
+
+# Store background task references to prevent GC
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def create_report_job(
@@ -26,6 +33,7 @@ async def create_report_job(
     """Insert a pending report record and publish job to RabbitMQ."""
     report_id = generate_id()
 
+    now = datetime.now(UTC)
     entity = Report(
         id=report_id,
         locomotive_id=request.locomotive_id,
@@ -33,12 +41,12 @@ async def create_report_job(
         format=request.format,
         status=ReportStatus.PENDING,
         data={},
+        created_at=now,
     )
     session.add(entity)
     await session.commit()
-    await session.refresh(entity)
 
-    # Publish to RabbitMQ
+    # Publish to RabbitMQ in background — don't block the response
     job = ReportJobMessage(
         report_id=report_id,
         locomotive_id=request.locomotive_id,
@@ -47,7 +55,9 @@ async def create_report_job(
         date_range=request.date_range,
         requested_at=datetime.now(UTC),
     )
-    await publish_report_job(job.model_dump(mode="json"))
+    task = asyncio.create_task(_publish_report_job_safe(job))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return ReportResponse(
         report_id=entity.id,
@@ -58,6 +68,13 @@ async def create_report_job(
         created_at=entity.created_at,
         data=None,
     )
+
+
+async def _publish_report_job_safe(job: ReportJobMessage) -> None:
+    try:
+        await publish_report_job(job.model_dump(mode="json"))
+    except Exception:
+        logger.exception("Failed to publish report job to RabbitMQ", report_id=str(job.report_id))
 
 
 async def get_report(session: AsyncSession, report_id: str) -> ReportResponse:

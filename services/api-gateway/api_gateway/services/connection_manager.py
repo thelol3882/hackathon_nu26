@@ -27,7 +27,7 @@ from shared.log_codes import (
 from shared.observability import get_logger
 from shared.observability.prometheus import ws_connections_active
 from shared.wire import decode as wire_decode
-from shared.wire import is_binary as wire_is_binary
+from shared.wire import encode as wire_encode
 
 logger = get_logger(__name__)
 
@@ -46,12 +46,20 @@ class _ClientSlot:
     filter_loco_id: str | None = None  # if set, only forward messages matching this loco
 
 
+@dataclass
+class _WsState:
+    """Per-WebSocket heartbeat state."""
+
+    pong_received: bool = True  # starts True so first ping doesn't immediately kill
+
+
 class _ChannelRelay:
     """Manages a single Redis pub/sub channel shared by N WebSocket clients."""
 
-    def __init__(self, channel: str, redis_client: redis.Redis) -> None:
+    def __init__(self, channel: str, redis_client: redis.Redis, *, envelope_type: str | None = None) -> None:
         self.channel = channel
         self._redis = redis_client
+        self._envelope_type = envelope_type
         self._clients: dict[int, _ClientSlot] = {}  # id(ws) -> slot
         self._ws_map: dict[int, WebSocket] = {}
         self._listener_task: asyncio.Task | None = None
@@ -119,19 +127,26 @@ class _ChannelRelay:
                 backoff = _RECONNECT_BASE
                 logger.info("Redis relay started", code=WS_RELAY_STARTED, channel=self.channel)
                 async for message in pubsub.listen():
-                    if message["type"] != b"message":
+                    if message["type"] != "message":
                         continue
-                    data: bytes = message["data"]
+                    raw: bytes = message["data"]
+                    # Parse once for filtering and envelope wrapping
+                    parsed_msg = None
+                    try:
+                        parsed_msg = wire_decode(raw)
+                    except Exception:
+                        pass
+                    # Wrap in envelope if configured
+                    if self._envelope_type and parsed_msg is not None:
+                        data = wire_encode({"type": self._envelope_type, "data": parsed_msg})
+                    else:
+                        data = raw
                     async with self._lock:
                         for slot in self._clients.values():
-                            if slot.filter_loco_id:
-                                try:
-                                    parsed = wire_decode(data)
-                                    msg_loco = str(parsed.get("locomotive_id", ""))
-                                    if msg_loco != slot.filter_loco_id:
-                                        continue
-                                except Exception:
-                                    pass
+                            if slot.filter_loco_id and parsed_msg is not None:
+                                msg_loco = str(parsed_msg.get("locomotive_id", ""))
+                                if msg_loco != slot.filter_loco_id:
+                                    continue
                             # backpressure: drop oldest if full
                             if slot.queue.full():
                                 try:
@@ -162,19 +177,11 @@ class _ChannelRelay:
 
     @staticmethod
     async def _sender_loop(ws: WebSocket, queue: asyncio.Queue[bytes]) -> None:
-        """Read from the client's queue and send over WebSocket.
-
-        Wire format is global: msgpack → send_bytes (zero-copy from Redis),
-        json → decode to str → send_text.
-        """
-        binary = wire_is_binary()
+        """Read from the client's queue and send over WebSocket."""
         try:
             while True:
                 data = await queue.get()
-                if binary:
-                    await ws.send_bytes(data)
-                else:
-                    await ws.send_text(data.decode())
+                await ws.send_bytes(data)
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -190,6 +197,7 @@ class ConnectionManager:
         self._relays: dict[str, _ChannelRelay] = {}
         self._connections: dict[int, set[str]] = {}  # id(ws) -> set of channel keys
         self._ws_refs: dict[int, WebSocket] = {}
+        self._ws_states: dict[int, _WsState] = {}  # heartbeat tracking
         self._lock = asyncio.Lock()
         self._heartbeat_task: asyncio.Task | None = None
 
@@ -215,6 +223,7 @@ class ConnectionManager:
             ws_id = id(ws)
             self._connections[ws_id] = set()
             self._ws_refs[ws_id] = ws
+            self._ws_states[ws_id] = _WsState()
         await ws.accept()
         logger.info(
             "WebSocket connected",
@@ -229,15 +238,23 @@ class ConnectionManager:
         channel: str,
         *,
         filter_loco_id: str | None = None,
+        envelope_type: str | None = None,
     ) -> None:
         """Subscribe a client to a Redis channel (shared relay)."""
         async with self._lock:
             ws_id = id(ws)
             if channel not in self._relays:
-                self._relays[channel] = _ChannelRelay(channel, self._redis)
+                self._relays[channel] = _ChannelRelay(channel, self._redis, envelope_type=envelope_type)
             self._connections.setdefault(ws_id, set()).add(channel)
 
         await self._relays[channel].add_client(ws, filter_loco_id=filter_loco_id)
+
+    def mark_pong(self, ws: WebSocket) -> None:
+        """Mark that a pong was received from this client."""
+        ws_id = id(ws)
+        state = self._ws_states.get(ws_id)
+        if state:
+            state.pong_received = True
 
     async def disconnect(self, ws: WebSocket) -> None:
         """Remove a client from all channels and tracking."""
@@ -245,6 +262,7 @@ class ConnectionManager:
             ws_id = id(ws)
             channels = self._connections.pop(ws_id, set())
             self._ws_refs.pop(ws_id, None)
+            self._ws_states.pop(ws_id, None)
 
         for ch in channels:
             relay = self._relays.get(ch)
@@ -291,22 +309,34 @@ class ConnectionManager:
                 pass
 
     async def _heartbeat_loop(self) -> None:
-        """Periodically ping all connections, remove stale ones."""
+        """Periodically ping all connections, remove stale ones that didn't pong."""
         while True:
             try:
                 await asyncio.sleep(_HEARTBEAT_INTERVAL)
-                async with self._lock:
-                    ws_list = list(self._ws_refs.values())
 
                 stale: list[WebSocket] = []
-                for ws in ws_list:
+                ping_data = wire_encode({"type": "ping"})
+
+                async with self._lock:
+                    ws_items = list(self._ws_refs.items())
+
+                for ws_id, ws in ws_items:
+                    state = self._ws_states.get(ws_id)
+                    if state and not state.pong_received:
+                        # No pong since last ping — connection is dead
+                        stale.append(ws)
+                        continue
+
+                    # Reset flag and send new ping
+                    if state:
+                        state.pong_received = False
                     try:
-                        await ws.send_json({"type": "ping"})
+                        await ws.send_bytes(ping_data)
                     except Exception:
                         stale.append(ws)
 
                 for ws in stale:
-                    logger.info("Removing stale connection", code=WS_STALE_REMOVED)
+                    logger.info("Removing stale connection (no pong)", code=WS_STALE_REMOVED)
                     await self.disconnect(ws)
             except asyncio.CancelledError:
                 break

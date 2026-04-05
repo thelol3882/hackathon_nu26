@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from api_gateway.api.dependencies import DbSession
-from api_gateway.core.auth import create_access_token, hash_password, verify_password
+from api_gateway.core.auth import AdminUser, create_access_token, hash_password, verify_password
 from api_gateway.models.user_entity import User
 from shared.log_codes import AUTH_LOGIN_FAILED, AUTH_LOGIN_OK, AUTH_REGISTER_CONFLICT, AUTH_REGISTER_OK
 from shared.observability import get_logger
@@ -37,8 +37,8 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register", status_code=201, response_model=UserResponse)
-async def register(body: RegisterRequest, db: DbSession):
-    """Register a new user."""
+async def register(body: RegisterRequest, db: DbSession, _admin: AdminUser):
+    """Register a new user (admin only)."""
     user = User(
         username=body.username,
         hashed_password=hash_password(body.password),
@@ -68,3 +68,37 @@ async def login(body: LoginRequest, db: DbSession):
     token = create_access_token(user.id, user.role)
     logger.info("User logged in", code=AUTH_LOGIN_OK, user_id=str(user.id))
     return TokenResponse(access_token=token)
+
+
+class UserListItem(BaseModel):
+    id: str
+    username: str
+    role: str
+    created_at: str
+
+
+class UsersListResponse(BaseModel):
+    users: list[UserListItem]
+    total: int
+
+
+@router.get("/users", response_model=UsersListResponse)
+async def list_users(db: DbSession, _admin: AdminUser):
+    """List all users (admin only)."""
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = result.scalars().all()
+    count_result = await db.execute(select(func.count()).select_from(User))
+    total = count_result.scalar() or 0
+
+    return UsersListResponse(
+        users=[
+            UserListItem(
+                id=str(u.id),
+                username=u.username,
+                role=u.role,
+                created_at=u.created_at.isoformat() if u.created_at else "",
+            )
+            for u in users
+        ],
+        total=total,
+    )

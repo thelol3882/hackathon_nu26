@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Query
 
 from api_gateway.api.dependencies import DbSession
@@ -13,6 +15,8 @@ async def list_alerts(
     locomotive_id: str | None = Query(None),
     severity: str | None = Query(None),
     acknowledged: bool | None = Query(None),
+    start: datetime | None = Query(None, description="Filter alerts from this time"),
+    end: datetime | None = Query(None, description="Filter alerts until this time"),
     offset: int = 0,
     limit: int = 50,
 ):
@@ -22,6 +26,8 @@ async def list_alerts(
         locomotive_id=locomotive_id,
         severity=severity,
         acknowledged=acknowledged,
+        start=start,
+        end=end,
         offset=offset,
         limit=limit,
     )

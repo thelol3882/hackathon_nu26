@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
 from shared.enums import LocomotiveStatus
-from shared.schemas.locomotive import LocomotiveCreate, LocomotiveRead
+from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 
 # ---------------------------------------------------------------------------
 # Helper: build a fake Locomotive entity that model_validate(from_attributes)
@@ -132,33 +132,42 @@ async def test_get_locomotive_not_found_404(mock_session):
 # ---------------------------------------------------------------------------
 
 
+def _mock_list_session(mock_session, entities):
+    """Set up mock_session.execute to return count then rows for list_locomotives."""
+    count_result = MagicMock()
+    count_result.scalar_one.return_value = len(entities)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all.return_value = entities
+    rows_result = MagicMock()
+    rows_result.scalars.return_value = scalars_mock
+
+    mock_session.execute.side_effect = [count_result, rows_result]
+
+
 @pytest.mark.asyncio
 async def test_list_locomotives_returns_list(mock_session):
     entities = [_make_entity(serial_number=f"SN-{i}") for i in range(3)]
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = entities
-    result_mock = MagicMock()
-    result_mock.scalars.return_value = scalars_mock
-    mock_session.execute.return_value = result_mock
+    _mock_list_session(mock_session, entities)
 
     from api_gateway.services.locomotive_service import list_locomotives
 
     result = await list_locomotives(mock_session, offset=0, limit=50)
 
-    assert len(result) == 3
-    assert all(isinstance(r, LocomotiveRead) for r in result)
+    assert isinstance(result, LocomotiveListResponse)
+    assert result.total == 3
+    assert len(result.items) == 3
+    assert all(isinstance(r, LocomotiveRead) for r in result.items)
 
 
 @pytest.mark.asyncio
 async def test_list_locomotives_empty(mock_session):
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = []
-    result_mock = MagicMock()
-    result_mock.scalars.return_value = scalars_mock
-    mock_session.execute.return_value = result_mock
+    _mock_list_session(mock_session, [])
 
     from api_gateway.services.locomotive_service import list_locomotives
 
     result = await list_locomotives(mock_session)
 
-    assert result == []
+    assert isinstance(result, LocomotiveListResponse)
+    assert result.total == 0
+    assert result.items == []
