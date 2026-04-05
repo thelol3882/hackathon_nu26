@@ -189,18 +189,19 @@ async def _query_fleet_health(session: AsyncSession, start: datetime, end: datet
 
 
 async def _query_worst_locomotives(session: AsyncSession, start: datetime, end: datetime) -> list[dict]:
-    """Get top 10 worst-performing locomotives."""
+    """Get top 10 worst-performing locomotives with serial numbers."""
     result = await session.execute(
         text("""
-            SELECT locomotive_id, locomotive_type,
-                   AVG(score) AS avg_score,
-                   MIN(score) AS min_score,
-                   MAX(score) AS max_score,
-                   COUNT(*) AS snapshot_count
-            FROM health_snapshots
-            WHERE calculated_at BETWEEN :start AND :end
-            GROUP BY locomotive_id, locomotive_type
-            ORDER BY AVG(score) ASC
+            SELECT h.locomotive_id, h.locomotive_type,
+                   AVG(h.score) AS avg_score,
+                   MIN(h.score) AS min_score,
+                   MAX(h.score) AS max_score,
+                   l.serial_number
+            FROM health_snapshots h
+            LEFT JOIN locomotives l ON l.id = h.locomotive_id
+            WHERE h.calculated_at BETWEEN :start AND :end
+            GROUP BY h.locomotive_id, h.locomotive_type, l.serial_number
+            ORDER BY AVG(h.score) ASC
             LIMIT 10
         """),
         {"start": start, "end": end},
@@ -209,6 +210,7 @@ async def _query_worst_locomotives(session: AsyncSession, start: datetime, end: 
         {
             "locomotive_id": str(row.locomotive_id),
             "locomotive_type": row.locomotive_type,
+            "serial_number": row.serial_number or str(row.locomotive_id)[:12],
             "avg_score": round(float(row.avg_score), 2),
             "min_score": round(float(row.min_score), 2),
             "max_score": round(float(row.max_score), 2),

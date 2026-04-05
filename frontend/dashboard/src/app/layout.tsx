@@ -11,7 +11,15 @@ import './globals.css';
 
 import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
 import { Share_Tech_Mono, Nunito_Sans } from 'next/font/google';
+import type { Metadata } from 'next';
 import { Providers } from '@/providers';
+
+export const metadata: Metadata = {
+    title: 'КТЖ — Цифровой двойник локомотива',
+    description:
+        'Система мониторинга телеметрии локомотивов в реальном времени. Индекс здоровья, оповещения, тренды, отчёты.',
+    icons: { icon: '/favicon.ico' },
+};
 
 const shareTechMono = Share_Tech_Mono({
     weight: '400',

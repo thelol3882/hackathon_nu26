@@ -27,13 +27,13 @@ import styles from './DashboardPage.module.css';
 
 function StatusStrip({
     locomotiveId,
-    locoType,
+    locomotiveLabel,
     connectionStatus,
     latestTimestamp,
     sensorCount,
 }: {
     locomotiveId: string;
-    locoType: string | undefined;
+    locomotiveLabel: string | null;
     connectionStatus: string;
     latestTimestamp: string | null;
     sensorCount: number;
@@ -52,17 +52,8 @@ function StatusStrip({
                         ff="var(--font-mono), monospace"
                         c="var(--dashboard-text-primary)"
                     >
-                        {locomotiveId.slice(0, 8)}
+                        {locomotiveLabel ?? locomotiveId.slice(0, 8)}
                     </Text>
-                    {locoType && (
-                        <Badge
-                            size="xs"
-                            variant="light"
-                            color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
-                        >
-                            {locoType}
-                        </Badge>
-                    )}
                     <div
                         style={{
                             width: 1,
@@ -264,6 +255,7 @@ function ReplayControls() {
 }
 
 function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
+    const { locomotiveLabel } = useLocomotive();
     const { sensors, position, connectionStatus } = useLiveTelemetry(locomotiveId);
     const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
@@ -292,7 +284,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
         <>
             <StatusStrip
                 locomotiveId={locomotiveId}
-                locoType={locoType}
+                locomotiveLabel={locomotiveLabel}
                 connectionStatus={connectionStatus}
                 latestTimestamp={latestTimestamp}
                 sensorCount={sensors.size}
@@ -313,7 +305,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
 }
 
 function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
-    const { replay } = useLocomotive();
+    const { replay, locomotiveLabel } = useLocomotive();
     const cursorIso = replay.cursor ? dayjs(replay.cursor).toISOString() : '';
 
     // Fetch snapshot telemetry at cursor time
@@ -391,17 +383,8 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                     <Group gap="sm">
                         <IconTrain size={14} style={{ opacity: 0.5 }} />
                         <Text size="xs" fw={600} ff="var(--font-mono), monospace">
-                            {locomotiveId.slice(0, 8)}
+                            {locomotiveLabel ?? locomotiveId.slice(0, 8)}
                         </Text>
-                        {locoType && (
-                            <Badge
-                                size="xs"
-                                variant="light"
-                                color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
-                            >
-                                {locoType}
-                            </Badge>
-                        )}
                         <div
                             style={{ width: 1, height: 14, background: 'var(--dashboard-border)' }}
                         />

@@ -598,7 +598,7 @@ def _pdf_worst_locomotives(pdf: FPDF, worst: list[dict]) -> None:
             pdf,
             cols,
             [
-                str(loco.get("locomotive_id", ""))[:30],
+                loco.get("serial_number", str(loco.get("locomotive_id", ""))[:12]),
                 _loco_type_ru(loco.get("locomotive_type", "")),
                 _fmt(score),
                 _fmt(loco.get("min_score", 0)),

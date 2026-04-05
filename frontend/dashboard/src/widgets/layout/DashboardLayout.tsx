@@ -26,8 +26,8 @@ import { navigationItems } from './navigation';
 import { LocomotiveProvider, useLocomotive } from './LocomotiveContext';
 
 function LocomotiveSelector() {
-    const { locomotiveId, setLocomotiveId } = useLocomotive();
-    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotiveId} />;
+    const { locomotiveId, setLocomotive } = useLocomotive();
+    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotive} />;
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {

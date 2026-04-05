@@ -98,10 +98,11 @@ function FormatCard({
     const meta = FORMAT_META[fmt];
     const FmtIcon = meta.icon;
     return (
-        <UnstyledButton onClick={onClick} style={{ width: '100%' }}>
+        <UnstyledButton onClick={onClick} style={{ width: '100%', height: '100%' }}>
             <Card
                 padding="md"
                 withBorder
+                h="100%"
                 style={{
                     cursor: 'pointer',
                     borderColor: selected ? `var(--mantine-color-${meta.color}-5)` : undefined,
@@ -110,24 +111,22 @@ function FormatCard({
                     transition: 'all 0.15s ease',
                 }}
             >
-                <Group gap="sm">
+                <Stack gap="xs" align="center" ta="center">
                     <ThemeIcon
                         variant={selected ? 'filled' : 'light'}
                         color={meta.color}
-                        size="lg"
+                        size="xl"
                         radius="md"
                     >
-                        <FmtIcon size={20} />
+                        <FmtIcon size={24} />
                     </ThemeIcon>
-                    <div>
-                        <Text size="sm" fw={600}>
-                            {meta.label}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                            {meta.desc}
-                        </Text>
-                    </div>
-                </Group>
+                    <Text size="sm" fw={600}>
+                        {meta.label}
+                    </Text>
+                    <Text size="xs" c="dimmed" lineClamp={2}>
+                        {meta.desc}
+                    </Text>
+                </Stack>
             </Card>
         </UnstyledButton>
     );
