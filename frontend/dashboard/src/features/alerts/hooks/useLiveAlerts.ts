@@ -1,32 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useWebSocket } from '@/shared/ws/hooks';
+import { useCallback } from 'react';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { alertsReset } from '@/store/slices/alertsSlice';
 import type { AlertEvent } from '../types';
 
-const MAX_ALERTS = 50;
-
+/**
+ * Returns alerts from Redux store (populated by useWsDispatch in DashboardPage).
+ * No longer manages its own WS subscription.
+ */
 export function useLiveAlerts(locomotiveId: string | null) {
-    const path = locomotiveId ? `/ws/live/${locomotiveId}` : null;
-    const { status, subscribe } = useWebSocket(path);
-    const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const alerts = useAppSelector((state) => state.alerts.items) as AlertEvent[];
+  const dispatch = useAppDispatch();
 
-    useEffect(() => {
-        const unsubscribe = subscribe((message: unknown) => {
-            const msg = message as { type?: string; data?: AlertEvent };
-            if (msg.type === 'alert' && msg.data) {
-                setAlerts((prev) => [msg.data!, ...prev].slice(0, MAX_ALERTS));
-            }
-        });
+  const clearAlerts = useCallback(() => {
+    dispatch(alertsReset());
+  }, [dispatch]);
 
-        return unsubscribe;
-    }, [subscribe]);
-
-    const clearAlerts = useCallback(() => {
-        setAlerts([]);
-    }, []);
-
-    return {
-        alerts,
-        connectionStatus: status,
-        clearAlerts,
-    };
+  return {
+    alerts,
+    connectionStatus: 'connected' as const,
+    clearAlerts,
+  };
 }
