@@ -27,9 +27,7 @@ import {
     IconAdjustments,
     IconInfoCircle,
     IconCheck,
-    IconUsers,
     IconShieldCheck,
-    IconUser,
 } from '@tabler/icons-react';
 import {
     useGetThresholdsQuery,
@@ -37,10 +35,8 @@ import {
     useGetWeightsQuery,
     useUpdateWeightMutation,
 } from '@/features/config';
-import { useGetUsersQuery } from '@/features/auth';
 import { useAppSelector } from '@/store/hooks';
 import { selectIsAdmin } from '@/store/authSlice';
-import { formatDateTime } from '@/shared/utils/date';
 
 const SENSOR_LABELS: Record<string, string> = {
     diesel_rpm: 'Обороты дизеля',
@@ -436,129 +432,6 @@ function WeightsTab() {
     );
 }
 
-function UsersTab() {
-    const { data, isLoading } = useGetUsersQuery();
-    const users = data?.users ?? [];
-    const total = data?.total ?? 0;
-
-    return (
-        <Stack gap="md">
-            <Group gap="md">
-                <Card padding="xs" withBorder style={{ flex: 1 }}>
-                    <Group gap="sm">
-                        <ThemeIcon variant="light" color="ktzBlue" size="md">
-                            <IconUsers size={16} />
-                        </ThemeIcon>
-                        <div>
-                            <Text size="xs" c="dimmed">
-                                Всего
-                            </Text>
-                            <Text size="lg" fw={700} ff="var(--font-mono), monospace">
-                                {total}
-                            </Text>
-                        </div>
-                    </Group>
-                </Card>
-                <Card padding="xs" withBorder style={{ flex: 1 }}>
-                    <Group gap="sm">
-                        <ThemeIcon variant="light" color="ktzGold" size="md">
-                            <IconShieldCheck size={16} />
-                        </ThemeIcon>
-                        <div>
-                            <Text size="xs" c="dimmed">
-                                Администраторы
-                            </Text>
-                            <Text size="lg" fw={700} ff="var(--font-mono), monospace">
-                                {users.filter((u) => u.role === 'admin').length}
-                            </Text>
-                        </div>
-                    </Group>
-                </Card>
-                <Card padding="xs" withBorder style={{ flex: 1 }}>
-                    <Group gap="sm">
-                        <ThemeIcon variant="light" color="healthy" size="md">
-                            <IconUser size={16} />
-                        </ThemeIcon>
-                        <div>
-                            <Text size="xs" c="dimmed">
-                                Операторы
-                            </Text>
-                            <Text size="lg" fw={700} ff="var(--font-mono), monospace">
-                                {users.filter((u) => u.role === 'operator').length}
-                            </Text>
-                        </div>
-                    </Group>
-                </Card>
-            </Group>
-
-            {isLoading ? (
-                <Center py="xl">
-                    <Text c="dimmed">Загрузка...</Text>
-                </Center>
-            ) : users.length === 0 ? (
-                <Center py="xl">
-                    <Text c="dimmed">Нет пользователей</Text>
-                </Center>
-            ) : (
-                <Table striped highlightOnHover verticalSpacing="sm">
-                    <Table.Thead>
-                        <Table.Tr>
-                            <Table.Th>Пользователь</Table.Th>
-                            <Table.Th>Роль</Table.Th>
-                            <Table.Th>Дата регистрации</Table.Th>
-                            <Table.Th>ID</Table.Th>
-                        </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                        {users.map((user) => (
-                            <Table.Tr key={user.id}>
-                                <Table.Td>
-                                    <Group gap="sm">
-                                        <ThemeIcon
-                                            variant="light"
-                                            color={user.role === 'admin' ? 'ktzGold' : 'ktzBlue'}
-                                            size="sm"
-                                            radius="xl"
-                                        >
-                                            {user.role === 'admin' ? (
-                                                <IconShieldCheck size={12} />
-                                            ) : (
-                                                <IconUser size={12} />
-                                            )}
-                                        </ThemeIcon>
-                                        <Text size="sm" fw={500}>
-                                            {user.username}
-                                        </Text>
-                                    </Group>
-                                </Table.Td>
-                                <Table.Td>
-                                    <Badge
-                                        variant="light"
-                                        color={user.role === 'admin' ? 'ktzGold' : 'ktzBlue'}
-                                        size="sm"
-                                    >
-                                        {user.role === 'admin' ? 'Администратор' : 'Оператор'}
-                                    </Badge>
-                                </Table.Td>
-                                <Table.Td>
-                                    <Text size="sm" c="dimmed">
-                                        {user.created_at ? formatDateTime(user.created_at) : '—'}
-                                    </Text>
-                                </Table.Td>
-                                <Table.Td>
-                                    <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
-                                        {user.id.slice(0, 8)}...
-                                    </Text>
-                                </Table.Td>
-                            </Table.Tr>
-                        ))}
-                    </Table.Tbody>
-                </Table>
-            )}
-        </Stack>
-    );
-}
-
 export function ConfigPage() {
     const isAdmin = useAppSelector(selectIsAdmin);
 
@@ -608,9 +481,6 @@ export function ConfigPage() {
                         <Tabs.Tab value="weights" leftSection={<IconAdjustments size={16} />}>
                             Веса
                         </Tabs.Tab>
-                        <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>
-                            Пользователи
-                        </Tabs.Tab>
                     </Tabs.List>
 
                     <Tabs.Panel value="thresholds" pt="md">
@@ -626,13 +496,6 @@ export function ConfigPage() {
                             Весовые коэффициенты вклада каждого датчика в общий индекс здоровья.
                         </Text>
                         <WeightsTab />
-                    </Tabs.Panel>
-
-                    <Tabs.Panel value="users" pt="md">
-                        <Text size="sm" c="dimmed" mb="md">
-                            Зарегистрированные пользователи системы мониторинга.
-                        </Text>
-                        <UsersTab />
                     </Tabs.Panel>
                 </Tabs>
             </Card>
