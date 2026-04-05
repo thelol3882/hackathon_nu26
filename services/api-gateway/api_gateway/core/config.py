@@ -14,18 +14,41 @@ class GatewaySettings(BaseSettings):
     app_name: str = "locomotive-api-gateway"
     debug: bool = False
 
-    # --- TimescaleDB / PostgreSQL ---
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_user: str = "telemetry"
-    db_password: str = "changeme"
-    db_name: str = "locomotive_telemetry"
-    db_pool_min: int = 5
-    db_pool_max: int = 20
+    # --- Application database (PostgreSQL) ---
+    # Small CRUD tables: users, locomotives, reports, health config.
+    # Standard ORM operations with JOINs between business entities.
+    app_db_host: str = "postgres"
+    app_db_port: int = 5432
+    app_db_user: str = "locomotive_app"
+    app_db_password: str = "changeme"
+    app_db_name: str = "locomotive_app"
+    app_db_pool_min: int = 3
+    app_db_pool_max: int = 10
 
     @property
-    def database_url(self) -> str:
-        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+    def app_database_url(self) -> str:
+        return (
+            f"postgresql://{self.app_db_user}:{self.app_db_password}"
+            f"@{self.app_db_host}:{self.app_db_port}/{self.app_db_name}"
+        )
+
+    # --- Telemetry database (TimescaleDB) ---
+    # Huge time-series tables: raw_telemetry, alert_events, health_snapshots,
+    # continuous aggregates. Read-only from API Gateway (DB Writer handles writes).
+    ts_db_host: str = "timescaledb"
+    ts_db_port: int = 5432
+    ts_db_user: str = "telemetry"
+    ts_db_password: str = "changeme"
+    ts_db_name: str = "locomotive_telemetry"
+    ts_db_pool_min: int = 3
+    ts_db_pool_max: int = 10
+
+    @property
+    def ts_database_url(self) -> str:
+        return (
+            f"postgresql://{self.ts_db_user}:{self.ts_db_password}"
+            f"@{self.ts_db_host}:{self.ts_db_port}/{self.ts_db_name}"
+        )
 
     # --- Redis ---
     redis_host: str = "localhost"

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.core.config import get_settings
-from api_gateway.core.database import get_db_session
+from api_gateway.core.database import get_app_db_session
 from api_gateway.models.user_entity import User
 
 _bearer_scheme = HTTPBearer()
@@ -62,7 +62,7 @@ def _decode_token(token: str) -> dict:
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer_scheme)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
+    session: Annotated[AsyncSession, Depends(get_app_db_session)],
 ) -> User:
     payload = _decode_token(credentials.credentials)
     user_id = payload.get("sub")

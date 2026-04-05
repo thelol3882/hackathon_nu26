@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query
 
-from api_gateway.api.dependencies import DbSession, Redis
+from api_gateway.api.dependencies import AppSession, Redis, TsSession
 from api_gateway.services import locomotive_service
 from api_gateway.services.health_service import get_health_at, get_health_index
 from shared.schemas.health import HealthIndex
@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/", response_model=LocomotiveListResponse)
 async def list_locomotives(
-    db: DbSession,
+    db: AppSession,
     offset: int = 0,
     limit: int = 50,
     search: str | None = Query(None, description="Search by serial number or model"),
@@ -30,34 +30,40 @@ async def list_locomotives(
 
 
 @router.get("/fleet", response_model=list[dict])
-async def get_fleet_ids(db: DbSession):
+async def get_fleet_ids(db: AppSession):
     """Lightweight endpoint for simulator: returns all locomotive IDs and models."""
     return await locomotive_service.get_fleet_ids(db)
 
 
 @router.post("/", status_code=201, response_model=LocomotiveRead)
-async def create_locomotive(data: LocomotiveCreate, db: DbSession):
+async def create_locomotive(data: LocomotiveCreate, db: AppSession):
     """Register a new locomotive."""
     return await locomotive_service.create_locomotive(db, data)
 
 
 @router.get("/{locomotive_id}", response_model=LocomotiveRead)
-async def get_locomotive(locomotive_id: str, db: DbSession):
+async def get_locomotive(locomotive_id: str, db: AppSession):
     """Get a single locomotive by ID."""
     return await locomotive_service.get_locomotive(db, locomotive_id)
 
 
 @router.get("/{locomotive_id}/health", response_model=HealthIndex)
-async def get_locomotive_health(locomotive_id: str, db: DbSession, redis: Redis):
-    """Get the current health index for a locomotive."""
-    return await get_health_index(db, redis, locomotive_id)
+async def get_locomotive_health(locomotive_id: str, ts_db: TsSession, redis: Redis):
+    """Get the current health index for a locomotive.
+
+    Reads latest sensor values from TimescaleDB and thresholds/weights from Redis.
+    """
+    return await get_health_index(ts_db, redis, locomotive_id)
 
 
 @router.get("/{locomotive_id}/health/at", response_model=HealthIndex)
 async def get_locomotive_health_at(
     locomotive_id: str,
-    db: DbSession,
+    ts_db: TsSession,
     at: datetime = Query(..., description="Point in time (ISO 8601)"),
 ):
-    """Get the health index at a specific point in time (replay)."""
-    return await get_health_at(db, locomotive_id, at)
+    """Get the health index at a specific point in time (replay).
+
+    Reads health snapshots from TimescaleDB.
+    """
+    return await get_health_at(ts_db, locomotive_id, at)

@@ -4,12 +4,14 @@ import { encode } from '@msgpack/msgpack';
 type MessageHandler = (data: unknown) => void;
 
 export interface WsManagerOptions {
-    /** Base path WITHOUT ticket — e.g. /ws/live/LOCO-001 */
+    /** WS path — e.g. /ws/live/LOCO-001 */
     path: string;
     /** Full WS base URL — e.g. ws://localhost or wss://example.com */
     wsBaseUrl: string;
-    /** API base URL for fetching tickets — e.g. /api or http://localhost:8000 */
+    /** API base URL for fetching tickets — e.g. /api */
     apiBaseUrl: string;
+    /** Returns the current JWT token, or null if not authenticated. */
+    getAccessToken: () => string | null;
     onStatusChange?: (status: WsStatus) => void;
     maxReconnectAttempts?: number;
 }
@@ -18,12 +20,14 @@ export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecti
 
 /**
  * Fetches a one-time WebSocket ticket from the API Gateway.
+ *
+ * The ticket endpoint requires a valid JWT in the Authorization header.
  * Returns the ticket string or null if auth failed.
  */
-async function fetchTicket(apiBaseUrl: string): Promise<string | null> {
+async function fetchTicket(apiBaseUrl: string, accessToken: string): Promise<string | null> {
     try {
         const res = await fetch(`${apiBaseUrl}/ws/ticket`, {
-            credentials: 'include',
+            headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!res.ok) return null;
         const data = (await res.json()) as { ticket: string };
@@ -38,6 +42,7 @@ export class WebSocketManager {
     private path: string;
     private wsBaseUrl: string;
     private apiBaseUrl: string;
+    private getAccessToken: () => string | null;
     private handlers = new Set<MessageHandler>();
     private status: WsStatus = 'disconnected';
     private onStatusChange?: (status: WsStatus) => void;
@@ -50,6 +55,7 @@ export class WebSocketManager {
         this.path = options.path;
         this.wsBaseUrl = options.wsBaseUrl;
         this.apiBaseUrl = options.apiBaseUrl;
+        this.getAccessToken = options.getAccessToken;
         this.onStatusChange = options.onStatusChange;
         this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     }
@@ -58,9 +64,17 @@ export class WebSocketManager {
         if (this.disposed) return;
         this.setStatus('connecting');
 
-        // Must get a fresh ticket for each connection attempt
-        // because tickets are single-use (GETDEL in Redis)
-        const ticket = await fetchTicket(this.apiBaseUrl);
+        // Read the current JWT — must be fresh on each attempt
+        // because the token may have been refreshed or the user re-logged in.
+        const token = this.getAccessToken();
+        if (!token) {
+            this.setStatus('disconnected');
+            return;
+        }
+
+        // Fetch a one-time ticket using the JWT.
+        // Each connection/reconnection needs a NEW ticket (single-use GETDEL).
+        const ticket = await fetchTicket(this.apiBaseUrl, token);
         if (!ticket) {
             this.setStatus('disconnected');
             return;
@@ -84,20 +98,20 @@ export class WebSocketManager {
                     'type' in data &&
                     (data as Record<string, unknown>).type === 'ping'
                 ) {
-                    // Keep-alive: respond with pong so server doesn't drop the connection
                     this.sendPong();
                     return;
                 }
                 this.handlers.forEach((handler) => handler(data));
             } catch {
-                // Silently drop malformed messages to avoid crashing consumers
+                // Silently drop malformed messages
             }
         };
 
         this.ws.onclose = (event: CloseEvent) => {
             if (this.disposed) return;
             this.setStatus('disconnected');
-            // Don't reconnect on auth failures (4401 = invalid ticket)
+            // Don't reconnect on auth failures — the ticket or JWT is invalid,
+            // user needs to re-authenticate via the UI.
             if (event.code === 4401 || event.code === 4400) return;
             if (!event.wasClean) {
                 this.scheduleReconnect();
@@ -157,7 +171,6 @@ export class WebSocketManager {
         const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
         this.reconnectAttempts++;
         this.reconnectTimer = setTimeout(() => {
-            // Each reconnect fetches a NEW ticket (tickets are single-use)
             this.connect();
         }, delay);
     }

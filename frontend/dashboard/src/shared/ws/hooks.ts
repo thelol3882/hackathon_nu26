@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { store } from '@/store/store';
 import { WebSocketManager, type WsStatus } from './manager';
 
 function getWsBaseUrl(): string {
@@ -17,6 +18,15 @@ function getApiBaseUrl(): string {
 const WS_BASE_URL = getWsBaseUrl();
 const API_BASE_URL = getApiBaseUrl();
 
+/**
+ * Reads the current JWT access token from the Redux store.
+ * Called lazily by the WebSocketManager on each connect/reconnect
+ * so it always gets the freshest token.
+ */
+function getAccessToken(): string | null {
+    return store.getState().auth.accessToken;
+}
+
 /** Shared managers keyed by path.  Ref-counted so the socket is
  *  closed only when the last consumer unmounts. */
 const sharedManagers = new Map<string, { manager: WebSocketManager; refCount: number }>();
@@ -31,6 +41,7 @@ function acquireManager(path: string, onStatusChange: (s: WsStatus) => void): We
         path,
         wsBaseUrl: WS_BASE_URL,
         apiBaseUrl: API_BASE_URL,
+        getAccessToken,
         onStatusChange,
     });
     sharedManagers.set(path, { manager, refCount: 1 });

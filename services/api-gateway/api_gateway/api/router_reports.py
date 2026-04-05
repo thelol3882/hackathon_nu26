@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from api_gateway.api.dependencies import DbSession
+from api_gateway.api.dependencies import AppSession
 from api_gateway.services.report_request_service import (
     create_report_job,
     get_report,
@@ -18,14 +18,14 @@ router = APIRouter()
 
 
 @router.post("/generate", status_code=201, response_model=ReportResponse)
-async def generate_report(request: ReportRequest, db: DbSession):
+async def generate_report(request: ReportRequest, db: AppSession):
     """Submit a report generation job. Poll GET /reports/{id} for status."""
     return await create_report_job(db, request)
 
 
 @router.get("/", response_model=list[ReportResponse])
 async def get_reports(
-    db: DbSession,
+    db: AppSession,
     locomotive_id: str | None = Query(None),
     status: str | None = Query(None),
     offset: int = 0,
@@ -36,13 +36,13 @@ async def get_reports(
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
-async def get_report_status(report_id: str, db: DbSession):
+async def get_report_status(report_id: str, db: AppSession):
     """Get report status and data. Poll until status is 'completed'."""
     return await get_report(db, report_id)
 
 
 @router.get("/{report_id}/download")
-async def download_report(report_id: str, db: DbSession):
+async def download_report(report_id: str, db: AppSession):
     """Download a completed report as a file."""
     report = await get_report(db, report_id)
 

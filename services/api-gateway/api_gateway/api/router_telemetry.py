@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Query
 from starlette.responses import JSONResponse
 
-from api_gateway.api.dependencies import DbSession
+from api_gateway.api.dependencies import TsSession
 from api_gateway.services.telemetry_service import (
     TelemetryBucket,
     TelemetryRaw,
@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[TelemetryBucket])
 async def get_telemetry(
-    db: DbSession,
+    db: TsSession,
     locomotive_id: str | None = Query(None),
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),
@@ -45,7 +45,7 @@ async def get_telemetry(
 
 @router.get("/snapshot", response_model=list[TelemetrySnapshot])
 async def get_telemetry_snapshot(
-    db: DbSession,
+    db: TsSession,
     locomotive_id: str = Query(..., description="Locomotive UUID"),
     at: datetime = Query(..., description="Point in time (ISO 8601)"),
 ):
@@ -55,7 +55,7 @@ async def get_telemetry_snapshot(
 
 @router.get("/raw", response_model=list[TelemetryRaw])
 async def get_telemetry_raw(
-    db: DbSession,
+    db: TsSession,
     locomotive_id: str | None = Query(None),
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),

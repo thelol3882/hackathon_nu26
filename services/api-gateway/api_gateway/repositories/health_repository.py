@@ -1,4 +1,9 @@
-"""Health repository — PostgreSQL only."""
+"""Health repository — split across two databases.
+
+Config queries (thresholds, weights, seed) use AppSession (PostgreSQL).
+Telemetry queries (latest readings, health snapshots) use TsSession (TimescaleDB).
+Callers are responsible for passing the correct session.
+"""
 
 from __future__ import annotations
 

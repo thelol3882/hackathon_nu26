@@ -179,9 +179,9 @@ async def test_get_alert_not_found_404(mock_session):
 @pytest.mark.asyncio
 async def test_acknowledge_alert_success(mock_session):
     entity = _make_alert_entity(acknowledged=False)
-    # execute is called 3 times: 2 UPDATEs + 1 SELECT (mappings)
+    # execute is called 2 times: 1 UPDATE (alert_events) + 1 SELECT (find_by_id)
     update_result = MagicMock()
-    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(entity)]
+    mock_session.execute.side_effect = [update_result, _mappings_result(entity)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 
@@ -195,7 +195,7 @@ async def test_acknowledge_alert_success(mock_session):
 async def test_acknowledge_alert_already_acknowledged(mock_session):
     entity = _make_alert_entity(acknowledged=True, acknowledged_at=datetime.now(UTC))
     update_result = MagicMock()
-    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(entity)]
+    mock_session.execute.side_effect = [update_result, _mappings_result(entity)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 
@@ -209,7 +209,7 @@ async def test_acknowledge_alert_already_acknowledged(mock_session):
 @pytest.mark.asyncio
 async def test_acknowledge_alert_not_found_404(mock_session):
     update_result = MagicMock()
-    mock_session.execute.side_effect = [update_result, update_result, _mappings_result(None)]
+    mock_session.execute.side_effect = [update_result, _mappings_result(None)]
 
     from api_gateway.services.alert_service import acknowledge_alert
 

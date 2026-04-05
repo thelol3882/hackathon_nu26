@@ -1,14 +1,11 @@
-"""Alert repository — PostgreSQL only."""
+"""Alert repository — reads from alert_events in TimescaleDB via raw SQL."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from api_gateway.models.alert_entity import AlertRecord
 
 
 async def find_many(
@@ -71,39 +68,5 @@ async def acknowledge(session: AsyncSession, alert_id: str) -> dict | None:
         text("UPDATE alert_events SET acknowledged = TRUE WHERE id = CAST(:aid AS uuid)"),
         {"aid": alert_id},
     )
-    await session.execute(
-        text("UPDATE alerts SET acknowledged = TRUE, acknowledged_at = NOW() WHERE id = CAST(:aid AS uuid)"),
-        {"aid": alert_id},
-    )
     await session.commit()
     return await find_by_id(session, alert_id)
-
-
-async def bulk_insert(session: AsyncSession, records: list[AlertRecord]) -> int:
-    if not records:
-        return 0
-    stmt = (
-        pg_insert(AlertRecord)
-        .values(
-            [
-                {
-                    "id": r.id,
-                    "locomotive_id": r.locomotive_id,
-                    "sensor_type": r.sensor_type,
-                    "severity": r.severity,
-                    "value": r.value,
-                    "threshold_min": r.threshold_min,
-                    "threshold_max": r.threshold_max,
-                    "message": r.message,
-                    "recommendation": r.recommendation,
-                    "timestamp": r.timestamp,
-                    "acknowledged": r.acknowledged,
-                }
-                for r in records
-            ]
-        )
-        .on_conflict_do_nothing()
-    )
-    await session.execute(stmt)
-    await session.commit()
-    return len(records)

@@ -1,5 +1,25 @@
 services:
   # ---- Infrastructure ----
+
+  # Plain PostgreSQL for CRUD data (auth, locomotives, reports, config).
+  # Small tables with standard ORM operations — no need for TimescaleDB features.
+  postgres:
+    image: postgres:17-alpine
+    env_file: .env
+    environment:
+      POSTGRES_USER: locomotive_app
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: locomotive_app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U locomotive_app -d locomotive_app"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # TimescaleDB for time-series data (raw telemetry, alerts, health snapshots,
+  # continuous aggregates). Millions of rows with hypertable compression and retention.
   timescaledb:
     image: timescale/timescaledb:latest-pg17
     env_file: .env
@@ -134,6 +154,8 @@ services:
       dockerfile: services/api-gateway/Dockerfile
     env_file: .env
     depends_on:
+      postgres:
+        condition: service_healthy
       timescaledb:
         condition: service_healthy
       redis:
@@ -213,6 +235,7 @@ services:
       - dashboard
 
 volumes:
+  postgres_data:
   timescaledb_data:
   redis_data:
   rabbitmq_data:
