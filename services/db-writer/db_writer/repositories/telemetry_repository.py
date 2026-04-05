@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from processor.models.telemetry_entity import TelemetryRecord
+from db_writer.models.telemetry_entity import TelemetryRecord
 
 
 async def bulk_insert(session: AsyncSession, rows: list[dict]) -> int:

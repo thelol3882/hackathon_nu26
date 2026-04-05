@@ -5,24 +5,20 @@ POST /telemetry/ingest        — single TelemetryReading
 POST /telemetry/ingest/batch  — list of TelemetryReading (bulk)
 
 Pipeline per reading:
-  1. EMA filter + flatten → TelemetryRecord ORM rows
-  2. Bulk INSERT raw_telemetry
-  3. Evaluate alerts → INSERT alert_events + publish alerts:live
-  4. Calculate HealthIndex → INSERT health_snapshots + publish health:live
-  5. Publish full reading to telemetry:live (for frontend WebSocket)
+  1. EMA filter + flatten → plain dicts
+  2. Evaluate alerts → alert dicts
+  3. Calculate HealthIndex → health dict
+  4. Publish to Redis Pub/Sub (for WebSocket live feed)
+  5. Publish to Redis Streams (for DB Writer persistence)
 """
 
 import asyncio
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
-from processor.api.dependencies import DbSession, Redis
+from processor.api.dependencies import Redis
 from processor.core.redis_client import get_redis_raw, publish_alert, publish_health, publish_telemetry
-from processor.models.alert_entity import AlertRecord
-from processor.models.health_entity import HealthSnapshotRecord
-from processor.repositories import telemetry_repository
 from processor.services.alert_evaluator import evaluate_alerts
-from processor.services.db_writer import DbWriter
 from processor.services.health_service import calculate_health
 from processor.services.ingestion_service import flatten_reading
 from shared.constants import ALERT_CHANNEL, HEALTH_CHANNEL, TELEMETRY_CHANNEL
@@ -34,6 +30,7 @@ from shared.observability.prometheus import (
     telemetry_ingested_total,
 )
 from shared.schemas.telemetry import TelemetryReading
+from shared.streams import ALERTS_STREAM, HEALTH_STREAM, TELEMETRY_STREAM, xadd_rows
 from shared.utils import generate_id
 from shared.wire import encode as wire_encode
 
@@ -44,7 +41,7 @@ router = APIRouter()
 
 async def _process_single(
     reading: TelemetryReading,
-    db: DbSession,
+    redis_client,
 ) -> dict:
     """
     Run the full ingest pipeline for one TelemetryReading.
@@ -52,66 +49,46 @@ async def _process_single(
     """
     loco_id = str(reading.locomotive_id)
 
-    # flatten_reading mutates sensor.value to filtered; returns DB rows
-    rows = flatten_reading(reading)
-
-    if rows:
-        telemetry_dicts = [
-            {
-                "time": r.time,
-                "locomotive_id": r.locomotive_id,
-                "locomotive_type": r.locomotive_type,
-                "sensor_type": r.sensor_type,
-                "value": r.value,
-                "filtered_value": r.filtered_value,
-                "unit": r.unit,
-                "sample_rate_hz": r.sample_rate_hz,
-                "latitude": r.latitude,
-                "longitude": r.longitude,
-            }
-            for r in rows
-        ]
-        await telemetry_repository.bulk_insert(db, telemetry_dicts)
+    # flatten_reading mutates sensor.value to filtered; returns plain dicts
+    telemetry_dicts = flatten_reading(reading)
 
     # Uses already-filtered sensor.value (mutated by flatten_reading)
     alert_events = evaluate_alerts(reading)
 
-    alert_records = [
-        AlertRecord(
-            id=ae.id,
-            locomotive_id=ae.locomotive_id,
-            locomotive_type=reading.locomotive_type.value,
-            sensor_type=str(ae.sensor_type),
-            severity=ae.severity.value,
-            value=ae.value,
-            threshold_min=ae.threshold_min,
-            threshold_max=ae.threshold_max,
-            message=ae.message,
-            recommendation=ae.recommendation,
-            timestamp=ae.timestamp,
-            acknowledged=ae.acknowledged,
-        )
+    alert_dicts = [
+        {
+            "id": ae.id,
+            "locomotive_id": ae.locomotive_id,
+            "locomotive_type": reading.locomotive_type.value,
+            "sensor_type": str(ae.sensor_type),
+            "severity": ae.severity.value,
+            "value": ae.value,
+            "threshold_min": ae.threshold_min,
+            "threshold_max": ae.threshold_max,
+            "message": ae.message,
+            "recommendation": ae.recommendation,
+            "timestamp": ae.timestamp,
+            "acknowledged": ae.acknowledged,
+        }
         for ae in alert_events
     ]
-    if alert_records:
-        db.add_all(alert_records)
 
     health = calculate_health(reading)
 
-    health_record = HealthSnapshotRecord(
-        id=generate_id(),
-        locomotive_id=reading.locomotive_id,
-        locomotive_type=reading.locomotive_type.value,
-        score=health.overall_score,
-        category=health.category,
-        top_factors=[f.model_dump() for f in health.top_factors],
-        damage_penalty=health.damage_penalty,
-        calculated_at=health.calculated_at,
-    )
-    db.add(health_record)
+    health_dicts = [
+        {
+            "id": generate_id(),
+            "locomotive_id": reading.locomotive_id,
+            "locomotive_type": reading.locomotive_type.value,
+            "score": health.overall_score,
+            "category": health.category,
+            "top_factors": [f.model_dump() for f in health.top_factors],
+            "damage_penalty": health.damage_penalty,
+            "calculated_at": health.calculated_at,
+        }
+    ]
 
-    await db.commit()
-
+    # Prometheus metrics
     telemetry_ingested_total.labels(locomotive_type=reading.locomotive_type.value).inc(len(reading.sensors))
     health_index_calculated_total.inc()
     health_index_value.labels(locomotive_id=loco_id, locomotive_type=reading.locomotive_type.value).set(
@@ -120,20 +97,29 @@ async def _process_single(
     for ae in alert_events:
         alerts_fired_total.labels(severity=ae.severity.value, sensor_type=str(ae.sensor_type)).inc()
 
+    # Publish to Redis Pub/Sub (WebSocket live feed — existing channels)
     telemetry_payload = wire_encode(reading.model_dump(mode="json"))
     health_payload = wire_encode(health.model_dump(mode="json"))
     alert_payloads = [wire_encode(ae.model_dump(mode="json")) for ae in alert_events]
 
-    publish_tasks = [
+    pubsub_tasks = [
         publish_telemetry(loco_id, telemetry_payload),
         publish_health(loco_id, health_payload),
     ]
-    publish_tasks += [publish_alert(ap) for ap in alert_payloads]
-    await asyncio.gather(*publish_tasks, return_exceptions=True)
+    pubsub_tasks += [publish_alert(ap) for ap in alert_payloads]
+
+    # Publish to Redis Streams (DB Writer persistence — durable)
+    stream_tasks = [
+        xadd_rows(redis_client, TELEMETRY_STREAM, telemetry_dicts),
+        xadd_rows(redis_client, ALERTS_STREAM, alert_dicts),
+        xadd_rows(redis_client, HEALTH_STREAM, health_dicts),
+    ]
+
+    await asyncio.gather(*pubsub_tasks, *stream_tasks, return_exceptions=True)
 
     return {
         "locomotive_id": loco_id,
-        "rows_written": len(rows),
+        "rows_written": len(telemetry_dicts),
         "alerts_raised": len(alert_events),
         "health_score": health.overall_score,
         "health_category": health.category,
@@ -143,7 +129,6 @@ async def _process_single(
 @router.post("/ingest")
 async def ingest_telemetry(
     reading: TelemetryReading,
-    db: DbSession,
     redis: Redis,
 ):
     """Receive a single TelemetryReading and run the full processing pipeline."""
@@ -152,7 +137,7 @@ async def ingest_telemetry(
         locomotive_id=str(reading.locomotive_id),
         sensor_count=len(reading.sensors),
     )
-    result = await _process_single(reading, db)
+    result = await _process_single(reading, redis)
     return {"status": "accepted", **result}
 
 
@@ -161,7 +146,7 @@ def _process_readings_sync(
 ) -> tuple[list[dict], list[dict], list[dict], list[dict], list[tuple[str, bytes]], list[dict]]:
     """CPU-bound processing — runs in a thread via run_in_executor.
 
-    Returns plain dicts (not ORM objects) for thread-safe handoff to DbWriter.
+    Returns plain dicts (not ORM objects) for thread-safe handoff.
     """
     results: list[dict] = []
     errors: list[dict] = []
@@ -175,21 +160,7 @@ def _process_readings_sync(
         try:
             rows = flatten_reading(reading)
 
-            all_telemetry_rows.extend(
-                {
-                    "time": r.time,
-                    "locomotive_id": r.locomotive_id,
-                    "locomotive_type": r.locomotive_type,
-                    "sensor_type": r.sensor_type,
-                    "value": r.value,
-                    "filtered_value": r.filtered_value,
-                    "unit": r.unit,
-                    "sample_rate_hz": r.sample_rate_hz,
-                    "latitude": r.latitude,
-                    "longitude": r.longitude,
-                }
-                for r in rows
-            )
+            all_telemetry_rows.extend(rows)
 
             alert_events = evaluate_alerts(reading)
             all_alert_records.extend(
@@ -256,24 +227,29 @@ def _process_readings_sync(
 @router.post("/ingest/batch")
 async def ingest_batch(
     readings: list[TelemetryReading],
-    request: Request,
 ):
     """
     Receive a batch of TelemetryReadings.
-    CPU work runs in a thread pool. DB writes go to background DbWriter.
-    Redis publishes use a pipeline (single round-trip).
+    CPU work runs in a thread pool. Persistence goes to Redis Streams.
+    Redis Pub/Sub publishes use a pipeline (single round-trip).
     """
-    writer: DbWriter = request.app.state.db_writer
-
     loop = asyncio.get_event_loop()
     results, telemetry_rows, alert_records, health_records, publish_items, errors = await loop.run_in_executor(
         None, _process_readings_sync, readings
     )
 
-    writer.put(telemetry_rows, alert_records, health_records)
+    redis_client = get_redis_raw()
 
+    # Publish to Redis Streams (durable, for DB Writer)
+    stream_tasks = [
+        xadd_rows(redis_client, TELEMETRY_STREAM, telemetry_rows),
+        xadd_rows(redis_client, ALERTS_STREAM, alert_records),
+        xadd_rows(redis_client, HEALTH_STREAM, health_records),
+    ]
+    await asyncio.gather(*stream_tasks, return_exceptions=True)
+
+    # Publish to Redis Pub/Sub (for WebSocket live feed)
     if publish_items:
-        redis_client = get_redis_raw()
         pipe = redis_client.pipeline(transaction=False)
         for channel, payload in publish_items:
             pipe.publish(channel, payload)

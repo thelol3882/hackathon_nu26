@@ -17,6 +17,7 @@ members = [
     "services/api-gateway",
     "services/report-service",
     "services/simulator",
+    "services/db-writer",
 ]
 
 # ── Ruff ─────────────────────────────────────────────────────────────
@@ -90,9 +91,11 @@ ignore = [
 "**/repositories/telemetry_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "**/repositories/alert_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "**/repositories/health_snapshot_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"services/db-writer/**/stream_consumer.py" = ["S110"]  # best-effort metric in update_lag
+"services/db-writer/main.py" = ["S104"]  # bind to 0.0.0.0 — expected in containers
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator"]
+known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator", "db_writer"]
 
 [tool.ruff.format]
 quote-style = "double"

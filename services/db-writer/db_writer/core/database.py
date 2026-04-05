@@ -1,22 +1,22 @@
-import logging
-from collections.abc import AsyncGenerator
+"""Database pool, schema creation, and TimescaleDB retention policies.
+
+Moved from the processor service — the db-writer is now the sole owner
+of TimescaleDB schema management.
+"""
+
+from __future__ import annotations
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from processor.core.config import get_settings
+from db_writer.core.config import get_settings
+from shared.observability import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
-# Only raw_telemetry has a time-based composite PK suitable for hypertables.
-# health_snapshots and alert_events use UUID PKs with indexed timestamp columns.
 _HYPERTABLES = [
     ("raw_telemetry", "time"),
 ]
@@ -55,7 +55,7 @@ async def _setup_retention_policies(conn, settings) -> None:
     except Exception as e:
         logger.warning("Could not set retention policy: %s", e)
 
-    # Regular tables (not hypertables) — use DELETE instead of retention policy
+    # Regular tables — use DELETE instead of retention policy
     try:
         await conn.execute(
             text("DELETE FROM alert_events WHERE timestamp < NOW() - make_interval(hours => :h)"),
@@ -85,8 +85,8 @@ async def init_db_pool() -> None:
     )
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
-    import processor.models  # noqa: F401 — ensure all models are registered
-    from processor.models.base import Base
+    import db_writer.models  # noqa: F401 — ensure all models are registered
+    from db_writer.models.base import Base
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -100,6 +100,8 @@ async def init_db_pool() -> None:
             )
         await _setup_retention_policies(conn, settings)
 
+    logger.info("DB pool initialized", pool_size=settings.db_pool_max)
+
 
 async def close_db_pool() -> None:
     global _engine, _session_factory
@@ -107,14 +109,8 @@ async def close_db_pool() -> None:
         await _engine.dispose()
         _engine = None
         _session_factory = None
+        logger.info("DB pool closed")
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
     return _session_factory
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession]:
-    if _session_factory is None:
-        raise RuntimeError("DB not initialized. Call init_db_pool() first.")
-    async with _session_factory() as session:
-        yield session

@@ -1,3 +1,5 @@
+"""ORM model for health index snapshots."""
+
 import uuid
 from datetime import datetime
 
@@ -5,13 +7,11 @@ from sqlalchemy import DateTime, Float, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from processor.models.base import Base
+from db_writer.models.base import Base
 from shared.utils import generate_id
 
 
 class HealthSnapshotRecord(Base):
-    """Health index snapshot stored after each telemetry batch."""
-
     __tablename__ = "health_snapshots"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_id)

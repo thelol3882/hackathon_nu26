@@ -92,6 +92,35 @@ reports_generated_total = Counter(
     registry=registry,
 )
 
+# ── Stream consumer metrics (DB Writer) ───────────────────────────────
+stream_messages_consumed = Counter(
+    "stream_messages_consumed_total",
+    "Total messages consumed from Redis Streams",
+    ["stream"],
+    registry=registry,
+)
+
+stream_rows_written = Counter(
+    "stream_rows_written_total",
+    "Total rows written to TimescaleDB by DB Writer",
+    ["table"],
+    registry=registry,
+)
+
+stream_write_errors = Counter(
+    "stream_write_errors_total",
+    "Total failed batch writes",
+    ["stream"],
+    registry=registry,
+)
+
+stream_consumer_lag = Gauge(
+    "stream_consumer_lag",
+    "Number of pending (unacknowledged) messages in stream",
+    ["stream"],
+    registry=registry,
+)
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """Collects request count, latency, and in-progress gauge per route."""

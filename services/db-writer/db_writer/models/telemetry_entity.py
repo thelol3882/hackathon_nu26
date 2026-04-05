@@ -1,3 +1,5 @@
+"""TimescaleDB hypertable model for raw telemetry readings."""
+
 import uuid
 from datetime import datetime
 
@@ -5,12 +7,10 @@ from sqlalchemy import DateTime, Float, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from processor.models.base import Base
+from db_writer.models.base import Base
 
 
 class TelemetryRecord(Base):
-    """One sensor reading row in the TimescaleDB hypertable raw_telemetry."""
-
     __tablename__ = "raw_telemetry"
 
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)

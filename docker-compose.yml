@@ -81,6 +81,7 @@ services:
       - processor
       - api-gateway
       - report-service
+      - db-writer
 
   grafana:
     image: grafana/grafana:latest
@@ -106,11 +107,24 @@ services:
       dockerfile: services/processor/Dockerfile
     env_file: .env
     depends_on:
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+
+  db-writer:
+    build:
+      context: .
+      dockerfile: services/db-writer/Dockerfile
+    env_file: .env
+    environment:
+      - DB_WRITER_CONSUMER_NAME=writer-1
+    depends_on:
       timescaledb:
         condition: service_healthy
       redis:
         condition: service_healthy
-      jaeger:
+      processor:
         condition: service_started
 
   api-gateway:

@@ -14,19 +14,6 @@ class ProcessorSettings(BaseSettings):
     app_name: str = "locomotive-processor"
     debug: bool = False
 
-    # --- TimescaleDB / PostgreSQL ---
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_user: str = "telemetry"
-    db_password: str = "changeme"
-    db_name: str = "locomotive_telemetry"
-    db_pool_min: int = 5
-    db_pool_max: int = 20
-
-    @property
-    def database_url(self) -> str:
-        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
-
     # --- Redis ---
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -39,12 +26,6 @@ class ProcessorSettings(BaseSettings):
     # --- Domain ---
     telemetry_batch_size: int = 100
     alert_cooldown_seconds: int = 30
-
-    # --- Retention ---
-    retention_telemetry_hours: int = 72
-    retention_alerts_hours: int = 168
-    retention_health_hours: int = 168
-    compression_after_hours: int = 1
 
 
 @lru_cache

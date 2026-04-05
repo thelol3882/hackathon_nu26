@@ -1,3 +1,5 @@
+"""ORM model for alert events."""
+
 import uuid
 from datetime import datetime
 
@@ -5,13 +7,11 @@ from sqlalchemy import Boolean, DateTime, Float, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from processor.models.base import Base
+from db_writer.models.base import Base
 from shared.utils import generate_id
 
 
 class AlertRecord(Base):
-    """Persisted alert event triggered by a threshold violation."""
-
     __tablename__ = "alert_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_id)

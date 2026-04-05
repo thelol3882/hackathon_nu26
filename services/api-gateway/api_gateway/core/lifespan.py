@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api_gateway.background.alert_persistence import run_alert_persistence
 from api_gateway.background.health_cache import run_health_cache
 from api_gateway.core.config import get_settings
 from api_gateway.core.database import close_db_pool, get_session_factory, init_db_pool
@@ -40,12 +39,6 @@ async def lifespan(app: FastAPI):
     await manager.start()
     app.state.ws_manager = manager
 
-    # Background: persist alerts from Redis to DB (raw client for binary pub/sub)
-    alert_task = asyncio.create_task(
-        run_alert_persistence(redis_raw, session_factory),
-        name="alert-persistence",
-    )
-
     # Background: cache health index from processor via Redis pub/sub
     health_task = asyncio.create_task(
         run_health_cache(redis_raw),
@@ -55,7 +48,6 @@ async def lifespan(app: FastAPI):
     yield
 
     health_task.cancel()
-    alert_task.cancel()
     await manager.shutdown()
     await close_rabbitmq()
     await close_redis()
