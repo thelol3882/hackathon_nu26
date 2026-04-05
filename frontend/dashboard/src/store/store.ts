@@ -5,6 +5,7 @@ import { authReducer } from './authSlice';
 import { telemetryReducer } from './slices/telemetrySlice';
 import { healthReducer } from './slices/healthSlice';
 import { alertsReducer } from './slices/alertsSlice';
+import { fleetReducer } from './slices/fleetSlice';
 
 export const store = configureStore({
     reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
         telemetry: telemetryReducer,
         health: healthReducer,
         alerts: alertsReducer,
+        fleet: fleetReducer,
     },
     middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(baseApi.middleware),
 });
