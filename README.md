@@ -184,8 +184,6 @@ curl -X POST http://localhost/api/auth/login \
 ### WebSocket
 
 ```
-ws://localhost/ws/telemetry/{loco_id}  — поток телеметрии конкретного локомотива
-ws://localhost/ws/alerts               — глобальный поток алертов
 ws://localhost/ws/live/{loco_id}       — комбинированный: телеметрия + алерты + здоровье
 ```
 
