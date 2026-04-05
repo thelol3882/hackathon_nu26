@@ -58,7 +58,6 @@ export function LoginPage() {
                 overflow: 'hidden',
             }}
         >
-            {/* Background decoration */}
             <Box
                 style={{
                     position: 'absolute',
@@ -95,7 +94,6 @@ export function LoginPage() {
                 }}
             >
                 <Stack gap="lg">
-                    {/* Logo */}
                     <Center>
                         <Stack align="center" gap={8}>
                             <ThemeIcon size={56} radius="xl" variant="light" color="ktzBlue">

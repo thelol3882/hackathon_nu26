@@ -222,19 +222,17 @@ async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
 
 
 async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
-    # Update in alert_events (processor table — always up-to-date)
+    # Update both alert tables: processor's alert_events and gateway's alerts
     await session.execute(
         text("UPDATE alert_events SET acknowledged = TRUE WHERE id = CAST(:aid AS uuid)"),
         {"aid": alert_id},
     )
-    # Also update in gateway alerts table if present
     await session.execute(
         text("UPDATE alerts SET acknowledged = TRUE, acknowledged_at = NOW() WHERE id = CAST(:aid AS uuid)"),
         {"aid": alert_id},
     )
     await session.commit()
 
-    # Read back from alert_events
     result = await session.execute(
         text(
             "SELECT id, locomotive_id, sensor_type, severity, value,"

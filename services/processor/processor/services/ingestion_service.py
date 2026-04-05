@@ -14,7 +14,6 @@ from shared.schemas.telemetry import TelemetryReading
 # Minimum relative change required to persist a high-frequency reading.
 _HF_NOISE_FLOOR = 0.005  # 0.5 %
 
-# Track last persisted filtered value per (loco_id, sensor_type) for HF dedup.
 _last_persisted: dict[tuple[str, str], float] = {}
 
 

@@ -112,7 +112,6 @@ export function UsersPage() {
                 </Badge>
             </Group>
 
-            {/* Stats */}
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 <Card padding="md" withBorder>
                     <Group gap="sm">
@@ -161,7 +160,6 @@ export function UsersPage() {
                 </Card>
             </SimpleGrid>
 
-            {/* Create user */}
             <Card padding="lg" withBorder>
                 <Group gap="xs" mb="md">
                     <ThemeIcon variant="light" color="ktzBlue" size="md">
@@ -208,7 +206,6 @@ export function UsersPage() {
                 </Group>
             </Card>
 
-            {/* Users list */}
             <Card padding="lg" withBorder>
                 <Text fw={600} size="lg" mb="md">
                     Все пользователи

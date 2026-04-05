@@ -50,7 +50,6 @@ class DbWriter:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
             self._task = None
-        # Drain remaining items
         await self._flush_all()
 
     def put(
@@ -69,13 +68,11 @@ class DbWriter:
     async def _drain_loop(self) -> None:
         while True:
             try:
-                # Wait for first item
                 item = await self._queue.get()
                 all_rows: list[dict] = list(item.telemetry_rows)
                 all_alerts: list = list(item.alert_records)
                 all_health: list = list(item.health_records)
 
-                # Collect more items within the flush window
                 deadline = asyncio.get_event_loop().time() + _FLUSH_INTERVAL
                 while True:
                     remaining = deadline - asyncio.get_event_loop().time()

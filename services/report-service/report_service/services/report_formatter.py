@@ -17,9 +17,6 @@ _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 # Font family name used throughout the PDF
 _FONT = "DejaVu"
 
-# ── Color palette ────────────────────────────────────────────────────────────
-
-# KTZ brand blue
 _CLR_PRIMARY = (3, 136, 230)
 _CLR_PRIMARY_DARK = (9, 81, 115)
 _CLR_GOLD = (254, 198, 4)
@@ -31,12 +28,10 @@ _CLR_BORDER = (222, 226, 230)
 _CLR_TABLE_HEADER = (15, 32, 53)
 _CLR_TABLE_STRIPE = (240, 243, 247)
 
-# Health categories
 _CLR_HEALTHY = (34, 197, 94)
 _CLR_WARNING = (245, 158, 11)
 _CLR_CRITICAL = (239, 68, 68)
 
-# Severity colors
 _SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "info": (3, 136, 230),
     "warning": (245, 158, 11),
@@ -44,8 +39,7 @@ _SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "emergency": (127, 29, 29),
 }
 
-# ── Russian translations ─────────────────────────────────────────────────────
-
+# Localized display names for PDF/JSON output (Russian for KTZ reports)
 _SENSOR_NAMES: dict[str, str] = {
     "diesel_rpm": "Обороты дизеля",
     "oil_pressure": "Давление масла",
@@ -91,9 +85,6 @@ def _loco_type_ru(key: str) -> str:
     return _LOCO_TYPE_NAMES.get(key, key)
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
-
-
 def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
     """Format report data according to the requested format."""
     if fmt == ReportFormat.JSON:
@@ -108,13 +99,11 @@ def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
 def _format_json(data: dict) -> dict:
     """Clean up JSON output — translate sensor names for readability."""
     result = dict(data)
-    # Add human-readable sensor names
     for stat in result.get("sensor_stats", []):
         stat["sensor_name"] = _sensor_ru(stat.get("sensor_type", ""))
     for alert in result.get("alerts", []):
         alert["sensor_name"] = _sensor_ru(alert.get("sensor_type", ""))
         alert["severity_name"] = _severity_ru(alert.get("severity", ""))
-    # Translate worst locomotives type
     overview = result.get("health_overview", {})
     for loco in overview.get("worst_locomotives", []):
         loco["locomotive_type_name"] = _loco_type_ru(loco.get("locomotive_type", ""))
@@ -161,7 +150,6 @@ def _format_csv(data: dict) -> dict:
         for alert in data.get("alerts", [])
     )
 
-    # Fleet: worst locomotives
     overview = data.get("health_overview", {})
     worst = overview.get("worst_locomotives", [])
     rows.extend(
@@ -184,7 +172,6 @@ def _format_csv(data: dict) -> dict:
     )
 
     summary = dict(overview)
-    # Include fleet stats in summary if present
     fleet_stats = overview.get("fleet_stats")
     if fleet_stats:
         summary["fleet_total"] = fleet_stats.get("total_locomotives", 0)
@@ -196,9 +183,6 @@ def _format_csv(data: dict) -> dict:
         "rows": rows,
         "summary": summary,
     }
-
-
-# ── PDF helpers ──────────────────────────────────────────────────────────────
 
 
 def _get_almaty_tz():
@@ -269,9 +253,6 @@ def _health_color(score) -> tuple[int, int, int]:
     return _CLR_CRITICAL
 
 
-# ── PDF generation ───────────────────────────────────────────────────────────
-
-
 def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
     """Generate a beautiful PDF report and return as base64."""
     pdf = _create_pdf()
@@ -280,7 +261,6 @@ def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
     _pdf_cover_header(pdf, data)
     _pdf_health_overview(pdf, data.get("health_overview", {}))
 
-    # Fleet report: show fleet stats and worst locomotives
     fleet_stats = data.get("health_overview", {}).get("fleet_stats")
     if fleet_stats:
         _pdf_fleet_stats(pdf, fleet_stats)
@@ -302,23 +282,19 @@ def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
 
 def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
     """Render branded header with KTZ colors."""
-    # Top color bar
     _set_fill(pdf, _CLR_PRIMARY)
     pdf.rect(pdf.l_margin, pdf.get_y(), pdf.w - pdf.l_margin - pdf.r_margin, 28, "F")
 
-    # Title text on blue bar
     pdf.set_font(_FONT, "B", 20)
     _set_color(pdf, _CLR_WHITE)
     pdf.set_y(pdf.get_y() + 3)
     pdf.cell(0, 12, "Отчёт о состоянии локомотива", new_x="LMARGIN", new_y="NEXT", align="C")
 
-    # Subtitle
     pdf.set_font(_FONT, "", 10)
     pdf.cell(0, 8, "Система мониторинга КТЖ — Цифровой двойник", new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.ln(6)
 
-    # Meta info in two columns
     _set_color(pdf, _CLR_DARK_TEXT)
     pdf.set_font(_FONT, "", 10)
 
@@ -329,7 +305,6 @@ def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
     end = _to_local(date_range.get("end", ""))
     generated = _to_local(str(data.get("generated_at", "")))
 
-    # Left column
     col_w = (pdf.w - pdf.l_margin - pdf.r_margin) / 2
     y = pdf.get_y()
 
@@ -345,7 +320,6 @@ def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
     type_label = f"  ({_loco_type_ru(loco_type)})" if loco_type else ""
     pdf.cell(col_w, 6, f"  {loco_id}{type_label}", new_x="LEFT", new_y="NEXT")
 
-    # Right column
     pdf.set_xy(pdf.l_margin + col_w, y + 2)
     pdf.set_font(_FONT, "B", 9)
     _set_color(pdf, _CLR_SECONDARY_TEXT)
@@ -373,15 +347,12 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
     category = overview.get("category", "N/A")
     damage = overview.get("damage_penalty", 0.0)
 
-    # Big score display with color
     y_start = pdf.get_y()
     color = _health_color(score)
 
-    # Score box
     _set_fill(pdf, color)
     box_x = pdf.l_margin + 5
     pdf.rect(box_x, y_start, 50, 30, "F")
-    # Round corners effect via small white overlay at edges
     pdf.set_font(_FONT, "B", 28)
     _set_color(pdf, _CLR_WHITE)
     pdf.set_xy(box_x, y_start + 2)
@@ -390,20 +361,16 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
     pdf.set_xy(box_x, y_start + 19)
     pdf.cell(50, 8, category, align="C")
 
-    # Stats to the right
     stats_x = box_x + 60
     pdf.set_xy(stats_x, y_start + 2)
     _set_color(pdf, _CLR_DARK_TEXT)
     pdf.set_font(_FONT, "", 10)
 
-    # Health bar (simple visual)
     bar_y = y_start + 4
     bar_w = 100
     bar_h = 6
-    # Background bar
     _set_fill(pdf, _CLR_BORDER)
     pdf.rect(stats_x, bar_y, bar_w, bar_h, "F")
-    # Filled portion
     if isinstance(score, (int, float)):
         fill_w = max(1, bar_w * score / 100)
         _set_fill(pdf, color)
@@ -431,7 +398,6 @@ def _pdf_top_factors(pdf: FPDF, overview: dict) -> None:
 
     _section_header(pdf, "Основные факторы влияния", _CLR_PRIMARY_DARK)
 
-    # Column header
     cols = [("Датчик", 55), ("Значение", 30), ("Ед.", 18), ("Штраф", 22), ("Вклад", 22), ("Откл.", 22), ("", 60)]
     _table_header_colored(pdf, cols)
 
@@ -439,7 +405,6 @@ def _pdf_top_factors(pdf: FPDF, overview: dict) -> None:
         if not isinstance(f, dict):
             continue
         contrib = f.get("contribution_pct", 0)
-        # Visual bar column
         values = [
             _sensor_ru(str(f.get("sensor_type", ""))),
             _fmt(f.get("value", 0)),
@@ -483,7 +448,7 @@ def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
     if alert_summary.get("total", 0) > 0:
         _section_header(pdf, "Сводка предупреждений", _CLR_CRITICAL)
 
-        # Severity counters in colored badges
+
         pdf.set_font(_FONT, "B", 10)
         _set_color(pdf, _CLR_DARK_TEXT)
         pdf.cell(0, 7, f"Всего предупреждений: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
@@ -561,7 +526,6 @@ def _pdf_fleet_stats(pdf: FPDF, fleet_stats: dict) -> None:
         pdf.cell(w, 8, text, fill=True)
         x += w + 4
 
-    # Stacked bar showing proportions
     pdf.set_y(y + 12)
     bar_x = pdf.l_margin
     bar_w = 180
@@ -620,8 +584,7 @@ def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
 
     for sensor, items in anomalies.items():
         count = len(items) if isinstance(items, list) else items
-        # Color code by count
-        if isinstance(count, int) and count > 10:
+            if isinstance(count, int) and count > 10:
             _set_color(pdf, _CLR_CRITICAL)
         elif isinstance(count, int) and count > 3:
             _set_color(pdf, _CLR_WARNING)
@@ -645,26 +608,20 @@ def _pdf_footer(pdf: FPDF) -> None:
         pdf.cell(0, 8, f"КТЖ — Цифровой двойник локомотива  |  Стр. {i}/{total_pages}", align="C")
 
 
-# ── Table primitives ─────────────────────────────────────────────────────────
-
-
 def _section_header(pdf: FPDF, title: str, color: tuple[int, int, int] = _CLR_PRIMARY) -> None:
     """Section header with colored left accent bar."""
     if pdf.get_y() > pdf.h - 45:
         pdf.add_page()
 
     y = pdf.get_y()
-    # Accent bar
     _set_fill(pdf, color)
     pdf.rect(pdf.l_margin, y, 4, 10, "F")
 
-    # Title
     pdf.set_font(_FONT, "B", 12)
     _set_color(pdf, color)
     pdf.set_x(pdf.l_margin + 8)
     pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
 
-    # Subtle separator line
     _set_draw(pdf, _CLR_BORDER)
     pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
     pdf.ln(3)
@@ -707,7 +664,6 @@ def _table_row_colored(
 
     for i, ((_, w), v) in enumerate(zip(cols, values, strict=False)):
         if i == bar_col:
-            # Draw a mini bar
             bar_x = pdf.get_x() + 2
             bar_y = pdf.get_y() + 1.5
             bar_w = w - 4

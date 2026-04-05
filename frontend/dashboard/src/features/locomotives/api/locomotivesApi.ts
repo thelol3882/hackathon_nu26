@@ -14,7 +14,7 @@ export const locomotivesApi = baseApi.injectEndpoints({
                 params: { offset, limit, search, model },
             }),
             serializeQueryArgs({ queryArgs }) {
-                // Key by search + model only — offset is for pagination merging
+                // Cache key excludes offset so paginated results merge into a single cache entry
                 const { search, model } = queryArgs ?? {};
                 return { search, model };
             },
@@ -23,7 +23,6 @@ export const locomotivesApi = baseApi.injectEndpoints({
                 if (offset === 0) {
                     return newItems;
                 }
-                // Append new page to existing items
                 return {
                     items: [...currentCache.items, ...newItems.items],
                     total: newItems.total,

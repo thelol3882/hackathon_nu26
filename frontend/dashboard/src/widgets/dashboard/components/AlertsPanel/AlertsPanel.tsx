@@ -75,7 +75,6 @@ function AlertItem({
             setAcked(true);
             onAcknowledged?.(alert.id);
         } catch {
-            // ignore
         }
     };
 
@@ -153,7 +152,7 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
         setLocalAcked((prev) => new Set(prev).add(id));
     };
 
-    // Merge local ack state with alert data
+    // Overlay local acknowledgements on top of server-provided alert data
     const mergedAlerts = alerts.map((a) =>
         localAcked.has(a.id) ? { ...a, acknowledged: true } : a,
     );
@@ -207,7 +206,6 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
                 )}
             </Group>
 
-            {/* Severity counters */}
             {mergedAlerts.length > 0 && (
                 <Group gap="xs" mb="xs">
                     {counts.emergency > 0 && (
@@ -233,7 +231,6 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
                 </Group>
             )}
 
-            {/* Filter */}
             {mergedAlerts.length > 3 && (
                 <SegmentedControl
                     size="xs"

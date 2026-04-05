@@ -33,7 +33,6 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
     start = job.date_range.start
     end = job.date_range.end
 
-    # Fleet-wide report (no specific locomotive) uses aggregated queries
     if loco_id is None:
         return await _generate_fleet_report(session, start, end, job)
 
@@ -93,13 +92,9 @@ async def _generate_fleet_report(session: AsyncSession, start: datetime, end: da
     """Generate aggregated fleet-wide report without loading all raw data."""
     logger.info("Generating fleet report (aggregated)")
 
-    # Fleet health overview: aggregate health_snapshots per locomotive
     fleet_health = await _query_fleet_health(session, start, end)
-    # Fleet alerts summary (aggregated, not individual rows)
     fleet_alerts = await _query_fleet_alert_summary(session, start, end)
-    # Fleet sensor stats (aggregated across all locomotives)
     fleet_sensor_stats = await _query_sensor_stats(session, None, start, end)
-    # Top unhealthy locomotives
     worst_locos = await _query_worst_locomotives(session, start, end)
 
     total_locos = fleet_health.get("total_locomotives", 0)
@@ -135,9 +130,9 @@ async def _generate_fleet_report(session: AsyncSession, start: datetime, end: da
             "worst_locomotives": worst_locos,
         },
         "sensor_stats": fleet_sensor_stats,
-        "alerts": [],  # Don't include individual alerts for fleet
+        "alerts": [],
         "alert_summary": fleet_alerts,
-        "anomalies": {},  # Skip per-row anomaly detection for fleet
+        "anomalies": {},
         "components": [],
         "generated_at": datetime.now(UTC).isoformat(),
     }
@@ -236,9 +231,6 @@ async def _query_fleet_alert_summary(session: AsyncSession, start: datetime, end
         by_severity[row.severity] = int(row.cnt)
         total += int(row.cnt)
     return {"total": total, "by_severity": by_severity}
-
-
-# ── Single locomotive queries ────────────────────────────────────────────────
 
 
 async def _query_locomotive_type(session: AsyncSession, loco_id: UUID | None) -> str:
@@ -416,7 +408,7 @@ async def _detect_anomalies(
 ) -> dict[str, list[dict]]:
     """Run z-score anomaly detection per sensor for a single locomotive."""
     if not loco_id:
-        return {}  # Skip for fleet — too expensive
+        return {}  # Skip for fleet reports to avoid querying all raw telemetry rows
 
     params: dict = {"start": start, "end": end, "loco_id": loco_id}
 

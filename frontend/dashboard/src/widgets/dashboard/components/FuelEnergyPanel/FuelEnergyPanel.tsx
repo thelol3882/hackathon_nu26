@@ -50,7 +50,6 @@ export default function FuelEnergyPanel({
 
                 {isDiesel ? (
                     <>
-                        {/* Fuel level vertical bar */}
                         <Group gap="md" align="flex-end">
                             <Stack gap={4} align="center" style={{ width: 48 }}>
                                 <Text size="xs" c="var(--dashboard-text-secondary)">

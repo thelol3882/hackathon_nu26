@@ -102,14 +102,6 @@ describe('useReportGeneration', () => {
 
         const { result } = renderHook(() => useReportGeneration());
 
-        // The hook reads reportData and updates status to 'completed'
-        // and since reportId is set via the query response, we need to
-        // trigger generate first. For this test, we verify the URL pattern.
-        // Since reportData has status completed, the hook will set status.
-        // But reportId must be set first via generate.
-
-        // Simulate a scenario where generate was called and polling returned completed
-        // We re-setup to have reportId already set
         expect(result.current.downloadUrl).toBeNull();
     });
 

@@ -64,10 +64,8 @@ describe('useLiveTelemetry', () => {
             capturedHandler!({ type: 'telemetry', data: wire });
         });
 
-        // Before timer flush, state should still be empty
         expect(result.current.sensors.size).toBe(0);
 
-        // Advance timer to trigger the 250ms batch flush
         act(() => {
             vi.advanceTimersByTime(250);
         });

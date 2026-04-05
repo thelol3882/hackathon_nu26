@@ -43,7 +43,6 @@ function StatusStrip({
     return (
         <Box className={styles.statusStrip}>
             <Group px="md" py={8} justify="space-between">
-                {/* Left: loco info */}
                 <Group gap="sm">
                     <IconTrain size={14} style={{ opacity: 0.5 }} />
                     <Text
@@ -70,7 +69,6 @@ function StatusStrip({
                     </Badge>
                 </Group>
 
-                {/* Right: meta */}
                 <Group gap="sm">
                     {latestTimestamp && (
                         <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
@@ -219,7 +217,6 @@ function ReplayControls() {
                 )}
             </Group>
 
-            {/* Timeline slider */}
             {replay.enabled && replay.start && replay.end && (
                 <Box px="md" pb={6}>
                     <Slider
@@ -308,19 +305,16 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const { replay, locomotiveLabel } = useLocomotive();
     const cursorIso = replay.cursor ? dayjs(replay.cursor).toISOString() : '';
 
-    // Fetch snapshot telemetry at cursor time
     const { data: snapshot, isFetching: snapFetching } = useGetTelemetrySnapshotQuery(
         { locomotive_id: locomotiveId, at: cursorIso },
         { skip: !cursorIso },
     );
 
-    // Fetch health at cursor time
     const { data: health, isFetching: healthFetching } = healthApi.useGetHealthAtQuery(
         { locomotiveId, at: cursorIso },
         { skip: !cursorIso },
     );
 
-    // Fetch alerts in replay window
     const startIso = replay.start ? dayjs(replay.start).toISOString() : undefined;
     const endIso = replay.cursor ? dayjs(replay.cursor).toISOString() : undefined;
     const { data: alerts = [] } = alertsApi.useGetAlertsQuery(
@@ -328,7 +322,6 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
         { skip: !startIso || !endIso },
     );
 
-    // Build sensor map from snapshot
     const sensorMap = useMemo(() => {
         const map = new Map<string, TelemetryReading>();
         if (!snapshot) return map;

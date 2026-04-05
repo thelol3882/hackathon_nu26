@@ -53,11 +53,9 @@ async def _process_single(
     """
     loco_id = str(reading.locomotive_id)
 
-    # ── 1. EMA filter + flatten ──────────────────────────────────────────
-    # flatten_reading mutates sensor.value → filtered; returns DB rows
+    # flatten_reading mutates sensor.value to filtered; returns DB rows
     rows = flatten_reading(reading)
 
-    # ── 2. Bulk INSERT raw telemetry (skip duplicates) ────────────────
     if rows:
         stmt = (
             pg_insert(TelemetryRecord)
@@ -82,7 +80,6 @@ async def _process_single(
         )
         await db.execute(stmt)
 
-    # ── 3. Alert evaluation ─────────────────────────────────────────────
     # Uses already-filtered sensor.value (mutated by flatten_reading)
     alert_events = evaluate_alerts(reading)
 
@@ -105,7 +102,6 @@ async def _process_single(
     if alert_records:
         db.add_all(alert_records)
 
-    # ── 4. Health Index calculation ─────────────────────────────────────
     health = calculate_health(reading)
 
     health_record = HealthSnapshotRecord(
@@ -120,10 +116,8 @@ async def _process_single(
     )
     db.add(health_record)
 
-    # ── 5. Commit everything in one transaction ─────────────────────────
     await db.commit()
 
-    # ── 6. Prometheus metrics ─────────────────────────────────────────────
     telemetry_ingested_total.labels(locomotive_type=reading.locomotive_type.value).inc(len(reading.sensors))
     health_index_calculated_total.inc()
     health_index_value.labels(locomotive_id=loco_id, locomotive_type=reading.locomotive_type.value).set(
@@ -132,7 +126,6 @@ async def _process_single(
     for ae in alert_events:
         alerts_fired_total.labels(severity=ae.severity.value, sensor_type=str(ae.sensor_type)).inc()
 
-    # ── 7. Publish to Redis async (fire-and-forget, non-blocking) ───────
     telemetry_payload = wire_encode(reading.model_dump(mode="json"))
     health_payload = wire_encode(health.model_dump(mode="json"))
     alert_payloads = [wire_encode(ae.model_dump(mode="json")) for ae in alert_events]
@@ -186,7 +179,6 @@ def _process_readings_sync(
     for reading in readings:
         loco_id = str(reading.locomotive_id)
         try:
-            # ── 1. EMA filter + flatten ──
             rows = flatten_reading(reading)
 
             all_telemetry_rows.extend(
@@ -205,7 +197,6 @@ def _process_readings_sync(
                 for r in rows
             )
 
-            # ── 2. Alert evaluation ──
             alert_events = evaluate_alerts(reading)
             all_alert_records.extend(
                 {
@@ -224,7 +215,6 @@ def _process_readings_sync(
                 for ae in alert_events
             )
 
-            # ── 3. Health Index calculation ──
             health = calculate_health(reading)
             all_health_records.append(
                 {
@@ -239,7 +229,6 @@ def _process_readings_sync(
                 }
             )
 
-            # ── 4. Prometheus metrics ──
             telemetry_ingested_total.labels(locomotive_type=reading.locomotive_type.value).inc(len(reading.sensors))
             health_index_calculated_total.inc()
             health_index_value.labels(locomotive_id=loco_id, locomotive_type=reading.locomotive_type.value).set(
@@ -248,7 +237,6 @@ def _process_readings_sync(
             for ae in alert_events:
                 alerts_fired_total.labels(severity=ae.severity.value, sensor_type=str(ae.sensor_type)).inc()
 
-            # ── 5. Collect Redis publish items (channel, payload) ──
             reading_json = reading.model_dump(mode="json")
             health_json = health.model_dump(mode="json")
             publish_items.append((f"{TELEMETRY_CHANNEL}:{loco_id}", wire_encode(reading_json)))
@@ -282,16 +270,13 @@ async def ingest_batch(
     """
     writer: DbWriter = request.app.state.db_writer
 
-    # ── Run CPU-bound work off the event loop ──
     loop = asyncio.get_event_loop()
     results, telemetry_rows, alert_records, health_records, publish_items, errors = await loop.run_in_executor(
         None, _process_readings_sync, readings
     )
 
-    # ── Enqueue DB writes to background worker (non-blocking) ──
     writer.put(telemetry_rows, alert_records, health_records)
 
-    # ── Redis pipeline: all publishes in one round-trip ──
     if publish_items:
         redis_client = get_redis_raw()
         pipe = redis_client.pipeline(transaction=False)

@@ -18,7 +18,6 @@ class TelemetryRecord(Base):
     locomotive_type: Mapped[str] = mapped_column(Text, nullable=False)
     sensor_type: Mapped[str] = mapped_column(Text, primary_key=True)
     value: Mapped[float] = mapped_column(Float, nullable=False)
-    # filtered_value: EMA-smoothed value stored alongside raw
     filtered_value: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str] = mapped_column(Text, nullable=False)
     sample_rate_hz: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
