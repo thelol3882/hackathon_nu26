@@ -121,7 +121,6 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
             <div className={classes.wrapper}>
                 <div className={classes.gaugeContainer}>
                     <svg viewBox="0 0 200 200" width="100%" height="100%">
-                        {/* Glow filter */}
                         <defs>
                             <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
                                 <feGaussianBlur stdDeviation="4" result="blur" />
@@ -132,7 +131,6 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             </filter>
                         </defs>
 
-                        {/* Background ring */}
                         <circle
                             cx={100}
                             cy={100}
@@ -143,7 +141,6 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             opacity={0.4}
                         />
 
-                        {/* Foreground ring with glow */}
                         <circle
                             className={classes.ring}
                             cx={100}
@@ -159,7 +156,6 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             filter="url(#gaugeGlow)"
                         />
 
-                        {/* Score number */}
                         <text
                             className={classes.score}
                             x={100}
@@ -174,7 +170,6 @@ export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
                             {Math.round(score)}
                         </text>
 
-                        {/* Label */}
                         <text
                             x={100}
                             y={122}

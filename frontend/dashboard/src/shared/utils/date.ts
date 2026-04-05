@@ -32,17 +32,17 @@ export function formatTimeShort(value: string | Date): string {
     return dayjs(value).format('HH:mm');
 }
 
-/** "4 апр" */
+/** "4 Apr" */
 export function formatDateShort(value: string | Date): string {
     return dayjs(value).format('D MMM');
 }
 
-/** "4 апреля 2026" */
+/** "4 April 2026" */
 export function formatDateLong(value: string | Date): string {
     return dayjs(value).format('D MMMM YYYY');
 }
 
-/** "2 минуты назад" */
+/** "2 minutes ago" */
 export function getRelativeTime(value: string | Date): string {
     return dayjs(value).fromNow();
 }
@@ -52,7 +52,7 @@ export function getSecondsAgo(value: string | Date): number {
     return dayjs().diff(dayjs(value), 'second');
 }
 
-/** Format a duration in seconds as "Xч Yм Zс" */
+/** Format a duration in seconds as "Xh Ym Zs" */
 export function formatDuration(seconds: number): string {
     const d = dayjs.duration(seconds, 'seconds');
     const h = Math.floor(d.asHours());

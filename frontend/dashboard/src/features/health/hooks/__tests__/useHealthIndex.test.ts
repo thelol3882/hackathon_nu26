@@ -85,7 +85,6 @@ describe('useHealthIndex', () => {
 
         const { result } = renderHook(() => useHealthIndex('loc-1'));
 
-        // Capture the handler passed to subscribe
         const handler = mockSubscribe.mock.calls[0][0];
         expect(handler).toBeDefined();
 

@@ -27,7 +27,7 @@ const MODEL_FILTERS = [
 interface LocomotiveSelectProps {
     value: string | null;
     onChange: (value: string | null, label?: string | null) => void;
-    /** Allow selecting "all" (null) — shows "Все" option at the top */
+    /** Allow selecting "all" (null) — shows an "All" option at the top */
     allowAll?: boolean;
     label?: string;
     placeholder?: string;

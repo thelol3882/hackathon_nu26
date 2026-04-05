@@ -14,7 +14,6 @@ sufficient and avoids network round-trips on the hot path.
 
 from shared.constants import EMA_GAINS
 
-# (locomotive_id_str, sensor_type_str) → last filtered value
 _ema_state: dict[tuple[str, str], float] = {}
 
 

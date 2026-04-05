@@ -49,13 +49,13 @@ export class WebSocketManager {
                     'type' in data &&
                     (data as Record<string, unknown>).type === 'ping'
                 ) {
-                    // Respond with pong so server knows we're alive
+                    // Keep-alive: respond with pong so server doesn't drop the connection
                     this.sendPong();
                     return;
                 }
                 this.handlers.forEach((handler) => handler(data));
             } catch {
-                // ignore malformed messages
+                // Silently drop malformed messages to avoid crashing consumers
             }
         };
 
@@ -100,7 +100,6 @@ export class WebSocketManager {
         try {
             this.ws.send(encode({ type: 'pong' }));
         } catch {
-            // connection might be closing
         }
     }
 

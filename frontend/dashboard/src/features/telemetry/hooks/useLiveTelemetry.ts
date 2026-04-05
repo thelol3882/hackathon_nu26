@@ -46,7 +46,6 @@ export function useLiveTelemetry(locomotiveId: string | null) {
         return () => clearInterval(interval);
     }, []);
 
-    // Subscribe to WebSocket messages
     useEffect(() => {
         const unsubscribe = subscribe((data: unknown) => {
             const message = data as { type?: string; data?: WireTelemetry };

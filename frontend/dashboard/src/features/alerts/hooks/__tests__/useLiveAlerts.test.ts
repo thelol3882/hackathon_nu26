@@ -8,7 +8,7 @@ type MessageHandler = (message: unknown) => void;
 let capturedHandler: MessageHandler | null = null;
 const mockSubscribe = vi.fn((handler: MessageHandler) => {
     capturedHandler = handler;
-    return vi.fn(); // unsubscribe
+    return vi.fn();
 });
 const mockStatus = 'connected';
 

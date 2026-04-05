@@ -76,7 +76,6 @@ class SimulationRunner:
         # Reset scenario state
         reset_degradation()
         reset_emergency()
-        # Clear overrides on all locos
         for loco in self.fleet:
             loco.igbt_override = None
             loco.brake_override = None
@@ -135,7 +134,6 @@ class SimulationRunner:
                 await self._do_tick()
                 self.tick_count += 1
 
-                # Log metrics every 5 seconds
                 now = time.monotonic()
                 if now - self._last_log_time >= 5.0:
                     elapsed = now - self._last_log_time
@@ -151,7 +149,6 @@ class SimulationRunner:
                     self._last_log_time = now
                     self._events_since_log = 0
 
-                # Sleep for remaining tick interval
                 elapsed = time.monotonic() - tick_start
                 interval = settings.tick_interval / self.effective_multiplier
                 sleep_time = max(0, interval - elapsed)
@@ -162,11 +159,9 @@ class SimulationRunner:
             self.running = False
 
     async def _do_tick(self) -> None:
-        # Apply scenario effects
         handler = SCENARIO_HANDLERS.get(self.scenario, apply_normal)
         handler(self.fleet, self.tick_count)
 
-        # Generate readings for all locos
         readings: list[dict] = []
         now = datetime.now(UTC)
 
@@ -185,7 +180,6 @@ class SimulationRunner:
             )
             readings.append(reading.model_dump(mode="json"))
 
-        # Batch and send
         batch_size = settings.batch_size
         if self.effective_multiplier > 1:
             batch_size = 200  # larger batches for highload
@@ -201,7 +195,6 @@ class SimulationRunner:
                 for r in batch:
                     self.buffer.append(r)
 
-        # Try to flush buffer if we have capacity
         if self.buffer:
             await self._flush_buffer(batch_size)
 
@@ -217,7 +210,6 @@ class SimulationRunner:
                 self.events_sent += len(batch)
                 self._events_since_log += len(batch)
             else:
-                # Put back and stop trying
                 for r in reversed(batch):
                     self.buffer.appendleft(r)
                 break
