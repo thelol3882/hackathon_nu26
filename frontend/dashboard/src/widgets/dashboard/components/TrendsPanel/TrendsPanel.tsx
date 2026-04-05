@@ -1,7 +1,18 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Card, Text, Group, Select, SegmentedControl, Loader, Center, Badge } from '@mantine/core';
+import { useState, useMemo, useCallback } from 'react';
+import {
+    Card,
+    Text,
+    Group,
+    Select,
+    SegmentedControl,
+    Loader,
+    Center,
+    Badge,
+    ActionIcon,
+    Tooltip as MantineTooltip,
+} from '@mantine/core';
 import {
     AreaChart,
     Area,
@@ -11,6 +22,7 @@ import {
     Tooltip,
     ResponsiveContainer,
     ReferenceLine,
+    ReferenceArea,
 } from 'recharts';
 import { useGetTelemetryQuery } from '@/features/telemetry';
 import type { BucketInterval } from '@/features/telemetry';
@@ -42,7 +54,6 @@ const sensorLabels: Record<string, string> = {
 
 const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({ value, label }));
 
-// Period = window size. Right edge = now, left edge = now - period.
 const periodOptions = [
     { label: '5м', value: '5m' },
     { label: '15м', value: '15m' },
@@ -54,50 +65,41 @@ const periodOptions = [
     { label: '24ч', value: '24h' },
 ];
 
-const periodConfig: Record<
-    string,
-    { getStart: () => string; bucket_interval: BucketInterval; refreshMs: number }
-> = {
-    '5m': { getStart: () => minutesAgo(5), bucket_interval: '1 minute', refreshMs: 15_000 },
-    '15m': { getStart: () => minutesAgo(15), bucket_interval: '1 minute', refreshMs: 15_000 },
-    '30m': { getStart: () => minutesAgo(30), bucket_interval: '1 minute', refreshMs: 30_000 },
-    '1h': { getStart: () => hoursAgo(1), bucket_interval: '5 minutes', refreshMs: 30_000 },
-    '3h': { getStart: () => hoursAgo(3), bucket_interval: '10 minutes', refreshMs: 60_000 },
-    '6h': { getStart: () => hoursAgo(6), bucket_interval: '15 minutes', refreshMs: 60_000 },
-    '12h': { getStart: () => hoursAgo(12), bucket_interval: '30 minutes', refreshMs: 120_000 },
-    '24h': { getStart: () => hoursAgo(24), bucket_interval: '1 hour', refreshMs: 120_000 },
+const periodConfig: Record<string, { getStart: () => string; refreshMs: number }> = {
+    '5m': { getStart: () => minutesAgo(5), refreshMs: 15_000 },
+    '15m': { getStart: () => minutesAgo(15), refreshMs: 15_000 },
+    '30m': { getStart: () => minutesAgo(30), refreshMs: 30_000 },
+    '1h': { getStart: () => hoursAgo(1), refreshMs: 30_000 },
+    '3h': { getStart: () => hoursAgo(3), refreshMs: 60_000 },
+    '6h': { getStart: () => hoursAgo(6), refreshMs: 60_000 },
+    '12h': { getStart: () => hoursAgo(12), refreshMs: 120_000 },
+    '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
+
+/** Auto-pick bucket interval based on window duration in ms */
+function autoBucket(durationMs: number): BucketInterval {
+    const min = durationMs / 60_000;
+    if (min <= 5) return '1 minute';
+    if (min <= 30) return '1 minute';
+    if (min <= 90) return '5 minutes';
+    if (min <= 360) return '10 minutes';
+    if (min <= 720) return '15 minutes';
+    if (min <= 1440) return '30 minutes';
+    return '1 hour';
+}
 
 function toEpoch(bucket: string | Date): number {
     return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
-function pickReplayBucket(startIso: string, endIso: string): BucketInterval {
-    const diffMin = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000;
-    if (diffMin <= 15) return '1 minute';
-    if (diffMin <= 60) return '1 minute';
-    if (diffMin <= 180) return '5 minutes';
-    if (diffMin <= 720) return '15 minutes';
-    return '1 hour';
-}
-
-/** X axis tick formatter — show date (05 апр) when day changes, else HH:mm */
+/** Format X tick — show date when day changes, else HH:mm */
 function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
     const d = dayjs(ts);
-
-    // Check if this is the first tick or the day changed
-    if (index === 0) {
-        return d.format('DD MMM');
-    }
-
-    // Find previous tick to check day boundary
+    if (index === 0) return d.format('DD MMM');
     if (index > 0 && allTicks[index - 1]) {
         const prevDay = dayjs(allTicks[index - 1].value).format('DD');
-        if (prevDay !== d.format('DD')) {
-            return d.format('DD MMM');
-        }
+        if (prevDay !== d.format('DD')) return d.format('DD MMM');
     }
-
     return d.format('HH:mm');
 }
 
@@ -119,9 +121,7 @@ function CustomTooltipContent({
     const d = payload[0];
     const avg = d.value;
     if (avg == null) return null;
-    const ts = d.payload.ts;
-    const min = d.payload.min_value;
-    const max = d.payload.max_value;
+    const { ts, min_value: min, max_value: max } = d.payload;
     return (
         <div
             style={{
@@ -160,36 +160,52 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
     const [selectedPeriod, setSelectedPeriod] = useState('15m');
 
-    const cfg = periodConfig[selectedPeriod];
+    // Zoom stack: each entry = { start, end } ISO strings. Empty = no zoom.
+    const [zoomStack, setZoomStack] = useState<Array<{ start: string; end: string }>>([]);
 
-    // Query params
-    const queryParams = useMemo(() => {
+    // Drag selection state
+    const [dragStart, setDragStart] = useState<number | null>(null);
+    const [dragEnd, setDragEnd] = useState<number | null>(null);
+
+    const cfg = periodConfig[selectedPeriod];
+    const isZoomed = zoomStack.length > 0;
+
+    // Current window: zoom overrides period
+    const currentWindow = useMemo(() => {
         if (isReplay) {
-            return {
-                locomotive_id: locomotiveId ?? undefined,
-                sensor_type: selectedSensor,
-                start: replayStart,
-                end: replayEnd,
-                bucket_interval: pickReplayBucket(replayStart!, replayEnd!),
-                limit: 500,
-            };
+            return { start: replayStart!, end: replayEnd! };
         }
-        return {
+        if (isZoomed) {
+            const top = zoomStack[zoomStack.length - 1];
+            return { start: top.start, end: top.end };
+        }
+        return { start: cfg.getStart(), end: new Date().toISOString() };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isReplay, replayStart, replayEnd, isZoomed, zoomStack, selectedPeriod]);
+
+    const windowDurationMs =
+        new Date(currentWindow.end).getTime() - new Date(currentWindow.start).getTime();
+    const bucket = autoBucket(windowDurationMs);
+
+    // Query
+    const queryParams = useMemo(
+        () => ({
             locomotive_id: locomotiveId ?? undefined,
             sensor_type: selectedSensor,
-            start: cfg.getStart(),
-            bucket_interval: cfg.bucket_interval,
+            start: currentWindow.start,
+            end: currentWindow.end,
+            bucket_interval: bucket,
             limit: 500,
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locomotiveId, selectedSensor, selectedPeriod, isReplay, replayStart, replayEnd]);
+        }),
+        [locomotiveId, selectedSensor, currentWindow, bucket],
+    );
 
     const { data, isFetching } = useGetTelemetryQuery(queryParams, {
         skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
-        pollingInterval: isReplay ? 0 : cfg.refreshMs,
+        pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
 
-    // Map to chart data
+    // Chart data
     const chartData = useMemo(() => {
         if (!data?.length) return [];
         return data
@@ -214,11 +230,68 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         return { avg, min: Math.min(...values), max: Math.max(...values) };
     }, [chartData]);
 
-    // Custom tick formatter that knows about all ticks for day-boundary detection
+    // X tick formatter with day boundary detection
     const tickFormatter = useMemo(() => {
         const ticks = chartData.map((d) => ({ value: d.ts }));
         return (ts: number, index: number) => formatXTick(ts, index, ticks);
     }, [chartData]);
+
+    // Drag-to-zoom handlers
+    const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
+        if (e?.activeLabel != null) setDragStart(Number(e.activeLabel));
+    }, []);
+
+    const handleMouseMove = useCallback(
+        (e: { activeLabel?: string | number }) => {
+            if (dragStart != null && e?.activeLabel != null) setDragEnd(Number(e.activeLabel));
+        },
+        [dragStart],
+    );
+
+    const handleMouseUp = useCallback(() => {
+        if (dragStart != null && dragEnd != null && dragStart !== dragEnd) {
+            const left = Math.min(dragStart, dragEnd);
+            const right = Math.max(dragStart, dragEnd);
+            // Only zoom if selection is at least 10 seconds
+            if (right - left > 10_000) {
+                setZoomStack((prev) => [
+                    ...prev,
+                    { start: new Date(left).toISOString(), end: new Date(right).toISOString() },
+                ]);
+            }
+        }
+        setDragStart(null);
+        setDragEnd(null);
+    }, [dragStart, dragEnd]);
+
+    const handleResetZoom = useCallback(() => {
+        setZoomStack([]);
+    }, []);
+
+    const handleZoomBack = useCallback(() => {
+        setZoomStack((prev) => prev.slice(0, -1));
+    }, []);
+
+    // Reset zoom when period or sensor changes
+    const handlePeriodChange = useCallback((v: string) => {
+        setSelectedPeriod(v);
+        setZoomStack([]);
+    }, []);
+
+    // Window label for zoomed state
+    const windowLabel = useMemo(() => {
+        if (!isZoomed) return null;
+        const s = dayjs(currentWindow.start).format('HH:mm:ss');
+        const e = dayjs(currentWindow.end).format('HH:mm:ss');
+        const dur = Math.round(windowDurationMs / 1000);
+        const durLabel =
+            dur >= 3600
+                ? `${(dur / 3600).toFixed(1)}ч`
+                : dur >= 60
+                  ? `${Math.round(dur / 60)}м`
+                  : `${dur}с`;
+        return `${s} — ${e} (${durLabel})`;
+    }, [isZoomed, currentWindow, windowDurationMs]);
 
     return (
         <Card
@@ -234,12 +307,46 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             REPLAY
                         </Badge>
                     )}
+                    {isZoomed && (
+                        <>
+                            <Badge size="xs" variant="filled" color="ktzCyan">
+                                ZOOM x{zoomStack.length}
+                            </Badge>
+                            <MantineTooltip label="Сбросить зум">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="xs"
+                                    onClick={handleResetZoom}
+                                    color="ktzCyan"
+                                >
+                                    ↻
+                                </ActionIcon>
+                            </MantineTooltip>
+                            {zoomStack.length > 1 && (
+                                <MantineTooltip label="Назад">
+                                    <ActionIcon
+                                        variant="subtle"
+                                        size="xs"
+                                        onClick={handleZoomBack}
+                                        color="gray"
+                                    >
+                                        ←
+                                    </ActionIcon>
+                                </MantineTooltip>
+                            )}
+                        </>
+                    )}
                     {isFetching && <Loader size={12} />}
                 </Group>
                 <Select
                     size="xs"
                     value={selectedSensor}
-                    onChange={(v) => v && setSelectedSensor(v)}
+                    onChange={(v) => {
+                        if (v) {
+                            setSelectedSensor(v);
+                            setZoomStack([]);
+                        }
+                    }}
                     data={sensorOptions}
                     w={180}
                     searchable
@@ -247,16 +354,33 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 />
             </Group>
 
-            {/* Period selector — only in live mode */}
+            {/* Period selector */}
             {!isReplay && (
                 <SegmentedControl
                     size="xs"
                     value={selectedPeriod}
-                    onChange={setSelectedPeriod}
+                    onChange={handlePeriodChange}
                     data={periodOptions}
                     mb="sm"
                     fullWidth
                 />
+            )}
+
+            {/* Zoom window info */}
+            {isZoomed && windowLabel && (
+                <Group gap="xs" mb="xs">
+                    <Badge
+                        size="xs"
+                        variant="outline"
+                        color="ktzCyan"
+                        ff="var(--font-mono), monospace"
+                    >
+                        {windowLabel}
+                    </Badge>
+                    <Badge size="xs" variant="outline" color="gray">
+                        шаг: {bucket}
+                    </Badge>
+                </Group>
             )}
 
             {/* Stats */}
@@ -289,7 +413,14 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 </Center>
             ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                    <AreaChart
+                        data={chartData}
+                        margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        style={{ cursor: 'crosshair' }}
+                    >
                         <defs>
                             <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
                                 <stop
@@ -341,6 +472,17 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             isAnimationActive={false}
                             connectNulls
                         />
+                        {/* Drag selection overlay */}
+                        {dragStart != null && dragEnd != null && (
+                            <ReferenceArea
+                                x1={Math.min(dragStart, dragEnd)}
+                                x2={Math.max(dragStart, dragEnd)}
+                                fill="var(--mantine-color-ktzCyan-5)"
+                                fillOpacity={0.15}
+                                stroke="var(--mantine-color-ktzCyan-5)"
+                                strokeOpacity={0.4}
+                            />
+                        )}
                     </AreaChart>
                 </ResponsiveContainer>
             )}
