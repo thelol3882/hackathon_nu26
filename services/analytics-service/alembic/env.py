@@ -5,7 +5,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-import analytics.models  # noqa: F401 — register all ORM models
+import analytics.models
 from analytics.core.config import get_settings
 from analytics.models.base import Base
 

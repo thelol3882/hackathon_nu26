@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from starlette.testclient import TestClient
@@ -37,9 +37,8 @@ def test_ws_live_missing_ticket():
     set_manager(manager)
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/ws/live/loco-1"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect("/ws/live/loco-1"):
+        pass
     assert exc_info.value.code == 4400
 
 
@@ -49,16 +48,19 @@ def test_ws_live_invalid_ticket():
     manager = AsyncMock()
     set_manager(manager)
 
-    with patch("ws_server.handler.get_redis_raw") as mock_get_redis, patch(
-        "ws_server.handler.validate_ticket", new_callable=AsyncMock
-    ) as mock_validate:
+    with (
+        patch("ws_server.handler.get_redis_raw") as mock_get_redis,
+        patch("ws_server.handler.validate_ticket", new_callable=AsyncMock) as mock_validate,
+    ):
         mock_get_redis.return_value = AsyncMock()
         mock_validate.return_value = None
 
         client = TestClient(app)
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect("/ws/live/loco-1?ticket=bad-ticket"):
-                pass
+        with (
+            pytest.raises(WebSocketDisconnect) as exc_info,
+            client.websocket_connect("/ws/live/loco-1?ticket=bad-ticket"),
+        ):
+            pass
         assert exc_info.value.code == 4401
 
 
@@ -68,9 +70,8 @@ def test_ws_live_server_not_ready():
     # manager is None (not set)
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/ws/live/loco-1?ticket=some-ticket"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect("/ws/live/loco-1?ticket=some-ticket"):
+        pass
     assert exc_info.value.code == 1011
 
 
@@ -81,16 +82,16 @@ def test_ws_live_connection_limit():
     manager.accept = AsyncMock(return_value=False)
     set_manager(manager)
 
-    with patch("ws_server.handler.get_redis_raw") as mock_get_redis, patch(
-        "ws_server.handler.validate_ticket", new_callable=AsyncMock
-    ) as mock_validate:
+    with (
+        patch("ws_server.handler.get_redis_raw") as mock_get_redis,
+        patch("ws_server.handler.validate_ticket", new_callable=AsyncMock) as mock_validate,
+    ):
         mock_get_redis.return_value = AsyncMock()
         mock_validate.return_value = {"user_id": "u1", "role": "operator"}
 
         client = TestClient(app)
-        with pytest.raises(WebSocketDisconnect):
-            with client.websocket_connect("/ws/live/loco-1?ticket=valid-ticket"):
-                pass
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/live/loco-1?ticket=valid-ticket"):
+            pass
 
         manager.accept.assert_called_once()
 
@@ -105,9 +106,8 @@ def test_ws_fleet_missing_ticket():
     set_manager(manager)
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/ws/fleet"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect("/ws/fleet"):
+        pass
     assert exc_info.value.code == 4400
 
 
@@ -117,16 +117,16 @@ def test_ws_fleet_invalid_ticket():
     manager = AsyncMock()
     set_manager(manager)
 
-    with patch("ws_server.handler.get_redis_raw") as mock_get_redis, patch(
-        "ws_server.handler.validate_ticket", new_callable=AsyncMock
-    ) as mock_validate:
+    with (
+        patch("ws_server.handler.get_redis_raw") as mock_get_redis,
+        patch("ws_server.handler.validate_ticket", new_callable=AsyncMock) as mock_validate,
+    ):
         mock_get_redis.return_value = AsyncMock()
         mock_validate.return_value = None
 
         client = TestClient(app)
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect("/ws/fleet?ticket=bad"):
-                pass
+        with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect("/ws/fleet?ticket=bad"):
+            pass
         assert exc_info.value.code == 4401
 
 
@@ -135,7 +135,6 @@ def test_ws_fleet_server_not_ready():
     app = _make_app()
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info:
-        with client.websocket_connect("/ws/fleet?ticket=t"):
-            pass
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect("/ws/fleet?ticket=t"):
+        pass
     assert exc_info.value.code == 1011

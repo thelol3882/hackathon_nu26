@@ -31,19 +31,21 @@ OUT_DIR="$SCRIPT_DIR/../shared/generated"
 
 mkdir -p "$OUT_DIR"
 
-python -m grpc_tools.protoc \
-    --proto_path="$PROTO_DIR" \
-    --python_out="$OUT_DIR" \
-    --grpc_python_out="$OUT_DIR" \
-    --pyi_out="$OUT_DIR" \
-    "$PROTO_DIR"/telemetry.proto
+for PROTO_FILE in telemetry report; do
+    python -m grpc_tools.protoc \
+        --proto_path="$PROTO_DIR" \
+        --python_out="$OUT_DIR" \
+        --grpc_python_out="$OUT_DIR" \
+        --pyi_out="$OUT_DIR" \
+        "$PROTO_DIR"/${PROTO_FILE}.proto
 
-# Fix imports: protoc generates `import telemetry_pb2` but inside a
-# package we need `from . import telemetry_pb2` (relative import).
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' 's/^import telemetry_pb2/from . import telemetry_pb2/' "$OUT_DIR/telemetry_pb2_grpc.py"
-else
-    sed -i 's/^import telemetry_pb2/from . import telemetry_pb2/' "$OUT_DIR/telemetry_pb2_grpc.py"
-fi
+    # Fix imports: protoc generates `import X_pb2` but inside a
+    # package we need `from . import X_pb2` (relative import).
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^import ${PROTO_FILE}_pb2/from . import ${PROTO_FILE}_pb2/" "$OUT_DIR/${PROTO_FILE}_pb2_grpc.py"
+    else
+        sed -i "s/^import ${PROTO_FILE}_pb2/from . import ${PROTO_FILE}_pb2/" "$OUT_DIR/${PROTO_FILE}_pb2_grpc.py"
+    fi
+done
 
 echo "Generated gRPC code in $OUT_DIR"

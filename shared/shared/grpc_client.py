@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import grpc.aio
 
-from shared.generated import telemetry_pb2, telemetry_pb2_grpc
+from shared.generated import report_pb2, report_pb2_grpc, telemetry_pb2, telemetry_pb2_grpc
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
@@ -474,4 +474,124 @@ def _health_to_dict(h: telemetry_pb2.HealthSnapshot) -> dict:
         ],
         "damage_penalty": h.damage_penalty,
         "calculated_at": h.calculated_at,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Report Service client
+# ---------------------------------------------------------------------------
+
+
+class ReportClient:
+    """Async gRPC client for Report Service (read-only queries).
+
+    API Gateway uses this to get report status, list reports, and download
+    completed reports.  Task submission goes through RabbitMQ.
+    """
+
+    def __init__(self, target: str, *, timeout: float = 10.0):
+        self._target = target
+        self._timeout = timeout
+        self._channel: grpc.aio.Channel | None = None
+        self._stub: report_pb2_grpc.ReportServiceStub | None = None
+
+    async def connect(self) -> None:
+        self._channel = grpc.aio.insecure_channel(
+            self._target,
+            options=[
+                ("grpc.keepalive_time_ms", 30_000),
+                ("grpc.keepalive_timeout_ms", 10_000),
+                ("grpc.keepalive_permit_without_calls", True),
+                ("grpc.max_receive_message_length", 10 * 1024 * 1024),
+            ],
+        )
+        self._stub = report_pb2_grpc.ReportServiceStub(self._channel)
+        logger.info("Report gRPC client connected", target=self._target)
+
+    async def close(self) -> None:
+        if self._channel:
+            await self._channel.close()
+            self._channel = None
+            self._stub = None
+            logger.info("Report gRPC client closed", target=self._target)
+
+    @property
+    def _s(self) -> report_pb2_grpc.ReportServiceStub:
+        if self._stub is None:
+            raise RuntimeError("ReportClient not connected. Call connect() first.")
+        return self._stub
+
+    async def get_report(self, report_id: str) -> dict | None:
+        """Get a single report by ID.  Returns None if not found."""
+        try:
+            resp = await self._s.GetReport(
+                report_pb2.GetReportRequest(report_id=report_id),
+                timeout=self._timeout,
+            )
+            return _report_entry_to_dict(resp.report)
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                return None
+            raise
+
+    async def list_reports(
+        self,
+        *,
+        locomotive_id: str = "",
+        status: str = "",
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict:
+        """List reports with optional filters.  Returns {reports: [...], total: int}."""
+        resp = await self._s.ListReports(
+            report_pb2.ListReportsRequest(
+                locomotive_id=locomotive_id,
+                status=status,
+                offset=offset,
+                limit=limit,
+            ),
+            timeout=self._timeout,
+        )
+        return {
+            "reports": [_report_entry_to_dict(r) for r in resp.reports],
+            "total": resp.total,
+        }
+
+    async def download_report(self, report_id: str) -> dict:
+        """Download a completed report as formatted bytes.
+
+        Returns {format, content (bytes), filename, content_type}.
+        Raises grpc.aio.AioRpcError on NOT_FOUND or FAILED_PRECONDITION.
+        """
+        resp = await self._s.DownloadReport(
+            report_pb2.DownloadReportRequest(report_id=report_id),
+            timeout=self._timeout,
+        )
+        return {
+            "format": resp.format,
+            "content": resp.content,
+            "filename": resp.filename,
+            "content_type": resp.content_type,
+        }
+
+
+def _report_entry_to_dict(entry: report_pb2.ReportEntry) -> dict:
+    """Convert a protobuf ReportEntry to a Python dict."""
+    import json
+
+    data = None
+    if entry.data:
+        try:
+            data = json.loads(entry.data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            data = None
+
+    return {
+        "report_id": entry.report_id,
+        "locomotive_id": entry.locomotive_id or None,
+        "report_type": entry.report_type,
+        "format": entry.format,
+        "status": entry.status,
+        "created_at": entry.created_at,
+        "data": data,
     }

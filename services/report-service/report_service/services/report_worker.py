@@ -62,9 +62,21 @@ async def _execute_job(job: ReportJobMessage) -> None:
     ):
         logger.info("Processing report job", code=REPORT_PROCESSING)
 
-        # DB session for report status updates (PostgreSQL)
+        # DB session for report lifecycle (PostgreSQL — own database)
+        # Report Service creates the record itself; API Gateway only publishes to RabbitMQ.
         async for session in get_db_session():
-            await report_repository.update_status(session, job.report_id, ReportStatus.PROCESSING)
+            from report_service.models.report_entity import Report
+
+            entity = Report(
+                id=job.report_id,
+                locomotive_id=job.locomotive_id,
+                report_type=job.report_type,
+                format=str(job.format),
+                status=ReportStatus.PROCESSING,
+                data={},
+            )
+            session.add(entity)
+            await session.commit()
 
             try:
                 with tracer.start_as_current_span("report.query_data"):

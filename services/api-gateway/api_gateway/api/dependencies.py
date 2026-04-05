@@ -21,11 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_gateway.core.config import GatewaySettings, get_settings
 from api_gateway.core.database import get_app_db_session
 from api_gateway.core.redis_client import get_redis
-from shared.grpc_client import AnalyticsClient
+from shared.grpc_client import AnalyticsClient, ReportClient
 
 Settings = Annotated[GatewaySettings, Depends(get_settings)]
 
-# PostgreSQL — auth, locomotives, reports, health config
+# PostgreSQL — auth, locomotives, health config
 AppSession = Annotated[AsyncSession, Depends(get_app_db_session)]
 
 # Backward-compatible alias
@@ -39,5 +39,13 @@ def _get_analytics(request: Request) -> AnalyticsClient:
     return request.app.state.analytics
 
 
+def _get_report_client(request: Request) -> ReportClient:
+    """Extract the ReportClient from app state (set in lifespan)."""
+    return request.app.state.report_client
+
+
 # gRPC client — telemetry, alerts, health queries via Analytics Service
 Analytics = Annotated[AnalyticsClient, Depends(_get_analytics)]
+
+# gRPC client — report status, listing, downloads via Report Service
+Reports = Annotated[ReportClient, Depends(_get_report_client)]

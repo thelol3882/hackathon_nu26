@@ -19,7 +19,7 @@ class ReportSettings(BaseSettings):
     db_port: int = 5432
     db_user: str = "locomotive_app"
     db_password: str = "changeme"
-    db_name: str = "locomotive_app"
+    db_name: str = "locomotive_reports"
     db_pool_min: int = 2
     db_pool_max: int = 10
 
@@ -32,6 +32,9 @@ class ReportSettings(BaseSettings):
     # Report Service no longer connects to TimescaleDB directly.
     analytics_grpc_target: str = "analytics-service:50051"
     analytics_grpc_timeout: float = 30.0  # Reports can be heavy — longer timeout
+
+    # --- gRPC server (report queries from API Gateway) ---
+    grpc_port: int = 50052
 
     # --- RabbitMQ ---
     rabbitmq_url: str = "amqp://locomotive:changeme@rabbitmq:5672/"

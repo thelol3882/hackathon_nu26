@@ -1,4 +1,10 @@
-import { IconGauge, IconFileAnalytics, IconSettings, IconUsers, IconMapPins } from '@tabler/icons-react';
+import {
+    IconGauge,
+    IconFileAnalytics,
+    IconSettings,
+    IconUsers,
+    IconMapPins,
+} from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
 export interface NavItem {

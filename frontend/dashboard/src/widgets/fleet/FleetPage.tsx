@@ -150,11 +150,19 @@ export function FleetPage() {
                 </Group>
                 <Group gap="xs">
                     {connected ? (
-                        <Badge leftSection={<IconBroadcast size={14} />} color="teal" variant="light">
+                        <Badge
+                            leftSection={<IconBroadcast size={14} />}
+                            color="teal"
+                            variant="light"
+                        >
                             Live
                         </Badge>
                     ) : (
-                        <Badge leftSection={<IconBroadcastOff size={14} />} color="gray" variant="light">
+                        <Badge
+                            leftSection={<IconBroadcastOff size={14} />}
+                            color="gray"
+                            variant="light"
+                        >
                             {connectionStatus}
                         </Badge>
                     )}
@@ -178,9 +186,30 @@ export function FleetPage() {
                         </Text>
                     </Box>
                     <Progress.Root size="xl" w={200}>
-                        <Progress.Section value={categories.norma > 0 ? (categories.norma / Math.max(fleetSize, 1)) * 100 : 0} color="teal" />
-                        <Progress.Section value={categories.vnimanie > 0 ? (categories.vnimanie / Math.max(fleetSize, 1)) * 100 : 0} color="yellow" />
-                        <Progress.Section value={categories.kritichno > 0 ? (categories.kritichno / Math.max(fleetSize, 1)) * 100 : 0} color="red" />
+                        <Progress.Section
+                            value={
+                                categories.norma > 0
+                                    ? (categories.norma / Math.max(fleetSize, 1)) * 100
+                                    : 0
+                            }
+                            color="teal"
+                        />
+                        <Progress.Section
+                            value={
+                                categories.vnimanie > 0
+                                    ? (categories.vnimanie / Math.max(fleetSize, 1)) * 100
+                                    : 0
+                            }
+                            color="yellow"
+                        />
+                        <Progress.Section
+                            value={
+                                categories.kritichno > 0
+                                    ? (categories.kritichno / Math.max(fleetSize, 1)) * 100
+                                    : 0
+                            }
+                            color="red"
+                        />
                     </Progress.Root>
                 </Group>
             </Card>

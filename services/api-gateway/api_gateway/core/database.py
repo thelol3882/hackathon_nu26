@@ -2,6 +2,8 @@
 
 API Gateway connects ONLY to PostgreSQL (auth, fleet registry, reports,
 health config). All telemetry queries go through Analytics Service via gRPC.
+
+Schema is managed via Alembic migrations (alembic upgrade head runs at startup).
 """
 
 from collections.abc import AsyncGenerator
@@ -29,15 +31,6 @@ async def init_app_db() -> None:
         pool_pre_ping=True,
     )
     _app_session_factory = async_sessionmaker(_app_engine, expire_on_commit=False)
-
-    from api_gateway.models.base import AppBase
-    from api_gateway.models.health_config_entity import HealthThreshold  # noqa: F401
-    from api_gateway.models.locomotive_entity import Locomotive  # noqa: F401
-    from api_gateway.models.report_entity import Report  # noqa: F401
-    from api_gateway.models.user_entity import User  # noqa: F401
-
-    async with _app_engine.begin() as conn:
-        await conn.run_sync(AppBase.metadata.create_all)
 
 
 async def close_app_db() -> None:

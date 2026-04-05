@@ -39,6 +39,11 @@ class GatewaySettings(BaseSettings):
     analytics_grpc_target: str = "analytics-service:50051"
     analytics_grpc_timeout: float = 5.0
 
+    # --- Report Service (gRPC) ---
+    # Report status, listing, and downloads go through this service.
+    report_grpc_target: str = "report-service:50052"
+    report_grpc_timeout: float = 10.0
+
     # --- Redis ---
     redis_host: str = "localhost"
     redis_port: int = 6379
