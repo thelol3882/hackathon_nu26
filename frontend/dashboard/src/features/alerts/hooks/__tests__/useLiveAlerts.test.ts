@@ -29,6 +29,7 @@ function createWrapper(store?: ReturnType<typeof createTestStore>) {
     return {
         store: s,
         wrapper: ({ children }: { children: React.ReactNode }) =>
+            // eslint-disable-next-line react/no-children-prop -- React 19 types require children in props
             React.createElement(Provider, { store: s, children }),
     };
 }

@@ -7,7 +7,8 @@ import type { AlertEvent } from '../types';
  * Returns alerts from Redux store (populated by useWsDispatch in DashboardPage).
  * No longer manages its own WS subscription.
  */
-export function useLiveAlerts(_locomotiveId: string | null) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for API compatibility with consumers
+export function useLiveAlerts(locomotiveId: string | null) {
     const alerts = useAppSelector((state) => state.alerts.items) as AlertEvent[];
     const dispatch = useAppDispatch();
 
