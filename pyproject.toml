@@ -87,6 +87,9 @@ ignore = [
 "services/report-service/**/report_generator.py" = ["S608"]  # SQL f-strings only inject hardcoded WHERE clauses
 "services/report-service/**/fleet_analytics_service.py" = ["S608"]
 "services/report-service/**/router_analytics.py" = ["S608"]
+"**/repositories/telemetry_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"**/repositories/alert_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"**/repositories/health_snapshot_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 
 [tool.ruff.lint.isort]
 known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator"]

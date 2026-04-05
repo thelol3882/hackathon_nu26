@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 from fastapi import FastAPI, Request, Response
@@ -127,8 +128,17 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _env(service_name: str, key: str, default: str) -> str:
+    prefix = service_name.upper().replace("-", "_")
+    return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
+
+
 def setup_prometheus(app: FastAPI, service_name: str) -> None:
     """Add Prometheus middleware and /metrics endpoint to a FastAPI app."""
+    enabled = _env(service_name, "PROMETHEUS_ENABLED", "true").lower() == "true"
+    if not enabled:
+        return
+
     app.add_middleware(PrometheusMiddleware, service_name=service_name)
 
     @app.get("/metrics", include_in_schema=False)

@@ -12,10 +12,15 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
 
+def _env(service_name: str, key: str, default: str) -> str:
+    prefix = service_name.upper().replace("-", "_")
+    return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
+
+
 def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
     # Sample only a fraction of traces to keep Jaeger memory usage low.
     # Default 5% — override via OTEL_TRACE_SAMPLE_RATE (0.0–1.0).
-    sample_rate = float(os.environ.get("OTEL_TRACE_SAMPLE_RATE", "0.05"))
+    sample_rate = float(_env(service_name, "OTEL_TRACE_SAMPLE_RATE", "0.05"))
     sampler = TraceIdRatioBased(sample_rate)
 
     resource = Resource.create({"service.name": service_name})

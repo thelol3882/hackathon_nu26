@@ -7,16 +7,21 @@ from shared.observability.logging import configure_logging, get_logger
 from shared.observability.middleware import RequestContextMiddleware
 
 
+def _env(service_name: str, key: str, default: str) -> str:
+    """Read env var with per-service override: {SVC}_{KEY} → {KEY} → default."""
+    prefix = service_name.upper().replace("-", "_")
+    return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
+
+
 def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
     configure_logging(service_name)
     logger = get_logger(__name__)
 
     shutdown_fns: list[Callable[[], None]] = []
 
-    otel_enabled = os.environ.get("OTEL_ENABLED", "true").lower() == "true"
-    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317")
-
-    metrics_enabled = os.environ.get("OTEL_METRICS_ENABLED", "false").lower() == "true"
+    otel_enabled = _env(service_name, "OTEL_ENABLED", "true").lower() == "true"
+    otlp_endpoint = _env(service_name, "OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4317")
+    metrics_enabled = _env(service_name, "OTEL_METRICS_ENABLED", "false").lower() == "true"
 
     if otel_enabled:
         from shared.observability.tracing import setup_tracing
@@ -37,7 +42,12 @@ def setup_observability(app: FastAPI, service_name: str) -> Callable[[], None]:
     else:
         logger.info("OpenTelemetry disabled")
 
-    app.add_middleware(RequestContextMiddleware, service_name=service_name)
+    access_log_enabled = _env(service_name, "ACCESS_LOG_ENABLED", "true").lower() == "true"
+    app.add_middleware(
+        RequestContextMiddleware,
+        service_name=service_name,
+        access_log_enabled=access_log_enabled,
+    )
     logger.info("Observability initialized", service=service_name)
 
     def shutdown() -> None:

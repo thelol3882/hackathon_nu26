@@ -62,7 +62,7 @@ async def query_bucketed(
 
         series_end_expr = ":series_end" if end is not None else "NOW()"
 
-        query = text(f"""  # noqa: S608
+        query = text(f"""
             WITH data AS (
                 SELECT
                     time_bucket('{bucket_interval}', time) AS bucket,
@@ -100,7 +100,7 @@ async def query_bucketed(
             OFFSET :off LIMIT :lim
         """)
     else:
-        query = text(f"""  # noqa: S608
+        query = text(f"""
             SELECT
                 time_bucket('{bucket_interval}', time) AS bucket,
                 CAST(locomotive_id AS text) AS locomotive_id,
@@ -146,7 +146,7 @@ async def query_raw(
     params: dict = {"off": offset, "lim": limit}
     where = _build_where(params, locomotive_id=locomotive_id, sensor_type=sensor_type, start=start, end=end)
 
-    query = text(f"""  # noqa: S608
+    query = text(f"""
         SELECT
             time, CAST(locomotive_id AS text) AS locomotive_id, locomotive_type, sensor_type,
             value, filtered_value, unit, latitude, longitude

@@ -16,12 +16,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
     Fields bound:
         request_id, client_ip, user_agent, http_method, http_path, service
-    Also logs an access summary after each request.
+    Also logs an access summary after each request (unless access_log_enabled=False).
     """
 
-    def __init__(self, app, service_name: str = "unknown") -> None:
+    def __init__(self, app, service_name: str = "unknown", access_log_enabled: bool = True) -> None:
         super().__init__(app)
         self.service_name = service_name
+        self.access_log_enabled = access_log_enabled
         self._logger = structlog.get_logger("access")
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -57,21 +58,23 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
             response.headers["X-Request-ID"] = request_id
 
-            self._logger.info(
-                "Request handled",
-                code=HTTP_REQUEST,
-                status=response.status_code,
-                duration_ms=duration_ms,
-            )
+            if self.access_log_enabled:
+                self._logger.info(
+                    "Request handled",
+                    code=HTTP_REQUEST,
+                    status=response.status_code,
+                    duration_ms=duration_ms,
+                )
             return response
         except Exception:
             duration_ms = round((time.perf_counter() - start) * 1000, 1)
-            self._logger.exception(
-                "Request failed",
-                code=HTTP_REQUEST,
-                status=500,
-                duration_ms=duration_ms,
-            )
+            if self.access_log_enabled:
+                self._logger.exception(
+                    "Request failed",
+                    code=HTTP_REQUEST,
+                    status=500,
+                    duration_ms=duration_ms,
+                )
             raise
         finally:
             structlog.contextvars.clear_contextvars()

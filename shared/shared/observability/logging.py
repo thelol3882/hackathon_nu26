@@ -5,6 +5,11 @@ import structlog
 from opentelemetry import trace
 
 
+def _env(service_name: str, key: str, default: str) -> str:
+    prefix = service_name.upper().replace("-", "_")
+    return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
+
+
 def _add_otel_context(logger: logging.Logger, method_name: str, event_dict: dict) -> dict:
     span = trace.get_current_span()
     ctx = span.get_span_context()
@@ -15,8 +20,8 @@ def _add_otel_context(logger: logging.Logger, method_name: str, event_dict: dict
 
 
 def configure_logging(service_name: str) -> None:
-    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_format = os.environ.get("LOG_FORMAT", "console")
+    log_level = _env(service_name, "LOG_LEVEL", "INFO").upper()
+    log_format = _env(service_name, "LOG_FORMAT", "console")
 
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
