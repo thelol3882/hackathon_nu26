@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketManager, type WsStatus, type WireFormat } from './manager';
+import { WebSocketManager, type WsStatus } from './manager';
 
 function getWsBaseUrl(): string {
     if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
@@ -9,7 +9,6 @@ function getWsBaseUrl(): string {
 }
 
 const WS_BASE_URL = getWsBaseUrl();
-const WIRE_FORMAT: WireFormat = (process.env.NEXT_PUBLIC_WS_WIRE_FORMAT as WireFormat) || 'json';
 
 /** Shared managers keyed by full URL.  Ref-counted so the socket is
  *  closed only when the last consumer unmounts. */
@@ -21,7 +20,7 @@ function acquireManager(url: string, onStatusChange: (s: WsStatus) => void): Web
         existing.refCount++;
         return existing.manager;
     }
-    const manager = new WebSocketManager({ url, wireFormat: WIRE_FORMAT, onStatusChange });
+    const manager = new WebSocketManager({ url, onStatusChange });
     sharedManagers.set(url, { manager, refCount: 1 });
     manager.connect();
     return manager;
