@@ -8,10 +8,9 @@ import traceback
 import aio_pika
 import structlog
 from opentelemetry import trace
-from sqlalchemy import update
 
 from report_service.core.database import get_db_session
-from report_service.models.report_entity import Report
+from report_service.repositories import report_repository
 from report_service.services.report_formatter import format_report
 from report_service.services.report_generator import generate_report_data
 from shared.log_codes import REPORT_COMPLETED, REPORT_FAILED, REPORT_PROCESSING
@@ -56,10 +55,7 @@ async def _execute_job(job: ReportJobMessage) -> None:
         logger.info("Processing report job", code=REPORT_PROCESSING)
 
         async for session in get_db_session():
-            await session.execute(
-                update(Report).where(Report.id == job.report_id).values(status=ReportStatus.PROCESSING)
-            )
-            await session.commit()
+            await report_repository.update_status(session, job.report_id, ReportStatus.PROCESSING)
 
             try:
                 with tracer.start_as_current_span("report.query_data"):
@@ -68,12 +64,7 @@ async def _execute_job(job: ReportJobMessage) -> None:
                 with tracer.start_as_current_span("report.format"):
                     formatted = format_report(data, job.format, job)
 
-                await session.execute(
-                    update(Report)
-                    .where(Report.id == job.report_id)
-                    .values(status=ReportStatus.COMPLETED, data=formatted)
-                )
-                await session.commit()
+                await report_repository.update_status(session, job.report_id, ReportStatus.COMPLETED, data=formatted)
 
                 reports_generated_total.labels(format=str(job.format), status="completed").inc()
                 logger.info("Report completed", code=REPORT_COMPLETED)
@@ -91,12 +82,6 @@ async def _execute_job(job: ReportJobMessage) -> None:
                     traceback=traceback.format_exc(),
                 )
                 await session.rollback()
-                await session.execute(
-                    update(Report)
-                    .where(Report.id == job.report_id)
-                    .values(
-                        status=ReportStatus.FAILED,
-                        data={"error": str(exc)},
-                    )
+                await report_repository.update_status(
+                    session, job.report_id, ReportStatus.FAILED, data={"error": str(exc)}
                 )
-                await session.commit()

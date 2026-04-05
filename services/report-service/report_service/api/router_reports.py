@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
 
 from report_service.api.dependencies import DbSession
 from report_service.models.report_entity import Report
 from report_service.models.report_params import ReportRequest
+from report_service.repositories import report_repository
 from report_service.services.report_formatter import format_report
 from report_service.services.report_generator import generate_report_data
 from shared.log_codes import REPORT_COMPLETED, REPORT_NOT_FOUND, REPORT_QUEUED
@@ -80,8 +80,7 @@ async def generate_report(request: ReportRequest, db: DbSession):
 @router.get("/{report_id}")
 async def get_report(report_id: str, db: DbSession):
     """Retrieve a generated report by ID."""
-    result = await db.execute(select(Report).where(Report.id == report_id))
-    entity = result.scalar_one_or_none()
+    entity = await report_repository.find_by_id(db, report_id)
     if entity is None:
         logger.info("Report not found", code=REPORT_NOT_FOUND, report_id=report_id)
         raise HTTPException(status_code=404, detail="Report not found")

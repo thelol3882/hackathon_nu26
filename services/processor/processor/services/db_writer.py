@@ -10,12 +10,8 @@ import asyncio
 import contextlib
 from dataclasses import dataclass, field
 
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
 from processor.core.database import get_session_factory
-from processor.models.alert_entity import AlertRecord
-from processor.models.health_entity import HealthSnapshotRecord
-from processor.models.telemetry_entity import TelemetryRecord
+from processor.repositories import alert_repository, health_repository, telemetry_repository
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
@@ -122,15 +118,15 @@ class DbWriter:
             try:
                 for i in range(0, len(telemetry_rows), _INSERT_CHUNK):
                     chunk = telemetry_rows[i : i + _INSERT_CHUNK]
-                    stmt = pg_insert(TelemetryRecord).values(chunk).on_conflict_do_nothing()
+                    stmt = telemetry_repository.bulk_insert_stmt(chunk)
                     await session.execute(stmt)
                 for i in range(0, len(alert_records), _INSERT_CHUNK):
                     chunk = alert_records[i : i + _INSERT_CHUNK]
-                    stmt = pg_insert(AlertRecord).values(chunk).on_conflict_do_nothing()
+                    stmt = alert_repository.bulk_insert_stmt(chunk)
                     await session.execute(stmt)
                 for i in range(0, len(health_records), _INSERT_CHUNK):
                     chunk = health_records[i : i + _INSERT_CHUNK]
-                    stmt = pg_insert(HealthSnapshotRecord).values(chunk).on_conflict_do_nothing()
+                    stmt = health_repository.bulk_insert_stmt(chunk)
                     await session.execute(stmt)
                 await session.commit()
                 logger.info(

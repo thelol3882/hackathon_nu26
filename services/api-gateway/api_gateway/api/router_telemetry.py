@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Query
 
 from api_gateway.api.dependencies import DbSession
-from api_gateway.services.telemetry_query_service import (
+from api_gateway.services.telemetry_service import (
     TelemetryBucket,
     TelemetryRaw,
     TelemetrySnapshot,
