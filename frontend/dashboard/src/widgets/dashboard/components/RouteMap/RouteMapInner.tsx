@@ -1,11 +1,11 @@
 'use client';
 
-import {useEffect, useRef, useState, useCallback} from 'react';
-import {MapContainer, TileLayer, Marker, Polyline, Popup, useMap} from 'react-leaflet';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import {useMantineColorScheme, Group, Text, ActionIcon, Tooltip, Badge} from '@mantine/core';
-import {IconFocus2, IconRoute} from '@tabler/icons-react';
+import { useMantineColorScheme, Group, Text, ActionIcon, Tooltip, Badge } from '@mantine/core';
+import { IconFocus2, IconRoute } from '@tabler/icons-react';
 import classes from './RouteMap.module.css';
 
 interface RouteMapInnerProps {
@@ -34,12 +34,12 @@ const trainIcon = L.divIcon({
 });
 
 function MapUpdater({
-                        position,
-                        followMode,
-                        centerTrigger,
-                        onFirstPosition,
-                        onUserDrag,
-                    }: {
+    position,
+    followMode,
+    centerTrigger,
+    onFirstPosition,
+    onUserDrag,
+}: {
     position: { latitude: number; longitude: number } | null;
     followMode: boolean;
     centerTrigger: number;
@@ -68,13 +68,13 @@ function MapUpdater({
         }
 
         if (followMode) {
-            map.panTo([position.latitude, position.longitude], {animate: true, duration: 0.5});
+            map.panTo([position.latitude, position.longitude], { animate: true, duration: 0.5 });
         }
     }, [map, position, followMode, onFirstPosition]);
 
     useEffect(() => {
         if (centerTrigger > 0 && position) {
-            map.flyTo([position.latitude, position.longitude], POSITION_ZOOM, {duration: 0.8});
+            map.flyTo([position.latitude, position.longitude], POSITION_ZOOM, { duration: 0.8 });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [centerTrigger]);
@@ -82,8 +82,8 @@ function MapUpdater({
     return null;
 }
 
-export default function RouteMapInner({position}: RouteMapInnerProps) {
-    const {colorScheme} = useMantineColorScheme();
+export default function RouteMapInner({ position }: RouteMapInnerProps) {
+    const { colorScheme } = useMantineColorScheme();
     const tileUrl = colorScheme === 'dark' ? DARK_TILES : LIGHT_TILES;
 
     const [followMode, setFollowMode] = useState(true);
@@ -131,7 +131,7 @@ export default function RouteMapInner({position}: RouteMapInnerProps) {
                         size="sm"
                         onClick={handleCenterOnTrain}
                     >
-                        <IconFocus2 size={14}/>
+                        <IconFocus2 size={14} />
                     </ActionIcon>
                 </Tooltip>
                 <Tooltip label={showTrail ? 'Скрыть маршрут' : 'Показать маршрут'}>
@@ -141,7 +141,7 @@ export default function RouteMapInner({position}: RouteMapInnerProps) {
                         size="sm"
                         onClick={() => setShowTrail(!showTrail)}
                     >
-                        <IconRoute size={14}/>
+                        <IconRoute size={14} />
                     </ActionIcon>
                 </Tooltip>
                 {trail.length > 0 && (
@@ -162,10 +162,9 @@ export default function RouteMapInner({position}: RouteMapInnerProps) {
             <MapContainer
                 center={KZ_CENTER}
                 zoom={KZ_ZOOM}
-                style={{height: 350, width: '100%'}}
+                style={{ height: 350, width: '100%' }}
                 scrollWheelZoom
-                whenReady={() => {
-                }}
+                whenReady={() => {}}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://carto.com/">CARTO</a>'
@@ -194,11 +193,11 @@ export default function RouteMapInner({position}: RouteMapInnerProps) {
                 {position && (
                     <Marker position={[position.latitude, position.longitude]} icon={trainIcon}>
                         <Popup>
-                            <div style={{fontSize: 12, lineHeight: 1.6}}>
+                            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
                                 <strong>Текущее положение</strong>
-                                <br/>
+                                <br />
                                 Шир: {position.latitude.toFixed(5)}
-                                <br/>
+                                <br />
                                 Долг: {position.longitude.toFixed(5)}
                             </div>
                         </Popup>

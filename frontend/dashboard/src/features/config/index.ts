@@ -5,4 +5,4 @@ export {
     useGetWeightsQuery,
     useUpdateWeightMutation,
 } from './api/configApi';
-export type {ThresholdConfig, WeightConfig} from './types';
+export type { ThresholdConfig, WeightConfig } from './types';

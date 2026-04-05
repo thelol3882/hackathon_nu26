@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback, useState} from 'react';
+import { useCallback, useState } from 'react';
 import {
     ActionIcon,
     Alert,
@@ -21,7 +21,7 @@ import {
     Tooltip,
     UnstyledButton,
 } from '@mantine/core';
-import {DateInput} from '@mantine/dates';
+import { DateInput } from '@mantine/dates';
 import {
     IconAlertCircle,
     IconCheck,
@@ -34,12 +34,12 @@ import {
     IconRefresh,
     IconTrain,
 } from '@tabler/icons-react';
-import {useGetReportsQuery, useReportGeneration} from '@/features/reports';
-import {LocomotiveSelect} from '@/features/locomotives';
-import {formatDateTime, dayjs} from '@/shared/utils/date';
-import {useAppSelector} from '@/store/hooks';
-import {selectAccessToken} from '@/store/authSlice';
-import type {ReportFormat, ReportStatus} from '@/features/reports/types';
+import { useGetReportsQuery, useReportGeneration } from '@/features/reports';
+import { LocomotiveSelect } from '@/features/locomotives';
+import { formatDateTime, dayjs } from '@/shared/utils/date';
+import { useAppSelector } from '@/store/hooks';
+import { selectAccessToken } from '@/store/authSlice';
+import type { ReportFormat, ReportStatus } from '@/features/reports/types';
 
 const STATUS_COLOR: Record<ReportStatus, string> = {
     pending: 'blue',
@@ -87,10 +87,10 @@ const FORMAT_META: Record<
 };
 
 function FormatCard({
-                        fmt,
-                        selected,
-                        onClick,
-                    }: {
+    fmt,
+    selected,
+    onClick,
+}: {
     fmt: ReportFormat;
     selected: boolean;
     onClick: () => void;
@@ -98,7 +98,7 @@ function FormatCard({
     const meta = FORMAT_META[fmt];
     const FmtIcon = meta.icon;
     return (
-        <UnstyledButton onClick={onClick} style={{width: '100%', height: '100%'}}>
+        <UnstyledButton onClick={onClick} style={{ width: '100%', height: '100%' }}>
             <Card
                 padding="md"
                 withBorder
@@ -118,7 +118,7 @@ function FormatCard({
                         size="xl"
                         radius="md"
                     >
-                        <FmtIcon size={24}/>
+                        <FmtIcon size={24} />
                     </ThemeIcon>
                     <Text size="sm" fw={600}>
                         {meta.label}
@@ -139,13 +139,13 @@ export function ReportsPage() {
     const [startDate, setStartDate] = useState<string | null>(null);
     const [endDate, setEndDate] = useState<string | null>(null);
 
-    const {data: reports = []} = useGetReportsQuery({});
-    const {generate, status, isGenerating, downloadUrl, reset} = useReportGeneration();
+    const { data: reports = [] } = useGetReportsQuery({});
+    const { generate, status, isGenerating, downloadUrl, reset } = useReportGeneration();
 
     const handleDownload = useCallback(
         async (url: string) => {
             const res = await fetch(url, {
-                headers: token ? {Authorization: `Bearer ${token}`} : {},
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) return;
             const blob = await res.blob();
@@ -179,10 +179,10 @@ export function ReportsPage() {
         status === 'completed' || status === 'failed'
             ? 3
             : isGenerating
-                ? 2
-                : startDate && endDate
-                    ? 1
-                    : 0;
+              ? 2
+              : startDate && endDate
+                ? 1
+                : 0;
 
     const completedReports = reports.filter((r) => r.status === 'completed');
     const failedReports = reports.filter((r) => r.status === 'failed');
@@ -192,7 +192,7 @@ export function ReportsPage() {
             <Group justify="space-between">
                 <Group gap="sm">
                     <ThemeIcon variant="light" color="ktzBlue" size="lg">
-                        <IconFileText size={20}/>
+                        <IconFileText size={20} />
                     </ThemeIcon>
                     <Title order={3}>Отчёты</Title>
                 </Group>
@@ -211,24 +211,24 @@ export function ReportsPage() {
             </Group>
 
             <Grid>
-                <Grid.Col span={{base: 12, lg: 7}}>
+                <Grid.Col span={{ base: 12, lg: 7 }}>
                     <Card padding="lg" withBorder>
                         <Text fw={600} size="lg" mb="lg">
                             Генерация отчёта
                         </Text>
 
                         <Stepper active={activeStep} size="xs" mb="lg" color="ktzBlue">
-                            <Stepper.Step label="Параметры" description="Локомотив и даты"/>
-                            <Stepper.Step label="Формат" description="PDF, CSV или JSON"/>
-                            <Stepper.Step label="Генерация" description="Обработка данных"/>
-                            <Stepper.Step label="Готово" description="Скачать отчёт"/>
+                            <Stepper.Step label="Параметры" description="Локомотив и даты" />
+                            <Stepper.Step label="Формат" description="PDF, CSV или JSON" />
+                            <Stepper.Step label="Генерация" description="Обработка данных" />
+                            <Stepper.Step label="Готово" description="Скачать отчёт" />
                         </Stepper>
 
                         <Stack gap="md">
                             <Card
                                 withBorder
                                 padding="sm"
-                                style={{backgroundColor: 'var(--dashboard-surface-elevated)'}}
+                                style={{ backgroundColor: 'var(--dashboard-surface-elevated)' }}
                             >
                                 <Text size="xs" fw={600} c="dimmed" mb="xs" tt="uppercase">
                                     1. Выбор данных
@@ -245,7 +245,7 @@ export function ReportsPage() {
                                         <Alert
                                             color="ktzGold"
                                             variant="light"
-                                            icon={<IconTrain size={14}/>}
+                                            icon={<IconTrain size={14} />}
                                             py="xs"
                                         >
                                             <Text size="xs">
@@ -273,12 +273,12 @@ export function ReportsPage() {
                             <Card
                                 withBorder
                                 padding="sm"
-                                style={{backgroundColor: 'var(--dashboard-surface-elevated)'}}
+                                style={{ backgroundColor: 'var(--dashboard-surface-elevated)' }}
                             >
                                 <Text size="xs" fw={600} c="dimmed" mb="xs" tt="uppercase">
                                     2. Формат отчёта
                                 </Text>
-                                <SimpleGrid cols={{base: 1, sm: 3}}>
+                                <SimpleGrid cols={{ base: 1, sm: 3 }}>
                                     <FormatCard
                                         fmt="pdf"
                                         selected={format === 'pdf'}
@@ -303,7 +303,7 @@ export function ReportsPage() {
                                     loading={isGenerating}
                                     disabled={!startDate || !endDate}
                                     size="md"
-                                    leftSection={<FormatIcon size={18}/>}
+                                    leftSection={<FormatIcon size={18} />}
                                 >
                                     Сгенерировать {FORMAT_META[format].label}
                                 </Button>
@@ -317,7 +317,7 @@ export function ReportsPage() {
                                         setEndDate(null);
                                         reset();
                                     }}
-                                    leftSection={<IconRefresh size={16}/>}
+                                    leftSection={<IconRefresh size={16} />}
                                 >
                                     Сбросить
                                 </Button>
@@ -333,8 +333,8 @@ export function ReportsPage() {
                                     }}
                                 >
                                     <Group gap="md">
-                                        <Loader size="md" color="ktzBlue"/>
-                                        <Stack gap={2} style={{flex: 1}}>
+                                        <Loader size="md" color="ktzBlue" />
+                                        <Stack gap={2} style={{ flex: 1 }}>
                                             <Text size="sm" fw={600}>
                                                 Генерация отчёта...
                                             </Text>
@@ -368,7 +368,7 @@ export function ReportsPage() {
                                                 size="xl"
                                                 radius="xl"
                                             >
-                                                <IconCheck size={24}/>
+                                                <IconCheck size={24} />
                                             </ThemeIcon>
                                             <Stack gap={0}>
                                                 <Text size="md" fw={700}>
@@ -383,7 +383,7 @@ export function ReportsPage() {
                                             variant="filled"
                                             color="green"
                                             size="md"
-                                            leftSection={<IconDownload size={18}/>}
+                                            leftSection={<IconDownload size={18} />}
                                             onClick={() => handleDownload(downloadUrl)}
                                         >
                                             Скачать
@@ -396,7 +396,7 @@ export function ReportsPage() {
                                 <Alert
                                     color="red"
                                     variant="light"
-                                    icon={<IconAlertCircle size={18}/>}
+                                    icon={<IconAlertCircle size={18} />}
                                     title="Ошибка генерации"
                                 >
                                     Не удалось сгенерировать отчёт. Попробуйте уменьшить диапазон
@@ -407,11 +407,11 @@ export function ReportsPage() {
                     </Card>
                 </Grid.Col>
 
-                <Grid.Col span={{base: 12, lg: 5}}>
+                <Grid.Col span={{ base: 12, lg: 5 }}>
                     <Card padding="lg" withBorder h="100%">
                         <Group gap="xs" mb="md">
                             <ThemeIcon variant="light" color="gray" size="md">
-                                <IconClock size={16}/>
+                                <IconClock size={16} />
                             </ThemeIcon>
                             <Text fw={600}>История</Text>
                             <Badge size="sm" variant="light" color="gray">
@@ -420,10 +420,10 @@ export function ReportsPage() {
                         </Group>
 
                         {reports.length === 0 ? (
-                            <Center py="xl" style={{flex: 1}}>
+                            <Center py="xl" style={{ flex: 1 }}>
                                 <Stack align="center" gap="xs">
                                     <ThemeIcon variant="light" color="gray" size={48} radius="xl">
-                                        <IconFileText size={24}/>
+                                        <IconFileText size={24} />
                                     </ThemeIcon>
                                     <Text c="dimmed" size="sm">
                                         Нет отчётов
@@ -455,9 +455,9 @@ export function ReportsPage() {
                                             onClick={
                                                 isReady
                                                     ? () =>
-                                                        handleDownload(
-                                                            `/api/reports/${report.report_id}/download`,
-                                                        )
+                                                          handleDownload(
+                                                              `/api/reports/${report.report_id}/download`,
+                                                          )
                                                     : undefined
                                             }
                                         >
@@ -469,7 +469,7 @@ export function ReportsPage() {
                                                         size="md"
                                                         radius="md"
                                                     >
-                                                        <FmtIcon size={14}/>
+                                                        <FmtIcon size={14} />
                                                     </ThemeIcon>
                                                     <Stack gap={0}>
                                                         <Group gap={4}>
@@ -494,7 +494,7 @@ export function ReportsPage() {
                                                         color={STATUS_COLOR[report.status]}
                                                         variant="light"
                                                         size="sm"
-                                                        leftSection={<StatusIcon size={10}/>}
+                                                        leftSection={<StatusIcon size={10} />}
                                                     >
                                                         {STATUS_LABEL[report.status]}
                                                     </Badge>
@@ -505,12 +505,12 @@ export function ReportsPage() {
                                                                 color="green"
                                                                 size="sm"
                                                             >
-                                                                <IconDownload size={14}/>
+                                                                <IconDownload size={14} />
                                                             </ActionIcon>
                                                         </Tooltip>
                                                     )}
                                                     {report.status === 'processing' && (
-                                                        <Loader size={14}/>
+                                                        <Loader size={14} />
                                                     )}
                                                 </Group>
                                             </Group>

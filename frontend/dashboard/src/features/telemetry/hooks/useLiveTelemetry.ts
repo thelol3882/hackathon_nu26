@@ -1,6 +1,6 @@
-import {useEffect, useRef, useState} from 'react';
-import {useWebSocket} from '@/shared/ws/hooks';
-import type {SensorType, TelemetryReading} from '../types';
+import { useEffect, useRef, useState } from 'react';
+import { useWebSocket } from '@/shared/ws/hooks';
+import type { SensorType, TelemetryReading } from '../types';
 
 interface Position {
     latitude: number;
@@ -18,7 +18,7 @@ interface WireTelemetry {
 
 export function useLiveTelemetry(locomotiveId: string | null) {
     const path = locomotiveId ? `/ws/live/${locomotiveId}` : null;
-    const {status, subscribe} = useWebSocket(path);
+    const { status, subscribe } = useWebSocket(path);
 
     const sensorMapRef = useRef<Map<string, TelemetryReading>>(new Map());
     const pendingUpdatesRef = useRef<TelemetryReading[]>([]);
@@ -51,7 +51,7 @@ export function useLiveTelemetry(locomotiveId: string | null) {
             const message = data as { type?: string; data?: WireTelemetry };
             if (message.type !== 'telemetry' || !message.data) return;
 
-            const {locomotive_id, locomotive_type, timestamp, gps, sensors} = message.data;
+            const { locomotive_id, locomotive_type, timestamp, gps, sensors } = message.data;
 
             for (const s of sensors) {
                 pendingUpdatesRef.current.push({
@@ -68,12 +68,12 @@ export function useLiveTelemetry(locomotiveId: string | null) {
             }
 
             if (gps) {
-                pendingPositionRef.current = {latitude: gps.latitude, longitude: gps.longitude};
+                pendingPositionRef.current = { latitude: gps.latitude, longitude: gps.longitude };
             }
         });
 
         return unsubscribe;
     }, [subscribe]);
 
-    return {sensors, position, connectionStatus: status};
+    return { sensors, position, connectionStatus: status };
 }

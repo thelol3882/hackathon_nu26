@@ -9,16 +9,16 @@ import '@mantine/spotlight/styles.css';
 import '@mantine/nprogress/styles.css';
 import './globals.css';
 
-import {ColorSchemeScript, mantineHtmlProps} from '@mantine/core';
-import {Share_Tech_Mono, Nunito_Sans} from 'next/font/google';
-import type {Metadata} from 'next';
-import {Providers} from '@/providers';
+import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
+import { Share_Tech_Mono, Nunito_Sans } from 'next/font/google';
+import type { Metadata } from 'next';
+import { Providers } from '@/providers';
 
 export const metadata: Metadata = {
     title: 'КТЖ — Цифровой двойник локомотива',
     description:
         'Система мониторинга телеметрии локомотивов в реальном времени. Индекс здоровья, оповещения, тренды, отчёты.',
-    icons: {icon: '/favicon.ico'},
+    icons: { icon: '/favicon.ico' },
 };
 
 const shareTechMono = Share_Tech_Mono({
@@ -34,20 +34,20 @@ const nunitoSans = Nunito_Sans({
     display: 'swap',
 });
 
-export default function RootLayout({children}: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html
             lang="ru"
             className={`${shareTechMono.variable} ${nunitoSans.variable}`}
             {...mantineHtmlProps}
         >
-        <head>
-            <ColorSchemeScript defaultColorScheme="dark"/>
-            <meta name="viewport" content="width=device-width, initial-scale=1"/>
-        </head>
-        <body>
-        <Providers>{children}</Providers>
-        </body>
+            <head>
+                <ColorSchemeScript defaultColorScheme="dark" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+            </head>
+            <body>
+                <Providers>{children}</Providers>
+            </body>
         </html>
     );
 }

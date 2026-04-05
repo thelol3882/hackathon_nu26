@@ -1,8 +1,8 @@
 'use client';
 
-import {Card, Loader, Progress, Text, Group, Badge, Stack, ThemeIcon} from '@mantine/core';
-import {IconHeartbeat} from '@tabler/icons-react';
-import type {HealthIndex} from '@/features/health/types';
+import { Card, Loader, Progress, Text, Group, Badge, Stack, ThemeIcon } from '@mantine/core';
+import { IconHeartbeat } from '@tabler/icons-react';
+import type { HealthIndex } from '@/features/health/types';
 import classes from './HealthIndexGauge.module.css';
 
 interface HealthIndexGaugeProps {
@@ -70,13 +70,13 @@ function getCategoryColor(category: string): string {
     }
 }
 
-export function HealthIndexGauge({health, isLoading}: HealthIndexGaugeProps) {
+export function HealthIndexGauge({ health, isLoading }: HealthIndexGaugeProps) {
     if (isLoading) {
         return (
             <Card>
                 <div className={classes.loaderWrap}>
                     <Stack align="center" gap="sm">
-                        <Loader size="lg" color="ktzBlue"/>
+                        <Loader size="lg" color="ktzBlue" />
                         <Text size="xs" c="dimmed">
                             Загрузка индекса...
                         </Text>
@@ -92,7 +92,7 @@ export function HealthIndexGauge({health, isLoading}: HealthIndexGaugeProps) {
                 <div className={classes.emptyState}>
                     <Stack align="center" gap="sm">
                         <ThemeIcon size={48} variant="light" color="gray" radius="xl">
-                            <IconHeartbeat size={24} stroke={1.2}/>
+                            <IconHeartbeat size={24} stroke={1.2} />
                         </ThemeIcon>
                         <Text c="dimmed" size="sm">
                             Ожидание данных...
@@ -123,10 +123,10 @@ export function HealthIndexGauge({health, isLoading}: HealthIndexGaugeProps) {
                     <svg viewBox="0 0 200 200" width="100%" height="100%">
                         <defs>
                             <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
-                                <feGaussianBlur stdDeviation="4" result="blur"/>
+                                <feGaussianBlur stdDeviation="4" result="blur" />
                                 <feMerge>
-                                    <feMergeNode in="blur"/>
-                                    <feMergeNode in="SourceGraphic"/>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
                                 </feMerge>
                             </filter>
                         </defs>
@@ -209,8 +209,8 @@ export function HealthIndexGauge({health, isLoading}: HealthIndexGaugeProps) {
                                             factor.deviation_pct > 20
                                                 ? 'var(--mantine-color-critical-5)'
                                                 : factor.deviation_pct > 10
-                                                    ? 'var(--mantine-color-ktzGold-5)'
-                                                    : undefined,
+                                                  ? 'var(--mantine-color-ktzGold-5)'
+                                                  : undefined,
                                     }}
                                 >
                                     {factor.deviation_pct > 0 ? '+' : ''}

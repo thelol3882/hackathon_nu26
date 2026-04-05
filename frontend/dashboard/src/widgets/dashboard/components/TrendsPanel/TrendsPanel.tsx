@@ -1,6 +1,6 @@
 'use client';
 
-import {useState, useMemo, useCallback} from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
     Card,
     Text,
@@ -24,9 +24,9 @@ import {
     ReferenceLine,
     ReferenceArea,
 } from 'recharts';
-import {useGetTelemetryQuery} from '@/features/telemetry';
-import type {BucketInterval} from '@/features/telemetry';
-import {minutesAgo, hoursAgo, dayjs} from '@/shared/utils/date';
+import { useGetTelemetryQuery } from '@/features/telemetry';
+import type { BucketInterval } from '@/features/telemetry';
+import { minutesAgo, hoursAgo, dayjs } from '@/shared/utils/date';
 
 interface TrendsPanelProps {
     locomotiveId: string | null;
@@ -52,28 +52,28 @@ const sensorLabels: Record<string, string> = {
     recuperation_current: 'Ток рекуперации',
 };
 
-const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({value, label}));
+const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({ value, label }));
 
 const periodOptions = [
-    {label: '5м', value: '5m'},
-    {label: '15м', value: '15m'},
-    {label: '30м', value: '30m'},
-    {label: '1ч', value: '1h'},
-    {label: '3ч', value: '3h'},
-    {label: '6ч', value: '6h'},
-    {label: '12ч', value: '12h'},
-    {label: '24ч', value: '24h'},
+    { label: '5м', value: '5m' },
+    { label: '15м', value: '15m' },
+    { label: '30м', value: '30m' },
+    { label: '1ч', value: '1h' },
+    { label: '3ч', value: '3h' },
+    { label: '6ч', value: '6h' },
+    { label: '12ч', value: '12h' },
+    { label: '24ч', value: '24h' },
 ];
 
 const periodConfig: Record<string, { getStart: () => string; refreshMs: number }> = {
-    '5m': {getStart: () => minutesAgo(5), refreshMs: 15_000},
-    '15m': {getStart: () => minutesAgo(15), refreshMs: 15_000},
-    '30m': {getStart: () => minutesAgo(30), refreshMs: 30_000},
-    '1h': {getStart: () => hoursAgo(1), refreshMs: 30_000},
-    '3h': {getStart: () => hoursAgo(3), refreshMs: 60_000},
-    '6h': {getStart: () => hoursAgo(6), refreshMs: 60_000},
-    '12h': {getStart: () => hoursAgo(12), refreshMs: 120_000},
-    '24h': {getStart: () => hoursAgo(24), refreshMs: 120_000},
+    '5m': { getStart: () => minutesAgo(5), refreshMs: 15_000 },
+    '15m': { getStart: () => minutesAgo(15), refreshMs: 15_000 },
+    '30m': { getStart: () => minutesAgo(30), refreshMs: 30_000 },
+    '1h': { getStart: () => hoursAgo(1), refreshMs: 30_000 },
+    '3h': { getStart: () => hoursAgo(3), refreshMs: 60_000 },
+    '6h': { getStart: () => hoursAgo(6), refreshMs: 60_000 },
+    '12h': { getStart: () => hoursAgo(12), refreshMs: 120_000 },
+    '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
 
 /** Pick aggregation bucket size proportional to the visible time window */
@@ -103,11 +103,11 @@ function formatXTick(ts: number, index: number, allTicks: Array<{ value: number 
 }
 
 function CustomTooltipContent({
-                                  active,
-                                  payload,
-                                  unit,
-                                  sensorLabel,
-                              }: {
+    active,
+    payload,
+    unit,
+    sensorLabel,
+}: {
     active?: boolean;
     payload?: Array<{
         value: number | null;
@@ -120,7 +120,7 @@ function CustomTooltipContent({
     const d = payload[0];
     const avg = d.value;
     if (avg == null) return null;
-    const {ts, min_value: min, max_value: max} = d.payload;
+    const { ts, min_value: min, max_value: max } = d.payload;
     return (
         <div
             style={{
@@ -142,11 +142,11 @@ function CustomTooltipContent({
             >
                 {dayjs(ts).format('DD.MM.YYYY HH:mm:ss')}
             </div>
-            <div style={{color: 'var(--dashboard-text-primary)'}}>
+            <div style={{ color: 'var(--dashboard-text-primary)' }}>
                 {sensorLabel}: <strong>{avg.toFixed(2)}</strong> {unit}
             </div>
             {min != null && max != null && (
-                <div style={{color: 'var(--dashboard-text-secondary)', fontSize: 11}}>
+                <div style={{ color: 'var(--dashboard-text-secondary)', fontSize: 11 }}>
                     мин {min.toFixed(2)} / макс {max.toFixed(2)} {unit}
                 </div>
             )}
@@ -154,7 +154,7 @@ function CustomTooltipContent({
     );
 }
 
-export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: TrendsPanelProps) {
+export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: TrendsPanelProps) {
     const isReplay = !!(replayStart && replayEnd);
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
     const [selectedPeriod, setSelectedPeriod] = useState('15m');
@@ -170,12 +170,12 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
     const currentWindow = useMemo(() => {
         if (isZoomed) {
             const top = zoomStack[zoomStack.length - 1];
-            return {start: top.start, end: top.end};
+            return { start: top.start, end: top.end };
         }
         if (isReplay) {
-            return {start: replayStart!, end: replayEnd!};
+            return { start: replayStart!, end: replayEnd! };
         }
-        return {start: cfg.getStart(), end: new Date().toISOString()};
+        return { start: cfg.getStart(), end: new Date().toISOString() };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isReplay, replayStart, replayEnd, isZoomed, zoomStack, selectedPeriod]);
 
@@ -195,7 +195,7 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
         [locomotiveId, selectedSensor, currentWindow, bucket],
     );
 
-    const {data, isFetching} = useGetTelemetryQuery(queryParams, {
+    const { data, isFetching } = useGetTelemetryQuery(queryParams, {
         skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
         pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
@@ -220,11 +220,11 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
         const values = chartData.map((d) => d.avg_value).filter((v): v is number => v != null);
         if (!values.length) return null;
         const avg = values.reduce((a, b) => a + b, 0) / values.length;
-        return {avg, min: Math.min(...values), max: Math.max(...values)};
+        return { avg, min: Math.min(...values), max: Math.max(...values) };
     }, [chartData]);
 
     const tickFormatter = useMemo(() => {
-        const ticks = chartData.map((d) => ({value: d.ts}));
+        const ticks = chartData.map((d) => ({ value: d.ts }));
         return (ts: number, index: number) => formatXTick(ts, index, ticks);
     }, [chartData]);
 
@@ -246,7 +246,7 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
             if (right - left > 10_000) {
                 setZoomStack((prev) => [
                     ...prev,
-                    {start: new Date(left).toISOString(), end: new Date(right).toISOString()},
+                    { start: new Date(left).toISOString(), end: new Date(right).toISOString() },
                 ]);
             }
         }
@@ -276,8 +276,8 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
             dur >= 3600
                 ? `${(dur / 3600).toFixed(1)}ч`
                 : dur >= 60
-                    ? `${Math.round(dur / 60)}м`
-                    : `${dur}с`;
+                  ? `${Math.round(dur / 60)}м`
+                  : `${dur}с`;
         return `${s} — ${e} (${durLabel})`;
     }, [isZoomed, currentWindow, windowDurationMs]);
 
@@ -324,7 +324,7 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
                             )}
                         </>
                     )}
-                    {isFetching && <Loader size={12}/>}
+                    {isFetching && <Loader size={12} />}
                 </Group>
                 <Select
                     size="xs"
@@ -389,7 +389,7 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
                 </Center>
             ) : isFetching && chartData.length === 0 ? (
                 <Center h={280}>
-                    <Loader size="sm"/>
+                    <Loader size="sm" />
                 </Center>
             ) : chartData.length === 0 ? (
                 <Center h={280}>
@@ -399,11 +399,11 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
                 <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
                         data={chartData}
-                        margin={{top: 5, right: 10, bottom: 5, left: 0}}
+                        margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
-                        style={{cursor: 'crosshair'}}
+                        style={{ cursor: 'crosshair' }}
                     >
                         <defs>
                             <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
@@ -419,24 +419,24 @@ export default function TrendsPanel({locomotiveId, replayStart, replayEnd}: Tren
                                 />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--dashboard-border)"/>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--dashboard-border)" />
                         <XAxis
                             dataKey="ts"
                             type="number"
                             scale="time"
                             domain={['dataMin', 'dataMax']}
                             tickFormatter={tickFormatter}
-                            tick={{fontSize: 11}}
+                            tick={{ fontSize: 11 }}
                             tickCount={8}
                         />
                         <YAxis
-                            tick={{fontSize: 11}}
+                            tick={{ fontSize: 11 }}
                             width={65}
                             domain={['auto', 'auto']}
                             tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
                         />
                         <Tooltip
-                            content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel}/>}
+                            content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />}
                         />
                         {stats && (
                             <ReferenceLine

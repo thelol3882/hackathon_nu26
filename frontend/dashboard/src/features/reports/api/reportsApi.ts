@@ -1,5 +1,5 @@
-import {baseApi} from '@/shared/api/baseApi';
-import type {ReportRequest, ReportResponse, ReportsQuery} from '../types';
+import { baseApi } from '@/shared/api/baseApi';
+import type { ReportRequest, ReportResponse, ReportsQuery } from '../types';
 
 export const reportsApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
@@ -9,20 +9,20 @@ export const reportsApi = baseApi.injectEndpoints({
                 method: 'POST',
                 body,
             }),
-            invalidatesTags: [{type: 'Report', id: 'LIST'}],
+            invalidatesTags: [{ type: 'Report', id: 'LIST' }],
         }),
         getReports: builder.query<ReportResponse[], ReportsQuery>({
             query: (params) => ({
                 url: '/reports/',
                 params,
             }),
-            providesTags: [{type: 'Report', id: 'LIST'}],
+            providesTags: [{ type: 'Report', id: 'LIST' }],
         }),
         getReport: builder.query<ReportResponse, string>({
             query: (id) => `/reports/${id}`,
-            providesTags: (_result, _error, id) => [{type: 'Report', id}],
+            providesTags: (_result, _error, id) => [{ type: 'Report', id }],
         }),
     }),
 });
 
-export const {useGenerateReportMutation, useGetReportsQuery, useGetReportQuery} = reportsApi;
+export const { useGenerateReportMutation, useGetReportsQuery, useGetReportQuery } = reportsApi;

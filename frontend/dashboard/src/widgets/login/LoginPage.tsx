@@ -1,7 +1,7 @@
 'use client';
 
-import {useState} from 'react';
-import {useRouter} from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Card,
     TextInput,
@@ -16,16 +16,16 @@ import {
     ThemeIcon,
     Divider,
 } from '@mantine/core';
-import {IconAlertCircle, IconTrain, IconShieldCheck} from '@tabler/icons-react';
-import {useLoginMutation} from '@/features/auth';
-import {useAppDispatch} from '@/store/hooks';
-import {setCredentials} from '@/store/authSlice';
+import { IconAlertCircle, IconTrain, IconShieldCheck } from '@tabler/icons-react';
+import { useLoginMutation } from '@/features/auth';
+import { useAppDispatch } from '@/store/hooks';
+import { setCredentials } from '@/store/authSlice';
 
 export function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [login, {isLoading}] = useLoginMutation();
+    const [login, { isLoading }] = useLoginMutation();
     const dispatch = useAppDispatch();
     const router = useRouter();
 
@@ -33,7 +33,7 @@ export function LoginPage() {
         e.preventDefault();
         setError(null);
         try {
-            const result = await login({username, password}).unwrap();
+            const result = await login({ username, password }).unwrap();
             dispatch(
                 setCredentials({
                     access_token: result.access_token,
@@ -97,7 +97,7 @@ export function LoginPage() {
                     <Center>
                         <Stack align="center" gap={8}>
                             <ThemeIcon size={56} radius="xl" variant="light" color="ktzBlue">
-                                <IconTrain size={28} stroke={1.5}/>
+                                <IconTrain size={28} stroke={1.5} />
                             </ThemeIcon>
                             <Text
                                 size="xl"
@@ -122,7 +122,7 @@ export function LoginPage() {
                     <Divider
                         label={
                             <Group gap={4}>
-                                <IconShieldCheck size={14}/>
+                                <IconShieldCheck size={14} />
                                 <Text size="xs">Авторизация</Text>
                             </Group>
                         }
@@ -130,7 +130,7 @@ export function LoginPage() {
                     />
 
                     {error && (
-                        <Alert color="red" variant="light" icon={<IconAlertCircle size={16}/>}>
+                        <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />}>
                             {error}
                         </Alert>
                     )}

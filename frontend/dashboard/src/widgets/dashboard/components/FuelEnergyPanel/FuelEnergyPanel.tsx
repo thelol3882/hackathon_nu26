@@ -1,7 +1,7 @@
 'use client';
 
-import {Card, Stack, Text, Group} from '@mantine/core';
-import type {TelemetryReading} from '@/features/telemetry/types';
+import { Card, Stack, Text, Group } from '@mantine/core';
+import type { TelemetryReading } from '@/features/telemetry/types';
 import SensorRow from '@/widgets/dashboard/components/SensorRow';
 
 interface FuelEnergyPanelProps {
@@ -13,12 +13,12 @@ interface FuelEnergyPanelProps {
 }
 
 export default function FuelEnergyPanel({
-                                            locomotiveType,
-                                            fuelLevel,
-                                            fuelRate,
-                                            catenaryVoltage,
-                                            pantographCurrent,
-                                        }: FuelEnergyPanelProps) {
+    locomotiveType,
+    fuelLevel,
+    fuelRate,
+    catenaryVoltage,
+    pantographCurrent,
+}: FuelEnergyPanelProps) {
     const isDiesel = locomotiveType === 'TE33A';
     const panelLabel = isDiesel ? 'ТОПЛИВО' : 'ЭЛЕКТРОПИТАНИЕ';
 
@@ -36,14 +36,14 @@ export default function FuelEnergyPanel({
         <Card
             padding="md"
             radius="md"
-            style={{borderTop: '2px solid var(--mantine-color-ktzGold-5)'}}
+            style={{ borderTop: '2px solid var(--mantine-color-ktzGold-5)' }}
         >
             <Stack gap="sm">
                 <Text
                     size="xs"
                     fw={600}
                     c="var(--dashboard-text-secondary)"
-                    style={{letterSpacing: '0.05em', textTransform: 'uppercase'}}
+                    style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}
                 >
                     {panelLabel}
                 </Text>
@@ -51,7 +51,7 @@ export default function FuelEnergyPanel({
                 {isDiesel ? (
                     <>
                         <Group gap="md" align="flex-end">
-                            <Stack gap={4} align="center" style={{width: 48}}>
+                            <Stack gap={4} align="center" style={{ width: 48 }}>
                                 <Text size="xs" c="var(--dashboard-text-secondary)">
                                     Уровень
                                 </Text>
@@ -90,7 +90,7 @@ export default function FuelEnergyPanel({
                                         : '--%'}
                                 </span>
                             </Stack>
-                            <Stack gap="sm" style={{flex: 1}}>
+                            <Stack gap="sm" style={{ flex: 1 }}>
                                 <SensorRow
                                     label="Расход"
                                     value={fuelRate?.value ?? null}

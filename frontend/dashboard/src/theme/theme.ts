@@ -1,4 +1,4 @@
-import {createTheme, type CSSVariablesResolver, type MantineColorsTuple} from '@mantine/core';
+import { createTheme, type CSSVariablesResolver, type MantineColorsTuple } from '@mantine/core';
 
 const ktzBlue: MantineColorsTuple = [
     '#e5f4ff',
@@ -93,7 +93,7 @@ const critical: MantineColorsTuple = [
 
 export const theme = createTheme({
     primaryColor: 'ktzBlue',
-    primaryShade: {light: 6, dark: 4},
+    primaryShade: { light: 6, dark: 4 },
     defaultRadius: 'md',
 
     colors: {
@@ -147,25 +147,25 @@ export const theme = createTheme({
         Modal: {
             defaultProps: {
                 centered: true,
-                overlayProps: {blur: 4},
+                overlayProps: { blur: 4 },
             },
         },
         Select: {
-            defaultProps: {radius: 'md', size: 'sm'},
+            defaultProps: { radius: 'md', size: 'sm' },
         },
         TextInput: {
-            defaultProps: {radius: 'md', size: 'sm'},
+            defaultProps: { radius: 'md', size: 'sm' },
         },
         NumberInput: {
-            defaultProps: {radius: 'md', size: 'sm'},
+            defaultProps: { radius: 'md', size: 'sm' },
         },
         PasswordInput: {
-            defaultProps: {radius: 'md', size: 'sm'},
+            defaultProps: { radius: 'md', size: 'sm' },
         },
         Tooltip: {
             defaultProps: {
                 withArrow: true,
-                transitionProps: {transition: 'fade', duration: 200},
+                transitionProps: { transition: 'fade', duration: 200 },
             },
         },
     },

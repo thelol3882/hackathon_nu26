@@ -1,4 +1,4 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     formatDate,
     formatDateTime,
@@ -146,7 +146,7 @@ describe('isStale', () => {
 
 describe('getDayRange', () => {
     it('returns start and end of day as ISO strings', () => {
-        const {start, end} = getDayRange('2026-04-04T12:00:00Z');
+        const { start, end } = getDayRange('2026-04-04T12:00:00Z');
         expect(dayjs(start).hour()).toBe(0);
         expect(dayjs(start).minute()).toBe(0);
         expect(dayjs(end).hour()).toBe(23);

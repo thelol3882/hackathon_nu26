@@ -1,5 +1,5 @@
-import {UsersPage} from '@/widgets/users/UsersPage';
+import { UsersPage } from '@/widgets/users/UsersPage';
 
 export default function Page() {
-    return <UsersPage/>;
+    return <UsersPage />;
 }

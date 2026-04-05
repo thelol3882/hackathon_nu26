@@ -1,8 +1,8 @@
 'use client';
 
-import {type ReactNode} from 'react';
+import { type ReactNode } from 'react';
 import Link from 'next/link';
-import {usePathname} from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
     AppShell,
     Burger,
@@ -17,38 +17,38 @@ import {
     Divider,
     useMantineColorScheme,
 } from '@mantine/core';
-import {useDisclosure} from '@mantine/hooks';
-import {IconSun, IconMoon, IconLogout, IconTrain} from '@tabler/icons-react';
-import {useAppSelector, useAppDispatch} from '@/store/hooks';
-import {selectIsAdmin, selectUsername, selectRole, logout} from '@/store/authSlice';
-import {LocomotiveSelect} from '@/features/locomotives';
-import {navigationItems} from './navigation';
-import {LocomotiveProvider, useLocomotive} from './LocomotiveContext';
+import { useDisclosure } from '@mantine/hooks';
+import { IconSun, IconMoon, IconLogout, IconTrain } from '@tabler/icons-react';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { selectIsAdmin, selectUsername, selectRole, logout } from '@/store/authSlice';
+import { LocomotiveSelect } from '@/features/locomotives';
+import { navigationItems } from './navigation';
+import { LocomotiveProvider, useLocomotive } from './LocomotiveContext';
 
 function LocomotiveSelector() {
-    const {locomotiveId, setLocomotive} = useLocomotive();
-    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotive}/>;
+    const { locomotiveId, setLocomotive } = useLocomotive();
+    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotive} />;
 }
 
-export function DashboardLayout({children}: { children: ReactNode }) {
-    const [opened, {toggle}] = useDisclosure(true);
+export function DashboardLayout({ children }: { children: ReactNode }) {
+    const [opened, { toggle }] = useDisclosure(true);
     const pathname = usePathname();
     const isAdmin = useAppSelector(selectIsAdmin);
     const username = useAppSelector(selectUsername);
     const role = useAppSelector(selectRole);
     const dispatch = useAppDispatch();
-    const {colorScheme, toggleColorScheme} = useMantineColorScheme();
+    const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
     const visibleNavItems = navigationItems.filter((item) => !item.adminOnly || isAdmin);
 
     return (
         <LocomotiveProvider>
             <AppShell
-                header={{height: 56}}
+                header={{ height: 56 }}
                 navbar={{
                     width: 240,
                     breakpoint: 'sm',
-                    collapsed: {mobile: !opened, desktop: !opened},
+                    collapsed: { mobile: !opened, desktop: !opened },
                 }}
                 padding="md"
             >
@@ -60,11 +60,11 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                 >
                     <Group h="100%" px="md" justify="space-between">
                         <Group gap="sm">
-                            <Burger opened={opened} onClick={toggle} size="sm"/>
+                            <Burger opened={opened} onClick={toggle} size="sm" />
                             <Group gap={6} visibleFrom="sm">
                                 <IconTrain
                                     size={20}
-                                    style={{color: 'var(--mantine-color-ktzBlue-5)'}}
+                                    style={{ color: 'var(--mantine-color-ktzBlue-5)' }}
                                 />
                                 <Text
                                     fw={700}
@@ -78,7 +78,7 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                         </Group>
 
                         <Group gap="md">
-                            <LocomotiveSelector/>
+                            <LocomotiveSelector />
                             <ActionIcon
                                 variant="subtle"
                                 size="md"
@@ -86,9 +86,9 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                                 aria-label="Переключить тему"
                             >
                                 {colorScheme === 'dark' ? (
-                                    <IconSun size={16} stroke={1.5}/>
+                                    <IconSun size={16} stroke={1.5} />
                                 ) : (
-                                    <IconMoon size={16} stroke={1.5}/>
+                                    <IconMoon size={16} stroke={1.5} />
                                 )}
                             </ActionIcon>
                         </Group>
@@ -110,17 +110,17 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                                     component={Link}
                                     href={item.href}
                                     label={item.label}
-                                    leftSection={<item.icon size={18} stroke={1.5}/>}
+                                    leftSection={<item.icon size={18} stroke={1.5} />}
                                     active={pathname === item.href}
                                     variant="light"
-                                    style={{borderRadius: 'var(--mantine-radius-md)'}}
+                                    style={{ borderRadius: 'var(--mantine-radius-md)' }}
                                 />
                             ))}
                         </Stack>
                     </AppShell.Section>
 
                     <AppShell.Section>
-                        <Divider mb="sm"/>
+                        <Divider mb="sm" />
                         <Box
                             p="xs"
                             style={{
@@ -149,7 +149,7 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                                         onClick={() => dispatch(logout())}
                                         aria-label="Выйти"
                                     >
-                                        <IconLogout size={16} stroke={1.5}/>
+                                        <IconLogout size={16} stroke={1.5} />
                                     </ActionIcon>
                                 </Tooltip>
                             </Group>
@@ -157,7 +157,7 @@ export function DashboardLayout({children}: { children: ReactNode }) {
                     </AppShell.Section>
                 </AppShell.Navbar>
 
-                <AppShell.Main style={{backgroundColor: 'var(--dashboard-bg)'}}>
+                <AppShell.Main style={{ backgroundColor: 'var(--dashboard-bg)' }}>
                     {children}
                 </AppShell.Main>
             </AppShell>

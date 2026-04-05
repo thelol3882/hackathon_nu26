@@ -1,5 +1,5 @@
-import {ConfigPage} from '@/widgets/config';
+import { ConfigPage } from '@/widgets/config';
 
 export default function Page() {
-    return <ConfigPage/>;
+    return <ConfigPage />;
 }

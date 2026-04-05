@@ -1,10 +1,10 @@
-import {createApi, fetchBaseQuery, type BaseQueryFn} from '@reduxjs/toolkit/query/react';
-import type {RootState} from '@/store/store';
-import {logout} from '@/store/authSlice';
+import { createApi, fetchBaseQuery, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
+import type { RootState } from '@/store/store';
+import { logout } from '@/store/authSlice';
 
 const rawBaseQuery = fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
-    prepareHeaders: (headers, {getState}) => {
+    prepareHeaders: (headers, { getState }) => {
         const token = (getState() as RootState).auth.accessToken;
         if (token) {
             headers.set('Authorization', `Bearer ${token}`);

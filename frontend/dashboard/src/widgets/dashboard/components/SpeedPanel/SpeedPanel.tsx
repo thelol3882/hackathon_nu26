@@ -1,7 +1,7 @@
 'use client';
 
-import {Card, Stack, Text, Group} from '@mantine/core';
-import type {TelemetryReading} from '@/features/telemetry/types';
+import { Card, Stack, Text, Group } from '@mantine/core';
+import type { TelemetryReading } from '@/features/telemetry/types';
 
 interface SpeedPanelProps {
     speedActual: TelemetryReading | undefined;
@@ -10,7 +10,7 @@ interface SpeedPanelProps {
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
     const rad = (angleDeg * Math.PI) / 180;
-    return {x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad)};
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
 }
 
 function describeArc(
@@ -32,7 +32,7 @@ function clamp(val: number, lo: number, hi: number) {
 
 const MAX_SPEED = 160;
 
-export default function SpeedPanel({speedActual, speedTarget}: SpeedPanelProps) {
+export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps) {
     const actualValue = speedActual?.value ?? null;
     const targetValue = speedTarget?.value ?? null;
 
@@ -55,21 +55,21 @@ export default function SpeedPanel({speedActual, speedTarget}: SpeedPanelProps) 
         const tickAngle = 180 - targetRatio * 180;
         const inner = polarToCartesian(100, 100, 70, tickAngle);
         const outer = polarToCartesian(100, 100, 90, tickAngle);
-        tickMark = {x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y};
+        tickMark = { x1: inner.x, y1: inner.y, x2: outer.x, y2: outer.y };
     }
 
     return (
         <Card
             padding="md"
             radius="md"
-            style={{borderTop: '2px solid var(--mantine-color-ktzBlue-5)'}}
+            style={{ borderTop: '2px solid var(--mantine-color-ktzBlue-5)' }}
         >
             <Stack gap="sm">
                 <Text
                     size="xs"
                     fw={600}
                     c="var(--dashboard-text-secondary)"
-                    style={{letterSpacing: '0.05em', textTransform: 'uppercase'}}
+                    style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}
                 >
                     СКОРОСТЬ
                 </Text>
@@ -77,7 +77,7 @@ export default function SpeedPanel({speedActual, speedTarget}: SpeedPanelProps) 
                 <svg
                     viewBox="0 0 200 120"
                     width="100%"
-                    style={{maxWidth: 240, alignSelf: 'center'}}
+                    style={{ maxWidth: 240, alignSelf: 'center' }}
                 >
                     <path
                         d={bgPath}

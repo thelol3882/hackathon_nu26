@@ -1,4 +1,4 @@
-import {createSlice, type PayloadAction} from '@reduxjs/toolkit';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 const STORAGE_KEY = 'ktz_auth';
 
@@ -28,13 +28,11 @@ function loadFromStorage(): AuthState {
                         localStorage.removeItem(STORAGE_KEY);
                         return emptyState;
                     }
-                } catch {
-                }
+                } catch {}
                 return saved;
             }
         }
-    } catch {
-    }
+    } catch {}
     return emptyState;
 }
 
@@ -92,7 +90,7 @@ const authSlice = createSlice({
     },
 });
 
-export const {hydrateAuth, setCredentials, logout} = authSlice.actions;
+export const { hydrateAuth, setCredentials, logout } = authSlice.actions;
 export const {
     selectAccessToken,
     selectUsername,

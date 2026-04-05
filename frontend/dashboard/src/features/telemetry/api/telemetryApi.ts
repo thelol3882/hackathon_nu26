@@ -1,4 +1,4 @@
-import {baseApi} from '@/shared/api/baseApi';
+import { baseApi } from '@/shared/api/baseApi';
 import type {
     TelemetryBucket,
     TelemetryQuery,
@@ -14,7 +14,7 @@ export const telemetryApi = baseApi.injectEndpoints({
                 url: '/telemetry/',
                 params,
             }),
-            providesTags: [{type: 'Telemetry', id: 'LIST'}],
+            providesTags: [{ type: 'Telemetry', id: 'LIST' }],
         }),
         getRawTelemetry: builder.query<TelemetryReading[], TelemetryRawQuery>({
             query: (params) => ({
@@ -34,5 +34,5 @@ export const telemetryApi = baseApi.injectEndpoints({
     }),
 });
 
-export const {useGetTelemetryQuery, useGetRawTelemetryQuery, useGetTelemetrySnapshotQuery} =
+export const { useGetTelemetryQuery, useGetRawTelemetryQuery, useGetTelemetrySnapshotQuery } =
     telemetryApi;

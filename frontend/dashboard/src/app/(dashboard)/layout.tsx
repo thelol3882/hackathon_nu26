@@ -1,12 +1,12 @@
 'use client';
 
-import {useAppSelector} from '@/store/hooks';
-import {selectIsAuthenticated} from '@/store/authSlice';
-import {useRouter} from 'next/navigation';
-import {useEffect} from 'react';
-import {DashboardLayout} from '@/widgets/layout';
+import { useAppSelector } from '@/store/hooks';
+import { selectIsAuthenticated } from '@/store/authSlice';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { DashboardLayout } from '@/widgets/layout';
 
-export default function DashboardGroupLayout({children}: { children: React.ReactNode }) {
+export default function DashboardGroupLayout({ children }: { children: React.ReactNode }) {
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const router = useRouter();
 

@@ -4,7 +4,7 @@ export {
     useGetReportsQuery,
     useGetReportQuery,
 } from './api/reportsApi';
-export {useReportGeneration} from './hooks/useReportGeneration';
+export { useReportGeneration } from './hooks/useReportGeneration';
 export type {
     ReportFormat,
     ReportStatus,

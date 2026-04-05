@@ -1,7 +1,7 @@
 'use client';
 
-import {Card, Stack, Text} from '@mantine/core';
-import type {TelemetryReading} from '@/features/telemetry/types';
+import { Card, Stack, Text } from '@mantine/core';
+import type { TelemetryReading } from '@/features/telemetry/types';
 import SensorRow from '@/widgets/dashboard/components/SensorRow';
 
 interface PressureTemperaturePanelProps {
@@ -11,22 +11,22 @@ interface PressureTemperaturePanelProps {
 }
 
 export default function PressureTemperaturePanel({
-                                                     coolantTemp,
-                                                     oilPressure,
-                                                     brakePipePressure,
-                                                 }: PressureTemperaturePanelProps) {
+    coolantTemp,
+    oilPressure,
+    brakePipePressure,
+}: PressureTemperaturePanelProps) {
     return (
         <Card
             padding="md"
             radius="md"
-            style={{borderTop: '2px solid var(--mantine-color-ktzCyan-5)'}}
+            style={{ borderTop: '2px solid var(--mantine-color-ktzCyan-5)' }}
         >
             <Stack gap="sm">
                 <Text
                     size="xs"
                     fw={600}
                     c="var(--dashboard-text-secondary)"
-                    style={{letterSpacing: '0.05em', textTransform: 'uppercase'}}
+                    style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}
                 >
                     ДАВЛЕНИЕ / ТЕМПЕРАТУРА
                 </Text>
