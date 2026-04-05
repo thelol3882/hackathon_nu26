@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
     Card,
     Text,
@@ -11,19 +11,10 @@ import {
     Stack,
     ActionIcon,
     SegmentedControl,
-    Transition,
     Tooltip,
     ThemeIcon,
 } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
-import {
-    IconCheck,
-    IconAlertTriangle,
-    IconAlertCircle,
-    IconInfoCircle,
-    IconBell,
-    IconBellOff,
-} from '@tabler/icons-react';
+import { IconCheck, IconAlertTriangle, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
 import type { AlertEvent } from '@/features/alerts/types';
 import { useAcknowledgeAlertMutation } from '@/features/alerts';
 import { getRelativeTime } from '@/shared/utils/date';
@@ -65,139 +56,119 @@ const severityLabels: Record<string, string> = {
     emergency: 'Авария',
 };
 
-function AlertItem({ alert, isNew }: { alert: AlertEvent; isNew: boolean }) {
+function AlertItem({
+    alert,
+    onAcknowledged,
+}: {
+    alert: AlertEvent;
+    onAcknowledged?: (id: string) => void;
+}) {
     const [acknowledge, { isLoading }] = useAcknowledgeAlertMutation();
+    const [acked, setAcked] = useState(alert.acknowledged);
     const isEmergency = alert.severity === 'emergency';
     const isCritical = alert.severity === 'critical';
     const SeverityIcon = severityIcons[alert.severity] ?? IconInfoCircle;
 
+    const handleAck = async () => {
+        try {
+            await acknowledge(alert.id).unwrap();
+            setAcked(true);
+            onAcknowledged?.(alert.id);
+        } catch {
+            // ignore
+        }
+    };
+
     return (
-        <Transition mounted={true} transition="slide-right" duration={300}>
-            {(style) => (
-                <div
-                    className={`${classes.alertItem} ${isEmergency ? classes.alertEmergency : ''} ${isNew ? classes.alertNew : ''}`}
-                    style={style}
-                >
-                    <div
-                        className={`${classes.severityStripe} ${severityClassMap[alert.severity] ?? ''}`}
-                    />
-                    <ThemeIcon
-                        variant="light"
-                        color={severityColors[alert.severity]}
+        <div
+            className={`${classes.alertItem} ${isEmergency && !acked ? classes.alertEmergency : ''} ${acked ? classes.alertAcknowledged : ''}`}
+        >
+            <div
+                className={`${classes.severityStripe} ${severityClassMap[alert.severity] ?? ''}`}
+            />
+            <ThemeIcon
+                variant="light"
+                color={acked ? 'gray' : severityColors[alert.severity]}
+                size="sm"
+                className={!acked && (isEmergency || isCritical) ? classes.iconPulse : ''}
+            >
+                <SeverityIcon size={14} />
+            </ThemeIcon>
+            <div className={classes.alertContent}>
+                <Stack gap={2}>
+                    <Text
                         size="sm"
-                        className={isEmergency || isCritical ? classes.iconPulse : ''}
+                        lineClamp={2}
+                        fw={!acked && (isCritical || isEmergency) ? 600 : 400}
+                        c={acked ? 'dimmed' : undefined}
                     >
-                        <SeverityIcon size={14} />
-                    </ThemeIcon>
-                    <div className={classes.alertContent}>
-                        <Stack gap={2}>
-                            <Text
-                                size="sm"
-                                lineClamp={2}
-                                fw={isCritical || isEmergency ? 600 : 400}
-                            >
-                                {alert.message}
-                            </Text>
-                            <Group gap="xs">
-                                <Badge
-                                    size="xs"
-                                    variant="light"
-                                    color={severityColors[alert.severity]}
-                                >
-                                    {severityLabels[alert.severity] ?? alert.severity}
-                                </Badge>
-                                <Badge size="xs" variant="outline" color="gray">
-                                    {alert.sensor_type}
-                                </Badge>
-                                <Text size="xs" c="dimmed">
-                                    {getRelativeTime(alert.timestamp)}
-                                </Text>
-                            </Group>
-                        </Stack>
-                    </div>
-                    <div className={classes.alertAction}>
-                        {!alert.acknowledged ? (
-                            <Tooltip label="Подтвердить">
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    color="green"
-                                    loading={isLoading}
-                                    onClick={() => acknowledge(alert.id)}
-                                    aria-label="Подтвердить"
-                                >
-                                    <IconCheck size={16} />
-                                </ActionIcon>
-                            </Tooltip>
-                        ) : (
-                            <Tooltip label="Подтверждено">
-                                <IconCheck
-                                    size={16}
-                                    style={{ opacity: 0.35, color: 'var(--mantine-color-green-5)' }}
-                                />
-                            </Tooltip>
-                        )}
-                    </div>
-                </div>
-            )}
-        </Transition>
+                        {alert.message}
+                    </Text>
+                    <Group gap="xs">
+                        <Badge
+                            size="xs"
+                            variant="light"
+                            color={acked ? 'gray' : severityColors[alert.severity]}
+                        >
+                            {severityLabels[alert.severity] ?? alert.severity}
+                        </Badge>
+                        <Badge size="xs" variant="outline" color="gray">
+                            {alert.sensor_type}
+                        </Badge>
+                        <Text size="xs" c="dimmed">
+                            {getRelativeTime(alert.timestamp)}
+                        </Text>
+                    </Group>
+                </Stack>
+            </div>
+            <div className={classes.alertAction}>
+                {!acked ? (
+                    <Tooltip label="Подтвердить">
+                        <ActionIcon
+                            variant="light"
+                            size="sm"
+                            color="green"
+                            loading={isLoading}
+                            onClick={handleAck}
+                            aria-label="Подтвердить"
+                        >
+                            <IconCheck size={14} />
+                        </ActionIcon>
+                    </Tooltip>
+                ) : (
+                    <Badge size="xs" variant="filled" color="green" radius="xl">
+                        <IconCheck size={10} />
+                    </Badge>
+                )}
+            </div>
+        </div>
     );
 }
 
 export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelProps) {
     const [filter, setFilter] = useState<SeverityFilter>('all');
-    const [soundEnabled, setSoundEnabled] = useState(true);
-    const prevCountRef = useRef(alerts.length);
+    const [localAcked, setLocalAcked] = useState<Set<string>>(new Set());
 
-    // Show notification for new critical/emergency alerts (only in live mode)
-    useEffect(() => {
-        if (isReplay) return;
-        if (alerts.length > prevCountRef.current) {
-            const newAlerts = alerts.slice(0, alerts.length - prevCountRef.current);
-            for (const alert of newAlerts) {
-                if (alert.severity === 'critical' || alert.severity === 'emergency') {
-                    showNotification({
-                        title: alert.severity === 'emergency' ? 'АВАРИЯ' : 'Критическое оповещение',
-                        message: alert.message,
-                        color: 'red',
-                        autoClose: alert.severity === 'emergency' ? false : 8000,
-                        icon: <IconAlertCircle size={18} />,
-                    });
+    const handleAcknowledged = (id: string) => {
+        setLocalAcked((prev) => new Set(prev).add(id));
+    };
 
-                    if (soundEnabled) {
-                        try {
-                            const ctx = new AudioContext();
-                            const osc = ctx.createOscillator();
-                            const gain = ctx.createGain();
-                            osc.connect(gain);
-                            gain.connect(ctx.destination);
-                            osc.frequency.value = alert.severity === 'emergency' ? 880 : 660;
-                            gain.gain.value = 0.15;
-                            osc.start();
-                            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-                            osc.stop(ctx.currentTime + 0.5);
-                        } catch {
-                            // audio not available
-                        }
-                    }
-                }
-            }
-        }
-        prevCountRef.current = alerts.length;
-    }, [alerts, soundEnabled, isReplay]);
+    // Merge local ack state with alert data
+    const mergedAlerts = alerts.map((a) =>
+        localAcked.has(a.id) ? { ...a, acknowledged: true } : a,
+    );
 
-    const filteredAlerts = filter === 'all' ? alerts : alerts.filter((a) => a.severity === filter);
+    const filteredAlerts =
+        filter === 'all' ? mergedAlerts : mergedAlerts.filter((a) => a.severity === filter);
 
     const counts = {
-        emergency: alerts.filter((a) => a.severity === 'emergency').length,
-        critical: alerts.filter((a) => a.severity === 'critical').length,
-        warning: alerts.filter((a) => a.severity === 'warning').length,
-        info: alerts.filter((a) => a.severity === 'info').length,
+        emergency: mergedAlerts.filter((a) => a.severity === 'emergency').length,
+        critical: mergedAlerts.filter((a) => a.severity === 'critical').length,
+        warning: mergedAlerts.filter((a) => a.severity === 'warning').length,
+        info: mergedAlerts.filter((a) => a.severity === 'info').length,
     };
-    const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
-    const newAlertIds = new Set(alerts.slice(0, 3).map((a) => a.id));
-
-    const acknowledgedCount = alerts.filter((a) => a.acknowledged).length;
+    const unacknowledgedCount = mergedAlerts.filter((a) => !a.acknowledged).length;
+    const acknowledgedCount = mergedAlerts.filter((a) => a.acknowledged).length;
 
     return (
         <Card
@@ -218,111 +189,81 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
                             size="sm"
                             color="red"
                             variant="filled"
-                            className={!isReplay && unacknowledgedCount > 0 ? 'led-pulse' : ''}
+                            className={!isReplay ? 'led-pulse' : ''}
                         >
                             {unacknowledgedCount}
                         </Badge>
                     )}
-                    {isReplay && acknowledgedCount > 0 && (
+                    {acknowledgedCount > 0 && (
                         <Badge size="xs" variant="light" color="green">
                             {acknowledgedCount} подтв.
                         </Badge>
                     )}
                 </Group>
-                <Group gap={4}>
-                    {!isReplay && (
-                        <>
-                            <Tooltip label={soundEnabled ? 'Выкл. звук' : 'Вкл. звук'}>
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="sm"
-                                    color={soundEnabled ? 'ktzBlue' : 'gray'}
-                                    onClick={() => setSoundEnabled(!soundEnabled)}
-                                >
-                                    {soundEnabled ? (
-                                        <IconBell size={14} />
-                                    ) : (
-                                        <IconBellOff size={14} />
-                                    )}
-                                </ActionIcon>
-                            </Tooltip>
-                            <Button variant="subtle" size="xs" onClick={onClear}>
-                                Очистить
-                            </Button>
-                        </>
+                {!isReplay && (
+                    <Button variant="subtle" size="xs" onClick={onClear}>
+                        Очистить
+                    </Button>
+                )}
+            </Group>
+
+            {/* Severity counters */}
+            {mergedAlerts.length > 0 && (
+                <Group gap="xs" mb="xs">
+                    {counts.emergency > 0 && (
+                        <Badge color="red" variant="filled" size="xs">
+                            {counts.emergency} авар.
+                        </Badge>
+                    )}
+                    {counts.critical > 0 && (
+                        <Badge color="critical" variant="light" size="xs">
+                            {counts.critical} крит.
+                        </Badge>
+                    )}
+                    {counts.warning > 0 && (
+                        <Badge color="ktzGold" variant="light" size="xs">
+                            {counts.warning} вним.
+                        </Badge>
+                    )}
+                    {counts.info > 0 && (
+                        <Badge color="ktzBlue" variant="light" size="xs">
+                            {counts.info} инфо
+                        </Badge>
                     )}
                 </Group>
-            </Group>
+            )}
 
-            {/* Severity summary counters */}
-            <Group gap="xs" mb="xs">
-                {counts.emergency > 0 && (
-                    <Badge
-                        color="red"
-                        variant="filled"
-                        size="xs"
-                        leftSection={<IconAlertCircle size={10} />}
-                    >
-                        {counts.emergency}
-                    </Badge>
-                )}
-                {counts.critical > 0 && (
-                    <Badge
-                        color="critical"
-                        variant="light"
-                        size="xs"
-                        leftSection={<IconAlertCircle size={10} />}
-                    >
-                        {counts.critical}
-                    </Badge>
-                )}
-                {counts.warning > 0 && (
-                    <Badge
-                        color="ktzGold"
-                        variant="light"
-                        size="xs"
-                        leftSection={<IconAlertTriangle size={10} />}
-                    >
-                        {counts.warning}
-                    </Badge>
-                )}
-                {counts.info > 0 && (
-                    <Badge
-                        color="ktzBlue"
-                        variant="light"
-                        size="xs"
-                        leftSection={<IconInfoCircle size={10} />}
-                    >
-                        {counts.info}
-                    </Badge>
-                )}
-            </Group>
-
-            {/* Severity filter */}
-            <SegmentedControl
-                size="xs"
-                value={filter}
-                onChange={(v) => setFilter(v as SeverityFilter)}
-                data={[
-                    { label: `Все (${alerts.length})`, value: 'all' },
-                    { label: `Авария (${counts.emergency})`, value: 'emergency' },
-                    { label: `Крит. (${counts.critical})`, value: 'critical' },
-                    { label: `Вним. (${counts.warning})`, value: 'warning' },
-                ]}
-                mb="sm"
-                fullWidth
-            />
+            {/* Filter */}
+            {mergedAlerts.length > 3 && (
+                <SegmentedControl
+                    size="xs"
+                    value={filter}
+                    onChange={(v) => setFilter(v as SeverityFilter)}
+                    data={[
+                        { label: `Все (${mergedAlerts.length})`, value: 'all' },
+                        { label: `Авария (${counts.emergency})`, value: 'emergency' },
+                        { label: `Крит. (${counts.critical})`, value: 'critical' },
+                        { label: `Вним. (${counts.warning})`, value: 'warning' },
+                    ]}
+                    mb="sm"
+                    fullWidth
+                />
+            )}
 
             {filteredAlerts.length === 0 ? (
                 <Text c="dimmed" ta="center" py="xl">
-                    {filter === 'all'
+                    {mergedAlerts.length === 0
                         ? 'Нет оповещений'
                         : `Нет оповещений уровня "${severityLabels[filter]}"`}
                 </Text>
             ) : (
                 <ScrollArea.Autosize mah={350}>
                     {filteredAlerts.map((alert) => (
-                        <AlertItem key={alert.id} alert={alert} isNew={newAlertIds.has(alert.id)} />
+                        <AlertItem
+                            key={alert.id}
+                            alert={alert}
+                            onAcknowledged={handleAcknowledged}
+                        />
                     ))}
                 </ScrollArea.Autosize>
             )}

@@ -83,3 +83,13 @@
     align-items: center;
     flex-shrink: 0;
 }
+
+/* Acknowledged alert — dimmed with green left border */
+.alertAcknowledged {
+    opacity: 0.55;
+    border-left: 2px solid var(--mantine-color-green-5);
+}
+
+.alertAcknowledged:hover {
+    opacity: 0.75;
+}
