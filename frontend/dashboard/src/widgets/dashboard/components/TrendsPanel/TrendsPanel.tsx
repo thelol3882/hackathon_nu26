@@ -1,17 +1,7 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import {
-    Card,
-    Text,
-    Group,
-    Select,
-    SegmentedControl,
-    Loader,
-    Center,
-    Badge,
-    Box,
-} from '@mantine/core';
+import { useState, useMemo } from 'react';
+import { Card, Text, Group, Select, SegmentedControl, Loader, Center, Badge } from '@mantine/core';
 import {
     AreaChart,
     Area,
@@ -24,7 +14,7 @@ import {
 } from 'recharts';
 import { useGetTelemetryQuery } from '@/features/telemetry';
 import type { BucketInterval } from '@/features/telemetry';
-import { dayjs } from '@/shared/utils/date';
+import { minutesAgo, hoursAgo, dayjs } from '@/shared/utils/date';
 
 interface TrendsPanelProps {
     locomotiveId: string | null;
@@ -52,37 +42,63 @@ const sensorLabels: Record<string, string> = {
 
 const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({ value, label }));
 
-// Step = bucket_interval on X axis. Each point = one aggregated bucket.
-const stepOptions = [
-    { label: '1м', value: '1m' },
+// Period = window size. Right edge = now, left edge = now - period.
+const periodOptions = [
     { label: '5м', value: '5m' },
     { label: '15м', value: '15m' },
     { label: '30м', value: '30m' },
     { label: '1ч', value: '1h' },
+    { label: '3ч', value: '3h' },
     { label: '6ч', value: '6h' },
+    { label: '12ч', value: '12h' },
+    { label: '24ч', value: '24h' },
 ];
 
-const stepConfig: Record<
+const periodConfig: Record<
     string,
-    { bucket_interval: BucketInterval; initialPoints: number; stepMs: number; refreshMs: number }
+    { getStart: () => string; bucket_interval: BucketInterval; refreshMs: number }
 > = {
-    '1m': { bucket_interval: '1 minute', initialPoints: 40, stepMs: 60_000, refreshMs: 15_000 },
-    '5m': { bucket_interval: '5 minutes', initialPoints: 40, stepMs: 300_000, refreshMs: 30_000 },
-    '15m': { bucket_interval: '15 minutes', initialPoints: 40, stepMs: 900_000, refreshMs: 60_000 },
-    '30m': {
-        bucket_interval: '30 minutes',
-        initialPoints: 36,
-        stepMs: 1_800_000,
-        refreshMs: 60_000,
-    },
-    '1h': { bucket_interval: '1 hour', initialPoints: 30, stepMs: 3_600_000, refreshMs: 120_000 },
-    '6h': { bucket_interval: '1 hour', initialPoints: 36, stepMs: 21_600_000, refreshMs: 300_000 },
+    '5m': { getStart: () => minutesAgo(5), bucket_interval: '1 minute', refreshMs: 15_000 },
+    '15m': { getStart: () => minutesAgo(15), bucket_interval: '1 minute', refreshMs: 15_000 },
+    '30m': { getStart: () => minutesAgo(30), bucket_interval: '1 minute', refreshMs: 30_000 },
+    '1h': { getStart: () => hoursAgo(1), bucket_interval: '5 minutes', refreshMs: 30_000 },
+    '3h': { getStart: () => hoursAgo(3), bucket_interval: '10 minutes', refreshMs: 60_000 },
+    '6h': { getStart: () => hoursAgo(6), bucket_interval: '15 minutes', refreshMs: 60_000 },
+    '12h': { getStart: () => hoursAgo(12), bucket_interval: '30 minutes', refreshMs: 120_000 },
+    '24h': { getStart: () => hoursAgo(24), bucket_interval: '1 hour', refreshMs: 120_000 },
 };
 
-const LOAD_MORE_POINTS = 30;
+function toEpoch(bucket: string | Date): number {
+    return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
+}
 
-function toEpoch(bucket: string): number {
-    return new Date(bucket).getTime();
+function pickReplayBucket(startIso: string, endIso: string): BucketInterval {
+    const diffMin = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000;
+    if (diffMin <= 15) return '1 minute';
+    if (diffMin <= 60) return '1 minute';
+    if (diffMin <= 180) return '5 minutes';
+    if (diffMin <= 720) return '15 minutes';
+    return '1 hour';
+}
+
+/** X axis tick formatter — show date (05 апр) when day changes, else HH:mm */
+function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
+    const d = dayjs(ts);
+
+    // Check if this is the first tick or the day changed
+    if (index === 0) {
+        return d.format('DD MMM');
+    }
+
+    // Find previous tick to check day boundary
+    if (index > 0 && allTicks[index - 1]) {
+        const prevDay = dayjs(allTicks[index - 1].value).format('DD');
+        if (prevDay !== d.format('DD')) {
+            return d.format('DD MMM');
+        }
+    }
+
+    return d.format('HH:mm');
 }
 
 function CustomTooltipContent({
@@ -139,232 +155,70 @@ function CustomTooltipContent({
     );
 }
 
-/** Custom X axis tick that shows date label when day changes */
-function DateAwareXTick({
-    x,
-    y,
-    payload,
-    data,
-}: {
-    x: number;
-    y: number;
-    payload: { value: number; index: number };
-    data: Array<{ ts: number }>;
-}) {
-    const val = payload.value;
-    const d = dayjs(val);
-    const timeStr = d.format('HH:mm');
-
-    // Show date label if this is the first point or the day changed from previous
-    let showDate = false;
-    if (payload.index === 0) {
-        showDate = true;
-    } else if (data.length > 0 && payload.index < data.length) {
-        const prevTs = data[payload.index - 1]?.ts;
-        if (prevTs) {
-            const prevDay = dayjs(prevTs).format('DD.MM');
-            const curDay = d.format('DD.MM');
-            if (prevDay !== curDay) showDate = true;
-        }
-    }
-
-    return (
-        <g transform={`translate(${x},${y})`}>
-            {showDate && (
-                <text
-                    x={0}
-                    y={-4}
-                    textAnchor="middle"
-                    fill="var(--mantine-color-ktzGold-5)"
-                    fontSize={9}
-                    fontWeight={600}
-                >
-                    {d.format('DD.MM')}
-                </text>
-            )}
-            <text
-                x={0}
-                y={12}
-                textAnchor="middle"
-                fill="var(--dashboard-text-secondary)"
-                fontSize={10}
-            >
-                {timeStr}
-            </text>
-        </g>
-    );
-}
-
 export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: TrendsPanelProps) {
     const isReplay = !!(replayStart && replayEnd);
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
-    const [selectedStep, setSelectedStep] = useState('5m');
+    const [selectedPeriod, setSelectedPeriod] = useState('15m');
 
-    // Accumulated data points (sorted by ts ASC)
-    const [allData, setAllData] = useState<
-        Array<{
-            ts: number;
-            bucket: string;
-            avg_value: number | null;
-            min_value: number | null;
-            max_value: number | null;
-            unit: string;
-        }>
-    >([]);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const didInitialScroll = useRef(false);
+    const cfg = periodConfig[selectedPeriod];
 
-    const cfg = stepConfig[selectedStep];
-
-    // Calculate start time for initial load
-    const startIso = useMemo(() => {
-        if (isReplay && replayStart) return replayStart;
-        return dayjs()
-            .subtract(cfg.initialPoints * cfg.stepMs, 'millisecond')
-            .toISOString();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedStep, selectedSensor, locomotiveId, isReplay, replayStart]);
-
-    // Pick bucket interval for replay based on window size
-    const effectiveBucket = useMemo(() => {
-        if (!isReplay || !replayStart || !replayEnd) return cfg.bucket_interval;
-        const diffMin = (new Date(replayEnd).getTime() - new Date(replayStart).getTime()) / 60_000;
-        if (diffMin <= 10) return '1 minute' as BucketInterval;
-        if (diffMin <= 60) return '1 minute' as BucketInterval;
-        if (diffMin <= 180) return '5 minutes' as BucketInterval;
-        if (diffMin <= 720) return '15 minutes' as BucketInterval;
-        return '1 hour' as BucketInterval;
-    }, [isReplay, replayStart, replayEnd, cfg.bucket_interval]);
-
-    // Initial data fetch
-    const { data: freshData, isFetching } = useGetTelemetryQuery(
-        {
+    // Query params
+    const queryParams = useMemo(() => {
+        if (isReplay) {
+            return {
+                locomotive_id: locomotiveId ?? undefined,
+                sensor_type: selectedSensor,
+                start: replayStart,
+                end: replayEnd,
+                bucket_interval: pickReplayBucket(replayStart!, replayEnd!),
+                limit: 500,
+            };
+        }
+        return {
             locomotive_id: locomotiveId ?? undefined,
             sensor_type: selectedSensor,
-            start: startIso,
-            end: isReplay ? replayEnd : undefined,
-            bucket_interval: isReplay ? effectiveBucket : cfg.bucket_interval,
-            limit: isReplay ? 500 : cfg.initialPoints + 5,
-        },
-        {
-            skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
-            pollingInterval: isReplay ? 0 : cfg.refreshMs,
-        },
-    );
-
-    // Oldest loaded timestamp for "load more"
-    const oldestTs = allData.length > 0 ? allData[0].ts : null;
-
-    // Load more (older) data
-    const olderStartIso = useMemo(() => {
-        if (!oldestTs) return null;
-        return dayjs(oldestTs)
-            .subtract(LOAD_MORE_POINTS * cfg.stepMs, 'millisecond')
-            .toISOString();
-    }, [oldestTs, cfg.stepMs]);
-
-    const olderEndIso = useMemo(() => {
-        if (!oldestTs) return null;
-        return dayjs(oldestTs).toISOString();
-    }, [oldestTs]);
-
-    const { data: olderData, isFetching: olderFetching } = useGetTelemetryQuery(
-        {
-            locomotive_id: locomotiveId ?? undefined,
-            sensor_type: selectedSensor,
-            start: olderStartIso!,
-            end: olderEndIso!,
+            start: cfg.getStart(),
             bucket_interval: cfg.bucket_interval,
-            limit: LOAD_MORE_POINTS + 5,
-        },
-        { skip: !loadingMore || !olderStartIso || !olderEndIso || !locomotiveId },
-    );
+            limit: 500,
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locomotiveId, selectedSensor, selectedPeriod, isReplay, replayStart, replayEnd]);
 
-    // When fresh data arrives, rebuild allData
-    useEffect(() => {
-        if (!freshData?.length) {
-            setAllData([]);
-            return;
-        }
-        const mapped = freshData
+    const { data, isFetching } = useGetTelemetryQuery(queryParams, {
+        skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
+        pollingInterval: isReplay ? 0 : cfg.refreshMs,
+    });
+
+    // Map to chart data
+    const chartData = useMemo(() => {
+        if (!data?.length) return [];
+        return data
             .map((d) => ({
                 ts: toEpoch(d.bucket),
-                bucket: typeof d.bucket === 'string' ? d.bucket : new Date(d.bucket).toISOString(),
                 avg_value: d.avg_value,
                 min_value: d.min_value,
                 max_value: d.max_value,
                 unit: d.unit,
             }))
             .filter((d) => d.avg_value != null);
-        // Merge with existing older data (keep points that are before fresh range)
-        setAllData((prev) => {
-            if (prev.length === 0) return mapped;
-            const freshMinTs = mapped.length > 0 ? mapped[0].ts : Infinity;
-            const olderPart = prev.filter((p) => p.ts < freshMinTs);
-            return [...olderPart, ...mapped];
-        });
-        didInitialScroll.current = false;
-    }, [freshData]);
+    }, [data]);
 
-    // When older data arrives, prepend
-    useEffect(() => {
-        if (!olderData?.length || !loadingMore) return;
-        const mapped = olderData
-            .map((d) => ({
-                ts: toEpoch(d.bucket),
-                bucket: typeof d.bucket === 'string' ? d.bucket : new Date(d.bucket).toISOString(),
-                avg_value: d.avg_value,
-                min_value: d.min_value,
-                max_value: d.max_value,
-                unit: d.unit,
-            }))
-            .filter((d) => d.avg_value != null);
-        setAllData((prev) => {
-            const existingTsSet = new Set(prev.map((p) => p.ts));
-            const newPoints = mapped.filter((m) => !existingTsSet.has(m.ts));
-            return [...newPoints, ...prev].sort((a, b) => a.ts - b.ts);
-        });
-        setLoadingMore(false);
-    }, [olderData, loadingMore]);
-
-    // Reset when sensor, step, or replay changes
-    useEffect(() => {
-        setAllData([]);
-        setLoadingMore(false);
-        didInitialScroll.current = false;
-    }, [selectedSensor, selectedStep, locomotiveId, isReplay, replayStart, replayEnd]);
-
-    // Auto-scroll to right on initial load
-    useEffect(() => {
-        if (allData.length > 0 && scrollRef.current && !didInitialScroll.current) {
-            scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
-            didInitialScroll.current = true;
-        }
-    }, [allData]);
-
-    // Handle scroll — load more when near left edge (live mode only)
-    const handleScroll = useCallback(() => {
-        if (isReplay) return; // No infinite scroll in replay
-        const el = scrollRef.current;
-        if (!el || loadingMore || olderFetching) return;
-        if (el.scrollLeft < 100 && allData.length > 0) {
-            setLoadingMore(true);
-        }
-    }, [loadingMore, olderFetching, allData.length, isReplay]);
-
-    const unit = allData.find((d) => d.unit)?.unit ?? '';
+    const unit = data?.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
 
+    // Stats
     const stats = useMemo(() => {
-        const values = allData.map((d) => d.avg_value).filter((v): v is number => v != null);
+        const values = chartData.map((d) => d.avg_value).filter((v): v is number => v != null);
         if (!values.length) return null;
         const avg = values.reduce((a, b) => a + b, 0) / values.length;
         return { avg, min: Math.min(...values), max: Math.max(...values) };
-    }, [allData]);
+    }, [chartData]);
 
-    // Chart width: each point gets ~40px
-    const chartWidth = Math.max(600, allData.length * 40);
+    // Custom tick formatter that knows about all ticks for day-boundary detection
+    const tickFormatter = useMemo(() => {
+        const ticks = chartData.map((d) => ({ value: d.ts }));
+        return (ts: number, index: number) => formatXTick(ts, index, ticks);
+    }, [chartData]);
 
     return (
         <Card
@@ -380,7 +234,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             REPLAY
                         </Badge>
                     )}
-                    {(isFetching || loadingMore) && <Loader size={12} />}
+                    {isFetching && <Loader size={12} />}
                 </Group>
                 <Select
                     size="xs"
@@ -393,19 +247,19 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 />
             </Group>
 
-            {/* Step selector */}
-            <Group gap="xs" mb="sm" justify="space-between">
-                <Text size="xs" c="dimmed">
-                    Шаг:
-                </Text>
+            {/* Period selector — only in live mode */}
+            {!isReplay && (
                 <SegmentedControl
                     size="xs"
-                    value={selectedStep}
-                    onChange={setSelectedStep}
-                    data={stepOptions}
+                    value={selectedPeriod}
+                    onChange={setSelectedPeriod}
+                    data={periodOptions}
+                    mb="sm"
+                    fullWidth
                 />
-            </Group>
+            )}
 
+            {/* Stats */}
             {stats && (
                 <Group gap="xs" mb="xs">
                     <Badge size="xs" variant="light" color="ktzBlue">
@@ -417,126 +271,78 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                     <Badge size="xs" variant="light" color="critical">
                         Макс: {stats.max.toFixed(1)} {unit}
                     </Badge>
-                    <Badge size="xs" variant="outline" color="gray">
-                        {allData.length} точек
-                    </Badge>
                 </Group>
             )}
 
+            {/* Chart */}
             {!locomotiveId ? (
                 <Center h={280}>
                     <Text c="dimmed">Выберите локомотив</Text>
                 </Center>
-            ) : isFetching && allData.length === 0 ? (
+            ) : isFetching && chartData.length === 0 ? (
                 <Center h={280}>
                     <Loader size="sm" />
                 </Center>
-            ) : allData.length === 0 ? (
+            ) : chartData.length === 0 ? (
                 <Center h={280}>
-                    <Text c="dimmed">Нет данных</Text>
+                    <Text c="dimmed">Нет данных за выбранный период</Text>
                 </Center>
             ) : (
-                <Box
-                    ref={scrollRef}
-                    onScroll={handleScroll}
-                    style={{
-                        overflowX: 'auto',
-                        overflowY: 'hidden',
-                        position: 'relative',
-                    }}
-                >
-                    {/* Load more indicator */}
-                    {loadingMore && (
-                        <Box
-                            style={{
-                                position: 'absolute',
-                                left: 8,
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                zIndex: 10,
-                            }}
-                        >
-                            <Loader size="xs" />
-                        </Box>
-                    )}
-                    <div style={{ width: chartWidth, height: 300 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart
-                                data={allData}
-                                margin={{ top: 20, right: 10, bottom: 5, left: 0 }}
-                            >
-                                <defs>
-                                    <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop
-                                            offset="0%"
-                                            stopColor="var(--mantine-color-ktzBlue-5)"
-                                            stopOpacity={0.3}
-                                        />
-                                        <stop
-                                            offset="100%"
-                                            stopColor="var(--mantine-color-ktzBlue-5)"
-                                            stopOpacity={0}
-                                        />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    stroke="var(--dashboard-border)"
+                <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                        <defs>
+                            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop
+                                    offset="0%"
+                                    stopColor={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
+                                    stopOpacity={0.3}
                                 />
-                                <XAxis
-                                    dataKey="ts"
-                                    type="number"
-                                    scale="time"
-                                    domain={['dataMin', 'dataMax']}
-                                    tick={(props: Record<string, unknown>) => (
-                                        <DateAwareXTick
-                                            {...(props as {
-                                                x: number;
-                                                y: number;
-                                                payload: { value: number; index: number };
-                                            })}
-                                            data={allData}
-                                        />
-                                    )}
-                                    tickCount={Math.min(allData.length, 20)}
-                                    height={30}
+                                <stop
+                                    offset="100%"
+                                    stopColor={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
+                                    stopOpacity={0}
                                 />
-                                <YAxis
-                                    tick={{ fontSize: 11 }}
-                                    width={65}
-                                    domain={['auto', 'auto']}
-                                    tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
-                                />
-                                <Tooltip
-                                    content={
-                                        <CustomTooltipContent
-                                            unit={unit}
-                                            sensorLabel={sensorLabel}
-                                        />
-                                    }
-                                />
-                                {stats && (
-                                    <ReferenceLine
-                                        y={stats.avg}
-                                        stroke="var(--mantine-color-ktzGold-5)"
-                                        strokeDasharray="5 5"
-                                        strokeOpacity={0.4}
-                                    />
-                                )}
-                                <Area
-                                    type="monotone"
-                                    dataKey="avg_value"
-                                    stroke="var(--mantine-color-ktzBlue-5)"
-                                    fill="url(#trendGradient)"
-                                    strokeWidth={2}
-                                    dot={false}
-                                    isAnimationActive={false}
-                                    connectNulls
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Box>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--dashboard-border)" />
+                        <XAxis
+                            dataKey="ts"
+                            type="number"
+                            scale="time"
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={tickFormatter}
+                            tick={{ fontSize: 11 }}
+                            tickCount={8}
+                        />
+                        <YAxis
+                            tick={{ fontSize: 11 }}
+                            width={65}
+                            domain={['auto', 'auto']}
+                            tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
+                        />
+                        <Tooltip
+                            content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />}
+                        />
+                        {stats && (
+                            <ReferenceLine
+                                y={stats.avg}
+                                stroke="var(--mantine-color-ktzGold-5)"
+                                strokeDasharray="5 5"
+                                strokeOpacity={0.4}
+                            />
+                        )}
+                        <Area
+                            type="monotone"
+                            dataKey="avg_value"
+                            stroke={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
+                            fill="url(#trendGrad)"
+                            strokeWidth={2}
+                            dot={false}
+                            isAnimationActive={false}
+                            connectNulls
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
             )}
         </Card>
     );
