@@ -17,7 +17,13 @@ from shared.observability import get_logger
 _logger = get_logger(__name__)
 
 
-def _run_migrations() -> None:
+def run_migrations() -> None:
+    """Apply pending Alembic migrations.
+
+    Must be called BEFORE the async event loop starts (e.g. at module
+    level or before uvicorn.run), because alembic env.py internally
+    calls asyncio.run() which cannot nest inside an existing loop.
+    """
     ini_path = pathlib.Path(__file__).resolve().parents[2] / "alembic.ini"
     alembic_cfg = AlembicConfig(str(ini_path))
     alembic_command.upgrade(alembic_cfg, "head")
@@ -26,10 +32,6 @@ def _run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-
-    _logger.info("Running Alembic migrations...")
-    _run_migrations()
-    _logger.info("Migrations complete")
 
     await init_app_db()  # PostgreSQL for CRUD
     await init_redis()

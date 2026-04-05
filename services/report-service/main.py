@@ -75,11 +75,6 @@ async def serve_grpc(port: int) -> grpc.aio.Server:
 async def main() -> None:
     settings = get_settings()
 
-    # Apply migrations before anything else
-    logger.info("Running Alembic migrations...")
-    _run_migrations()
-    logger.info("Migrations complete")
-
     # Initialize infrastructure
     await init_db_pool()
     await init_rabbitmq()
@@ -147,4 +142,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # Run migrations BEFORE entering the async event loop.
+    # Alembic env.py uses asyncio.run() internally, which can't nest.
+    logger.info("Running Alembic migrations...")
+    _run_migrations()
+    logger.info("Migrations complete")
+
     asyncio.run(main())

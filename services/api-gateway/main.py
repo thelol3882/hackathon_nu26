@@ -11,7 +11,7 @@ from api_gateway.api.router_telemetry import router as telemetry_router
 from api_gateway.api.router_ws_ticket import router as ws_ticket_router
 from api_gateway.core.auth import get_current_user, require_admin
 from api_gateway.core.config import get_settings
-from api_gateway.core.lifespan import lifespan
+from api_gateway.core.lifespan import lifespan, run_migrations
 from api_gateway.core.middleware import UserContextMiddleware
 from shared.observability import setup_observability
 from shared.observability.prometheus import setup_prometheus
@@ -51,3 +51,12 @@ app.include_router(reports_router, prefix="/reports", tags=["reports"], dependen
 # Admin-only routes
 _admin = [Depends(require_admin)]
 app.include_router(config_router, prefix="/config", tags=["config"], dependencies=_admin)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Run migrations BEFORE the async event loop starts.
+    # alembic env.py uses asyncio.run() internally, which can't nest.
+    run_migrations()
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
