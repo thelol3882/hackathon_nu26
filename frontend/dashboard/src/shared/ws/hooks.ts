@@ -23,9 +23,9 @@ const WS_BASE_URL = getWsBaseUrl();
  */
 async function fetchTicket(): Promise<string | null> {
     try {
-        const result = await store.dispatch(
-            authApi.endpoints.getWsTicket.initiate(undefined, { forceRefetch: true }),
-        ).unwrap();
+        const result = await store
+            .dispatch(authApi.endpoints.getWsTicket.initiate(undefined, { forceRefetch: true }))
+            .unwrap();
         return result.ticket;
     } catch {
         return null;

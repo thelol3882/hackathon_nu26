@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { store } from '@/store/store';
 
 const EMPTY: Array<{ time: number; value: number }> = [];
@@ -15,30 +15,31 @@ const EMPTY: Array<{ time: number; value: number }> = [];
  *   return <LineChart data={chartData} />
  */
 export function useThrottledHistory(
-  sensorType: string,
-  intervalMs: number = 1000,
+    sensorType: string,
+    intervalMs: number = 1000,
 ): Array<{ time: number; value: number }> {
-  const [chartData, setChartData] = useState<Array<{ time: number; value: number }>>(EMPTY);
-  const storeRef = useRef(store);
+    // Read initial value synchronously (outside effect) to avoid
+    // the "setState in effect body" lint error.
+    const initialData = useMemo(() => {
+        const state = store.getState();
+        const history = state.telemetry.sensors[sensorType]?.history;
+        return history && history.length > 0 ? history : EMPTY;
+    }, [sensorType]);
 
-  useEffect(() => {
-    // Read immediately on mount
-    const state = storeRef.current.getState();
-    const history = state.telemetry.sensors[sensorType]?.history;
-    if (history && history.length > 0) {
-      setChartData(history);
-    }
+    const [chartData, setChartData] = useState(initialData);
+    const storeRef = useRef(store);
 
-    const interval = setInterval(() => {
-      const state = storeRef.current.getState();
-      const history = state.telemetry.sensors[sensorType]?.history;
-      if (history) {
-        setChartData(history);
-      }
-    }, intervalMs);
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const state = storeRef.current.getState();
+            const history = state.telemetry.sensors[sensorType]?.history;
+            if (history) {
+                setChartData(history);
+            }
+        }, intervalMs);
 
-    return () => clearInterval(interval);
-  }, [sensorType, intervalMs]);
+        return () => clearInterval(interval);
+    }, [sensorType, intervalMs]);
 
-  return chartData;
+    return chartData;
 }

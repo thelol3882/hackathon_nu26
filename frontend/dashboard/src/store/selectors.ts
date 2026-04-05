@@ -6,25 +6,19 @@ const EMPTY_ARRAY: Array<{ time: number; value: number }> = [];
 
 // --- Telemetry (per-sensor selectors) ---
 
-export const selectCurrentValue =
-  (sensorType: string) =>
-  (state: RootState) =>
+export const selectCurrentValue = (sensorType: string) => (state: RootState) =>
     state.telemetry.sensors[sensorType]?.current ?? null;
 
-export const selectSensorUnit =
-  (sensorType: string) =>
-  (state: RootState) =>
+export const selectSensorUnit = (sensorType: string) => (state: RootState) =>
     state.telemetry.sensors[sensorType]?.unit ?? null;
 
-export const selectSensorHistory =
-  (sensorType: string) =>
-  (state: RootState) =>
+export const selectSensorHistory = (sensorType: string) => (state: RootState) =>
     state.telemetry.sensors[sensorType]?.history ?? EMPTY_ARRAY;
 
 export const selectGps = (state: RootState) => state.telemetry.gps;
 
 export const selectLocomotiveType = (state: RootState) =>
-  state.telemetry.locomotiveType ?? state.health.locomotiveType;
+    state.telemetry.locomotiveType ?? state.health.locomotiveType;
 
 export const selectLastUpdated = (state: RootState) => state.telemetry.lastUpdated;
 
@@ -44,8 +38,8 @@ export const selectAlerts = (state: RootState) => state.alerts.items;
 export const selectUnacknowledgedCount = (state: RootState) => state.alerts.unacknowledgedCount;
 
 export const selectAlertsBySeverity = createSelector(selectAlerts, (alerts) => ({
-  emergency: alerts.filter((a) => a.severity === 'emergency'),
-  critical: alerts.filter((a) => a.severity === 'critical'),
-  warning: alerts.filter((a) => a.severity === 'warning'),
-  info: alerts.filter((a) => a.severity === 'info'),
+    emergency: alerts.filter((a) => a.severity === 'emergency'),
+    critical: alerts.filter((a) => a.severity === 'critical'),
+    warning: alerts.filter((a) => a.severity === 'warning'),
+    info: alerts.filter((a) => a.severity === 'info'),
 }));
