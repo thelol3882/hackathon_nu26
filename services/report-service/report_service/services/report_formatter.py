@@ -448,7 +448,6 @@ def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
     if alert_summary.get("total", 0) > 0:
         _section_header(pdf, "Сводка предупреждений", _CLR_CRITICAL)
 
-
         pdf.set_font(_FONT, "B", 10)
         _set_color(pdf, _CLR_DARK_TEXT)
         pdf.cell(0, 7, f"Всего предупреждений: {alert_summary['total']}", new_x="LMARGIN", new_y="NEXT")
@@ -584,7 +583,7 @@ def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
 
     for sensor, items in anomalies.items():
         count = len(items) if isinstance(items, list) else items
-            if isinstance(count, int) and count > 10:
+        if isinstance(count, int) and count > 10:
             _set_color(pdf, _CLR_CRITICAL)
         elif isinstance(count, int) and count > 3:
             _set_color(pdf, _CLR_WARNING)
