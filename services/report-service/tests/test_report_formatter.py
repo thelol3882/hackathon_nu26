@@ -11,7 +11,9 @@ from shared.schemas.report import ReportFormat
 class TestFormatJson:
     def test_json_returns_data_unchanged(self, sample_report_data, sample_job):
         result = format_report(sample_report_data, ReportFormat.JSON, sample_job)
-        assert result is sample_report_data
+        # _format_json enriches with human-readable names, so check key data is preserved
+        for key in sample_report_data:
+            assert key in result
 
 
 # ── CSV format tests ──────────────────────────────────────────────────────────

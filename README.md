@@ -24,7 +24,7 @@ graph TB
         Nginx[Nginx :80<br/>/api/* → REST<br/>/ws/* → WebSocket]
     end
 
-    Frontend[Frontend<br/>Next.js<br/>🚧 в разработке]
+    Frontend[Frontend<br/>Next.js 16<br/>Mantine 9 + Recharts]
 
     Simulator -->|HTTP POST<br/>/ingest/batch| Processor
     Processor -->|INSERT| TimescaleDB
@@ -49,7 +49,8 @@ graph TB
 | **API Gateway** | 8000 | REST API + WebSocket, JWT-аутентификация, маршрутизация |
 | **Report Service** | — | Фоновый воркер: генерация отчётов (JSON/CSV/PDF) через RabbitMQ |
 | **Simulator** | 8003 | Генерация реалистичной телеметрии для TE33A и KZ8A |
-| **Nginx** | 80 | Обратный прокси: `/api/*` → REST, `/ws/*` → WebSocket |
+| **Dashboard** | 3000 (внутр.) | Next.js 16 — дашборд цифрового двойника |
+| **Nginx** | 80 | Обратный прокси: `/api/*` → REST, `/ws/*` → WebSocket, `/` → Dashboard |
 
 ### Инфраструктура
 
@@ -265,15 +266,17 @@ curl -O http://localhost/api/reports/{report_id}/download -H "Authorization: Bea
 
 ## Стек технологий
 
+**Frontend:** Next.js 16, React 19, TypeScript, Mantine UI 9, Recharts, Leaflet, Redux Toolkit
+
 **Backend:** Python 3.13, FastAPI, SQLAlchemy 2.0 (async), Alembic, aio-pika, redis.asyncio
 
 **Инфра:** Docker Compose, Nginx, TimescaleDB, Redis 7, RabbitMQ 3
 
-**Обсервабельность:** Prometheus + Grafana (метрики), Jaeger + OpenTelemetry (трассировки), structlog (логи)
+**Обсервабельность:** Prometheus + Grafana (метрики), Jaeger + OpenTelemetry (трассировки с сэмплингом), structlog (логи)
 
 **Безопасность:** JWT (HS256), bcrypt, CORS, role-based access
 
-**Инструменты:** uv (пакетный менеджер), Ruff (линтер/форматтер)
+**Инструменты:** uv (пакетный менеджер), Ruff (линтер/форматтер), Biome (frontend)
 
 ## Конфигурация
 
@@ -287,32 +290,38 @@ curl -O http://localhost/api/reports/{report_id}/download -H "Authorization: Bea
 | `GATEWAY_JWT_SECRET` | Секрет подписи JWT | — |
 | `GATEWAY_JWT_EXPIRY_MINUTES` | Время жизни токена | `60` |
 | `OTEL_ENABLED` | Включить трассировку | `true` |
+| `OTEL_TRACE_SAMPLE_RATE` | Доля сэмплируемых трейсов (0.0–1.0) | `0.1` |
 | `LOG_FORMAT` | Формат логов (json/text) | `json` |
 
 Полный список — в `.env.example`.
 
-## Frontend (в разработке)
+## Frontend
 
-> **Статус:** каркас проекта создан, UI ещё не реализован.
+**Стек:** Next.js 16, React 19, Mantine UI 9, Recharts, Redux Toolkit, Leaflet, TypeScript
 
-**Стек:** Next.js 16, React 19, Mantine UI 9, Recharts, Redux Toolkit, TypeScript
+**Реализовано:**
 
-**Запланировано:**
+- Экран «Кабина» (Dashboard) с виджетом индекса здоровья и цветовой индикацией
+- Панели телеметрии: скорость, топливо/энергия, давления/температуры, электрика, алерты, тренды
+- Интерактивные графики (Recharts) с авто-скейлингом
+- Карта маршрута (Leaflet) с текущим положением локомотива
+- Real-time обновление через WebSocket (JSON / msgpack)
+- Генерация и скачивание отчётов (PDF/CSV/JSON)
+- Страницы: Dashboard, Reports, Config (пороги/веса), Users, Login
+- Тёмная/светлая тема (Mantine)
+- Адаптивность (24″ панель + ноутбук)
 
-- [ ] Экран «Кабина» с виджетом индекса здоровья и цветовой индикацией
-- [ ] Панели: Скорость, Топливо/Энергия, Давления/Температуры, Электрика, Алерты, Тренды
-- [ ] Интерактивные графики с авто-скейлингом, tooltips, zoom
-- [ ] Карта/схема участка пути с текущим положением
-- [ ] Перемотка (replay) последних 5–15 минут
-- [ ] Скачивание отчётов (PDF/CSV)
-- [ ] Тёмная/светлая тема
-- [ ] Адаптивность (24″ панель + ноутбук)
+### Локальная разработка (без Docker)
 
 ```bash
 cd frontend/dashboard
 pnpm install
 pnpm dev  # http://localhost:3000
 ```
+
+### В Docker (через docker-compose)
+
+Frontend автоматически запускается как часть `make up` и доступен через Nginx на порту 80.
 
 ## Структура проекта
 
@@ -416,7 +425,11 @@ pnpm dev  # http://localhost:3000
 │               └── emergency.py       # Аварийные ситуации
 │
 └── frontend/
-    └── dashboard/                     # Next.js 16 приложение (в разработке)
-        ├── package.json               # Mantine 9, Recharts, Redux Toolkit
-        └── src/app/
+    └── dashboard/                     # Next.js 16 приложение
+        ├── package.json               # Mantine 9, Recharts, Redux Toolkit, Leaflet
+        ├── next.config.ts             # standalone output, wire format config
+        └── src/
+            ├── app/                   # Next.js App Router (dashboard, reports, config, users, login)
+            ├── features/telemetry/    # Телеметрия: хуки, типы, API
+            └── shared/                # API, WebSocket, утилиты, типы
 ```

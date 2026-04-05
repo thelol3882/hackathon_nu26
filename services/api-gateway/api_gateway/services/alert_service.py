@@ -180,16 +180,16 @@ async def list_alerts(
 
     return [
         AlertEvent(
-            id=r.id,
-            locomotive_id=r.locomotive_id,
-            sensor_type=r.sensor_type,
-            severity=r.severity,
-            value=float(r.value),
-            threshold_min=float(r.threshold_min),
-            threshold_max=float(r.threshold_max),
-            message=r.message,
-            timestamp=r.timestamp,
-            acknowledged=r.acknowledged,
+            id=r["id"],
+            locomotive_id=r["locomotive_id"],
+            sensor_type=r["sensor_type"],
+            severity=r["severity"],
+            value=float(r["value"]),
+            threshold_min=float(r["threshold_min"]),
+            threshold_max=float(r["threshold_max"]),
+            message=r["message"],
+            timestamp=r["timestamp"],
+            acknowledged=r["acknowledged"],
         )
         for r in result.mappings().all()
     ]

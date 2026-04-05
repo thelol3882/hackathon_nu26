@@ -39,37 +39,35 @@ def _make_alert_entity(**overrides):
     return obj
 
 
-def _scalars_result(entities):
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = entities
-    result_mock = MagicMock()
-    result_mock.scalars.return_value = scalars_mock
-    return result_mock
+def _entity_to_row(entity):
+    """Convert a mock entity to a dict matching raw SQL column output."""
+    return {
+        "id": entity.id,
+        "locomotive_id": entity.locomotive_id,
+        "sensor_type": entity.sensor_type,
+        "severity": entity.severity.value if hasattr(entity.severity, "value") else entity.severity,
+        "value": entity.value,
+        "threshold_min": entity.threshold_min,
+        "threshold_max": entity.threshold_max,
+        "message": entity.message,
+        "timestamp": entity.timestamp,
+        "acknowledged": entity.acknowledged,
+    }
 
 
-def _scalar_one_result(entity):
+def _mappings_all_result(entities):
+    """Build a mock result whose .mappings().all() returns a list of dicts."""
+    rows = [_entity_to_row(e) for e in entities]
+    mappings_mock = MagicMock()
+    mappings_mock.all.return_value = rows
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = entity
+    result_mock.mappings.return_value = mappings_mock
     return result_mock
 
 
 def _mappings_result(entity):
     """Build a mock result whose .mappings().first() returns entity fields as a dict."""
-    if entity is None:
-        row = None
-    else:
-        row = {
-            "id": entity.id,
-            "locomotive_id": entity.locomotive_id,
-            "sensor_type": entity.sensor_type,
-            "severity": entity.severity,
-            "value": entity.value,
-            "threshold_min": entity.threshold_min,
-            "threshold_max": entity.threshold_max,
-            "message": entity.message,
-            "timestamp": entity.timestamp,
-            "acknowledged": entity.acknowledged,
-        }
+    row = _entity_to_row(entity) if entity is not None else None
     mappings_mock = MagicMock()
     mappings_mock.first.return_value = row
     result_mock = MagicMock()
@@ -85,7 +83,7 @@ def _mappings_result(entity):
 @pytest.mark.asyncio
 async def test_list_alerts_no_filters(mock_session):
     entities = [_make_alert_entity() for _ in range(3)]
-    mock_session.execute.return_value = _scalars_result(entities)
+    mock_session.execute.return_value = _mappings_all_result(entities)
 
     from api_gateway.services.alert_service import list_alerts
 
@@ -99,7 +97,7 @@ async def test_list_alerts_no_filters(mock_session):
 async def test_list_alerts_filter_by_locomotive_id(mock_session):
     loco_id = uuid.uuid4()
     entities = [_make_alert_entity(locomotive_id=loco_id)]
-    mock_session.execute.return_value = _scalars_result(entities)
+    mock_session.execute.return_value = _mappings_all_result(entities)
 
     from api_gateway.services.alert_service import list_alerts
 
@@ -111,7 +109,7 @@ async def test_list_alerts_filter_by_locomotive_id(mock_session):
 @pytest.mark.asyncio
 async def test_list_alerts_filter_by_severity(mock_session):
     entities = [_make_alert_entity(severity=AlertSeverity.CRITICAL)]
-    mock_session.execute.return_value = _scalars_result(entities)
+    mock_session.execute.return_value = _mappings_all_result(entities)
 
     from api_gateway.services.alert_service import list_alerts
 
@@ -123,7 +121,7 @@ async def test_list_alerts_filter_by_severity(mock_session):
 @pytest.mark.asyncio
 async def test_list_alerts_filter_by_acknowledged(mock_session):
     entities = [_make_alert_entity(acknowledged=True)]
-    mock_session.execute.return_value = _scalars_result(entities)
+    mock_session.execute.return_value = _mappings_all_result(entities)
 
     from api_gateway.services.alert_service import list_alerts
 
@@ -134,7 +132,7 @@ async def test_list_alerts_filter_by_acknowledged(mock_session):
 
 @pytest.mark.asyncio
 async def test_list_alerts_empty(mock_session):
-    mock_session.execute.return_value = _scalars_result([])
+    mock_session.execute.return_value = _mappings_all_result([])
 
     from api_gateway.services.alert_service import list_alerts
 
@@ -151,7 +149,7 @@ async def test_list_alerts_empty(mock_session):
 @pytest.mark.asyncio
 async def test_get_alert_found(mock_session):
     entity = _make_alert_entity()
-    mock_session.execute.return_value = _scalar_one_result(entity)
+    mock_session.execute.return_value = _mappings_result(entity)
 
     from api_gateway.services.alert_service import get_alert
 
@@ -163,7 +161,7 @@ async def test_get_alert_found(mock_session):
 
 @pytest.mark.asyncio
 async def test_get_alert_not_found_404(mock_session):
-    mock_session.execute.return_value = _scalar_one_result(None)
+    mock_session.execute.return_value = _mappings_result(None)
 
     from api_gateway.services.alert_service import get_alert
 
