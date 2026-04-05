@@ -92,10 +92,10 @@ function toEpoch(bucket: string | Date): number {
     return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
-/** Format X tick — show date when day changes, else HH:mm */
+/** Format X tick — show "DD MMM" only when day changes from previous tick, else HH:mm */
 function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
     const d = dayjs(ts);
-    if (index === 0) return d.format('DD MMM');
+    // Only show date when the day differs from the previous tick (midnight crossing)
     if (index > 0 && allTicks[index - 1]) {
         const prevDay = dayjs(allTicks[index - 1].value).format('DD');
         if (prevDay !== d.format('DD')) return d.format('DD MMM');
