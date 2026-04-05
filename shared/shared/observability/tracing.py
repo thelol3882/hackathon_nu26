@@ -4,6 +4,7 @@ from collections.abc import Callable
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from opentelemetry.instrumentation.grpc import GrpcAioInstrumentorServer
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.resources import Resource
@@ -39,6 +40,7 @@ def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
     trace.set_tracer_provider(provider)
 
     AsyncPGInstrumentor().instrument()
+    GrpcAioInstrumentorServer().instrument()
     RedisInstrumentor().instrument()
     HTTPXClientInstrumentor().instrument()
 

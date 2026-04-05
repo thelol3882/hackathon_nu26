@@ -16,7 +16,7 @@ scrape_configs:
     relabel_configs:
       # Keep only our app containers (drop infra noise)
       - source_labels: ["__meta_docker_container_name"]
-        regex: ".*(processor|api-gateway|report-service|simulator).*"
+        regex: ".*(processor|api-gateway|report-service|simulator|ws-server|analytics-service|db-writer).*"
         action: keep
       # Use container name as "service" label
       - source_labels: ["__meta_docker_container_name"]

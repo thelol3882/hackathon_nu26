@@ -133,6 +133,12 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   db-writer:
     build:
@@ -198,6 +204,12 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   ws-server:
     build:
@@ -207,6 +219,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/metrics')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   simulator:
     build:

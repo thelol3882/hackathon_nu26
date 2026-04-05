@@ -63,6 +63,14 @@ async def find_by_id(session: AsyncSession, alert_id: str) -> dict | None:
 
 
 async def acknowledge(session: AsyncSession, alert_id: str) -> None:
+    """Mark an alert as acknowledged.
+
+    NOTE: This is a metadata-only UPDATE and an accepted exception to the
+    Analytics Service's "read-only TimescaleDB" contract.  It does NOT
+    modify telemetry data — it flips a boolean flag on an alert row.
+    Routing this through DB Writer would add unnecessary complexity for
+    a single-row metadata toggle.
+    """
     await session.execute(
         text("UPDATE alert_events SET acknowledged = TRUE WHERE id = CAST(:aid AS uuid)"),
         {"aid": alert_id},
