@@ -38,14 +38,25 @@ function MapUpdater({
     followMode,
     centerTrigger,
     onFirstPosition,
+    onUserDrag,
 }: {
     position: { latitude: number; longitude: number } | null;
     followMode: boolean;
     centerTrigger: number;
     onFirstPosition: () => void;
+    onUserDrag: () => void;
 }) {
     const map = useMap();
     const hasInitialized = useRef(false);
+
+    // Disable follow when user drags
+    useEffect(() => {
+        const handler = () => onUserDrag();
+        map.on('dragstart', handler);
+        return () => {
+            map.off('dragstart', handler);
+        };
+    }, [map, onUserDrag]);
 
     useEffect(() => {
         if (!position) return;
@@ -101,6 +112,10 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
 
     const handleFirstPosition = useCallback(() => {
         setFollowMode(true);
+    }, []);
+
+    const handleUserDrag = useCallback(() => {
+        setFollowMode(false);
     }, []);
 
     const [centerTrigger, setCenterTrigger] = useState(0);
@@ -168,6 +183,7 @@ export default function RouteMapInner({ position }: RouteMapInnerProps) {
                     followMode={followMode}
                     centerTrigger={centerTrigger}
                     onFirstPosition={handleFirstPosition}
+                    onUserDrag={handleUserDrag}
                 />
 
                 {/* Trail polyline */}

@@ -7,7 +7,7 @@ from datetime import datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -148,21 +148,35 @@ async def list_alerts(
     offset: int = 0,
     limit: int = 50,
 ) -> list[AlertEvent]:
-    stmt = select(AlertRecord).order_by(AlertRecord.timestamp.desc())
+    """Query alerts from alert_events (processor table — always has all alerts)."""
+    clauses = []
+    params: dict = {"off": offset, "lim": limit}
 
     if locomotive_id:
-        stmt = stmt.where(AlertRecord.locomotive_id == locomotive_id)
+        clauses.append("locomotive_id = CAST(:loco_id AS uuid)")
+        params["loco_id"] = locomotive_id
     if severity:
-        stmt = stmt.where(AlertRecord.severity == severity)
+        clauses.append("severity = :severity")
+        params["severity"] = severity
     if acknowledged is not None:
-        stmt = stmt.where(AlertRecord.acknowledged == acknowledged)
+        clauses.append("acknowledged = :ack")
+        params["ack"] = acknowledged
     if start:
-        stmt = stmt.where(AlertRecord.timestamp >= start)
+        clauses.append("timestamp >= :t_start")
+        params["t_start"] = start
     if end:
-        stmt = stmt.where(AlertRecord.timestamp <= end)
+        clauses.append("timestamp <= :t_end")
+        params["t_end"] = end
 
-    stmt = stmt.offset(offset).limit(limit)
-    result = await session.execute(stmt)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+
+    base = (
+        "SELECT id, locomotive_id, sensor_type, severity, value,"
+        " threshold_min, threshold_max, message, timestamp, acknowledged"
+        " FROM alert_events"
+    )
+    sql = f"{base} {where} ORDER BY timestamp DESC OFFSET :off LIMIT :lim"
+    result = await session.execute(text(sql), params)
 
     return [
         AlertEvent(
@@ -170,33 +184,40 @@ async def list_alerts(
             locomotive_id=r.locomotive_id,
             sensor_type=r.sensor_type,
             severity=r.severity,
-            value=r.value,
-            threshold_min=r.threshold_min,
-            threshold_max=r.threshold_max,
+            value=float(r.value),
+            threshold_min=float(r.threshold_min),
+            threshold_max=float(r.threshold_max),
             message=r.message,
             timestamp=r.timestamp,
             acknowledged=r.acknowledged,
         )
-        for r in result.scalars().all()
+        for r in result.mappings().all()
     ]
 
 
 async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
-    result = await session.execute(select(AlertRecord).where(AlertRecord.id == alert_id))
-    r = result.scalar_one_or_none()
+    result = await session.execute(
+        text(
+            "SELECT id, locomotive_id, sensor_type, severity, value,"
+            " threshold_min, threshold_max, message, timestamp, acknowledged"
+            " FROM alert_events WHERE id = CAST(:aid AS uuid)"
+        ),
+        {"aid": alert_id},
+    )
+    r = result.mappings().first()
     if r is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     return AlertEvent(
-        id=r.id,
-        locomotive_id=r.locomotive_id,
-        sensor_type=r.sensor_type,
-        severity=r.severity,
-        value=r.value,
-        threshold_min=r.threshold_min,
-        threshold_max=r.threshold_max,
-        message=r.message,
-        timestamp=r.timestamp,
-        acknowledged=r.acknowledged,
+        id=r["id"],
+        locomotive_id=r["locomotive_id"],
+        sensor_type=r["sensor_type"],
+        severity=r["severity"],
+        value=float(r["value"]),
+        threshold_min=float(r["threshold_min"]),
+        threshold_max=float(r["threshold_max"]),
+        message=r["message"],
+        timestamp=r["timestamp"],
+        acknowledged=r["acknowledged"],
     )
 
 
