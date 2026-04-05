@@ -1,7 +1,8 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery, type BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '@/store/store';
+import { logout } from '@/store/authSlice';
 
-const baseQuery = fetchBaseQuery({
+const rawBaseQuery = fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
     prepareHeaders: (headers, { getState }) => {
         const token = (getState() as RootState).auth.accessToken;
@@ -12,9 +13,26 @@ const baseQuery = fetchBaseQuery({
     },
 });
 
+const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
+    const result = await rawBaseQuery(args, api, extraOptions);
+    if (result.error && result.error.status === 401) {
+        api.dispatch(logout());
+    }
+    return result;
+};
+
 export const baseApi = createApi({
     reducerPath: 'api',
-    baseQuery,
-    tagTypes: ['Locomotive', 'Telemetry', 'Alert', 'Health', 'Report', 'Threshold', 'Weight'],
+    baseQuery: baseQueryWithReauth,
+    tagTypes: [
+        'Locomotive',
+        'Telemetry',
+        'Alert',
+        'Health',
+        'Report',
+        'Threshold',
+        'Weight',
+        'User',
+    ],
     endpoints: () => ({}),
 });

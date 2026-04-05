@@ -1,7 +1,33 @@
+/* Replay control bar */
+.replayBar {
+    background: var(--dashboard-surface);
+    border-bottom: 1px solid var(--dashboard-border);
+    margin: 0 calc(-1 * var(--mantine-spacing-md));
+    margin-top: calc(-1 * var(--mantine-spacing-md));
+}
+
+/* Status strip */
+.statusStrip {
+    background: var(--dashboard-surface-elevated);
+    border: 1px solid var(--dashboard-border);
+    border-radius: var(--mantine-radius-md);
+    margin-bottom: var(--mantine-spacing-sm);
+}
+
+/* Empty state */
+.emptyIcon {
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* Dashboard grid */
 .grid {
     display: grid;
-    gap: var(--mantine-spacing-md);
-    padding: var(--mantine-spacing-md);
+    gap: var(--mantine-spacing-sm);
     grid-template-columns: 1fr;
     grid-template-areas:
         "health"
@@ -10,11 +36,10 @@
         "press"
         "elec"
         "alerts"
-        "trends"
-        "map";
+        "map"
+        "trends";
 }
 
-/* Ensure cards fill their grid cell */
 .grid > div > * {
     height: 100%;
 }
@@ -29,7 +54,7 @@
 .map { grid-area: map; }
 
 /* Medium: 2 columns */
-@media (min-width: $mantine-breakpoint-md) {
+@media (min-width: 768px) {
     .grid {
         grid-template-columns: 1fr 1fr;
         grid-template-areas:
@@ -37,19 +62,32 @@
             "speed   fuel"
             "press   elec"
             "alerts  alerts"
-            "trends  trends"
-            "map     map";
+            "map     map"
+            "trends  trends";
     }
 }
 
-/* Large: 4 columns */
-@media (min-width: $mantine-breakpoint-lg) {
+/* Large: 3 columns — balanced layout */
+@media (min-width: 1200px) {
     .grid {
-        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-areas:
+            "health  health  health"
+            "speed   fuel    alerts"
+            "press   elec    alerts"
+            "map     map     map"
+            "trends  trends  trends";
+    }
+}
+
+/* XL: 4 columns */
+@media (min-width: 1600px) {
+    .grid {
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
         grid-template-areas:
             "health  health  speed   fuel"
-            "health  health  press   elec"
-            "alerts  alerts  trends  trends"
-            "map     map     trends  trends";
+            "alerts  alerts  press   elec"
+            "map     map     map     map"
+            "trends  trends  trends  trends";
     }
 }

@@ -26,7 +26,7 @@ const MODEL_FILTERS = [
 
 interface LocomotiveSelectProps {
     value: string | null;
-    onChange: (value: string | null) => void;
+    onChange: (value: string | null, label?: string | null) => void;
     /** Allow selecting "all" (null) — shows "Все" option at the top */
     allowAll?: boolean;
     label?: string;
@@ -102,9 +102,13 @@ export function LocomotiveSelect({
             store={combobox}
             onOptionSubmit={(val) => {
                 if (val === '__all__') {
-                    onChange(null);
+                    onChange(null, null);
+                } else if (val === value) {
+                    onChange(null, null);
                 } else {
-                    onChange(val === value ? null : val);
+                    const loco = items.find((l) => l.id === val);
+                    const label = loco ? `${loco.model} — ${loco.serial_number}` : null;
+                    onChange(val, label);
                 }
                 combobox.closeDropdown();
             }}

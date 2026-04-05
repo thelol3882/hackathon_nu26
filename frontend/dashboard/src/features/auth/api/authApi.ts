@@ -1,5 +1,11 @@
 import { baseApi } from '@/shared/api/baseApi';
-import type { LoginRequest, LoginResponse, RegisterRequest, UserResponse } from '../types';
+import type {
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    UserResponse,
+    UsersListResponse,
+} from '../types';
 
 export const authApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
@@ -16,8 +22,13 @@ export const authApi = baseApi.injectEndpoints({
                 method: 'POST',
                 body,
             }),
+            invalidatesTags: [{ type: 'User', id: 'LIST' }],
+        }),
+        getUsers: builder.query<UsersListResponse, void>({
+            query: () => '/auth/users',
+            providesTags: [{ type: 'User', id: 'LIST' }],
         }),
     }),
 });
 
-export const { useLoginMutation, useRegisterMutation } = authApi;
+export const { useLoginMutation, useRegisterMutation, useGetUsersQuery } = authApi;

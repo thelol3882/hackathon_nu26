@@ -54,8 +54,11 @@ export class WebSocketManager {
                     typeof data === 'object' &&
                     'type' in data &&
                     (data as Record<string, unknown>).type === 'ping'
-                )
+                ) {
+                    // Respond with pong so server knows we're alive
+                    this.sendPong();
                     return;
+                }
                 this.handlers.forEach((handler) => handler(data));
             } catch {
                 // ignore malformed messages
@@ -96,6 +99,15 @@ export class WebSocketManager {
         this.ws = null;
         this.handlers.clear();
         this.setStatus('disconnected');
+    }
+
+    private sendPong() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        try {
+            this.ws.send(JSON.stringify({ type: 'pong' }));
+        } catch {
+            // connection might be closing
+        }
     }
 
     private decodeMessage(raw: unknown): unknown {

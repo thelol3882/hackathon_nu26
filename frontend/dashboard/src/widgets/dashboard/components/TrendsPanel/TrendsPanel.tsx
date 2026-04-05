@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
     Card,
     Text,
@@ -9,6 +9,7 @@ import {
     SegmentedControl,
     Loader,
     Center,
+    Badge,
     ActionIcon,
     Tooltip as MantineTooltip,
 } from '@mantine/core';
@@ -20,15 +21,17 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Brush,
+    ReferenceLine,
     ReferenceArea,
 } from 'recharts';
 import { useGetTelemetryQuery } from '@/features/telemetry';
 import type { BucketInterval } from '@/features/telemetry';
-import { minutesAgo, hoursAgo, formatTime } from '@/shared/utils/date';
+import { minutesAgo, hoursAgo, dayjs } from '@/shared/utils/date';
 
 interface TrendsPanelProps {
     locomotiveId: string | null;
+    replayStart?: string;
+    replayEnd?: string;
 }
 
 const sensorLabels: Record<string, string> = {
@@ -37,56 +40,80 @@ const sensorLabels: Record<string, string> = {
     oil_pressure: 'Давление масла',
     diesel_rpm: 'Обороты дизеля',
     fuel_level: 'Уровень топлива',
-    brake_pipe_pressure: 'Давл. тормозной магистрали',
+    fuel_rate: 'Расход топлива',
+    brake_pipe_pressure: 'Давл. торм. маг.',
+    traction_motor_temp: 'Темп. тяг. двиг.',
+    crankcase_pressure: 'Давление картера',
+    catenary_voltage: 'Напряжение сети',
+    pantograph_current: 'Ток пантографа',
+    transformer_temp: 'Темп. трансф.',
+    igbt_temp: 'Темп. IGBT',
+    dc_link_voltage: 'Напряжение DC',
+    recuperation_current: 'Ток рекуперации',
 };
 
-const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({
-    value,
-    label,
-}));
+const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({ value, label }));
 
-const rangeOptions = [
+const periodOptions = [
     { label: '5м', value: '5m' },
     { label: '15м', value: '15m' },
+    { label: '30м', value: '30m' },
     { label: '1ч', value: '1h' },
+    { label: '3ч', value: '3h' },
+    { label: '6ч', value: '6h' },
+    { label: '12ч', value: '12h' },
     { label: '24ч', value: '24h' },
 ];
 
-const rangeConfig: Record<
-    string,
-    { getStart: () => string; bucket_interval: BucketInterval; tickCount: number }
-> = {
-    '5m': { getStart: () => minutesAgo(5), bucket_interval: '1 minute', tickCount: 5 },
-    '15m': { getStart: () => minutesAgo(15), bucket_interval: '1 minute', tickCount: 8 },
-    '1h': { getStart: () => hoursAgo(1), bucket_interval: '5 minutes', tickCount: 7 },
-    '24h': { getStart: () => hoursAgo(24), bucket_interval: '1 hour', tickCount: 8 },
+const periodConfig: Record<string, { getStart: () => string; refreshMs: number }> = {
+    '5m': { getStart: () => minutesAgo(5), refreshMs: 15_000 },
+    '15m': { getStart: () => minutesAgo(15), refreshMs: 15_000 },
+    '30m': { getStart: () => minutesAgo(30), refreshMs: 30_000 },
+    '1h': { getStart: () => hoursAgo(1), refreshMs: 30_000 },
+    '3h': { getStart: () => hoursAgo(3), refreshMs: 60_000 },
+    '6h': { getStart: () => hoursAgo(6), refreshMs: 60_000 },
+    '12h': { getStart: () => hoursAgo(12), refreshMs: 120_000 },
+    '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
 
-/** Convert bucket string to epoch ms for numeric axis */
-function toEpoch(bucket: string): number {
-    return new Date(bucket).getTime();
+/** Auto-pick bucket interval based on window duration in ms */
+function autoBucket(durationMs: number): BucketInterval {
+    const min = durationMs / 60_000;
+    if (min <= 5) return '1 minute';
+    if (min <= 30) return '1 minute';
+    if (min <= 90) return '5 minutes';
+    if (min <= 360) return '10 minutes';
+    if (min <= 720) return '15 minutes';
+    if (min <= 1440) return '30 minutes';
+    return '1 hour';
 }
 
-/** Format epoch ms to HH:mm */
-function fmtTick(v: number): string {
-    const d = new Date(v);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+function toEpoch(bucket: string | Date): number {
+    return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
-/** Custom tooltip content */
+/** Format X tick — show "DD MMM" only when day changes from previous tick, else HH:mm */
+function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
+    const d = dayjs(ts);
+    // Only show date when the day differs from the previous tick (midnight crossing)
+    if (index > 0 && allTicks[index - 1]) {
+        const prevDay = dayjs(allTicks[index - 1].value).format('DD');
+        if (prevDay !== d.format('DD')) return d.format('DD MMM');
+    }
+    return d.format('HH:mm');
+}
+
 function CustomTooltipContent({
     active,
     payload,
-    label,
     unit,
     sensorLabel,
 }: {
     active?: boolean;
     payload?: Array<{
         value: number | null;
-        payload: { min_value: number | null; max_value: number | null };
+        payload: { min_value: number | null; max_value: number | null; ts: number };
     }>;
-    label?: string;
     unit: string;
     sensorLabel: string;
 }) {
@@ -94,9 +121,7 @@ function CustomTooltipContent({
     const d = payload[0];
     const avg = d.value;
     if (avg == null) return null;
-    const min = d.payload.min_value;
-    const max = d.payload.max_value;
-
+    const { ts, min_value: min, max_value: max } = d.payload;
     return (
         <div
             style={{
@@ -116,166 +141,297 @@ function CustomTooltipContent({
                     color: 'var(--dashboard-text-secondary)',
                 }}
             >
-                {formatTime(new Date(Number(label)))}
+                {dayjs(ts).format('DD.MM.YYYY HH:mm:ss')}
             </div>
             <div style={{ color: 'var(--dashboard-text-primary)' }}>
-                {sensorLabel}: <strong>{avg.toFixed(1)}</strong> {unit}
+                {sensorLabel}: <strong>{avg.toFixed(2)}</strong> {unit}
             </div>
             {min != null && max != null && (
                 <div style={{ color: 'var(--dashboard-text-secondary)', fontSize: 11 }}>
-                    мин {min.toFixed(1)} / макс {max.toFixed(1)} {unit}
+                    мин {min.toFixed(2)} / макс {max.toFixed(2)} {unit}
                 </div>
             )}
         </div>
     );
 }
 
-export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
+export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: TrendsPanelProps) {
+    const isReplay = !!(replayStart && replayEnd);
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
-    const [selectedRange, setSelectedRange] = useState('15m');
-    const [pollTick, setPollTick] = useState(0);
+    const [selectedPeriod, setSelectedPeriod] = useState('15m');
 
-    // Drag-to-zoom state
-    const [zoomLeft, setZoomLeft] = useState<string | null>(null);
-    const [zoomRight, setZoomRight] = useState<string | null>(null);
-    const [zoomedDomain, setZoomedDomain] = useState<[number, number] | null>(null);
+    // Zoom stack: each entry = { start, end } ISO strings. Empty = no zoom.
+    const [zoomStack, setZoomStack] = useState<Array<{ start: string; end: string }>>([]);
 
-    // Increment tick every 30s so `start` recalculates (true sliding window)
-    useEffect(() => {
-        const id = setInterval(() => setPollTick((t) => t + 1), 30_000);
-        return () => clearInterval(id);
-    }, []);
+    // Drag selection state
+    const [dragStart, setDragStart] = useState<number | null>(null);
+    const [dragEnd, setDragEnd] = useState<number | null>(null);
 
-    // Reset zoom when range or sensor changes
-    useEffect(() => {
-        setZoomedDomain(null);
-    }, [selectedRange, selectedSensor, locomotiveId]);
+    const cfg = periodConfig[selectedPeriod];
+    const isZoomed = zoomStack.length > 0;
 
-    const queryParams = useMemo(() => {
-        const cfg = rangeConfig[selectedRange];
-        return {
+    // Current window: zoom overrides period
+    const currentWindow = useMemo(() => {
+        // Zoom always takes priority (works in both live and replay)
+        if (isZoomed) {
+            const top = zoomStack[zoomStack.length - 1];
+            return { start: top.start, end: top.end };
+        }
+        if (isReplay) {
+            return { start: replayStart!, end: replayEnd! };
+        }
+        return { start: cfg.getStart(), end: new Date().toISOString() };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isReplay, replayStart, replayEnd, isZoomed, zoomStack, selectedPeriod]);
+
+    const windowDurationMs =
+        new Date(currentWindow.end).getTime() - new Date(currentWindow.start).getTime();
+    const bucket = autoBucket(windowDurationMs);
+
+    // Query
+    const queryParams = useMemo(
+        () => ({
             locomotive_id: locomotiveId ?? undefined,
             sensor_type: selectedSensor,
-            start: cfg.getStart(),
-            bucket_interval: cfg.bucket_interval,
+            start: currentWindow.start,
+            end: currentWindow.end,
+            bucket_interval: bucket,
             limit: 500,
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locomotiveId, selectedSensor, selectedRange, pollTick]);
+        }),
+        [locomotiveId, selectedSensor, currentWindow, bucket],
+    );
 
     const { data, isFetching } = useGetTelemetryQuery(queryParams, {
-        skip: !locomotiveId,
-        pollingInterval: 30000,
+        skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
+        pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
 
-    // Prepare chart data with epoch timestamps for numeric X axis
+    // Chart data
     const chartData = useMemo(() => {
         if (!data?.length) return [];
-        return data.map((d) => ({ ...d, ts: toEpoch(d.bucket) }));
+        return data
+            .map((d) => ({
+                ts: toEpoch(d.bucket),
+                avg_value: d.avg_value,
+                min_value: d.min_value,
+                max_value: d.max_value,
+                unit: d.unit,
+            }))
+            .filter((d) => d.avg_value != null);
     }, [data]);
 
     const unit = data?.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
-    const tickCount = rangeConfig[selectedRange].tickCount;
+
+    // Stats
+    const stats = useMemo(() => {
+        const values = chartData.map((d) => d.avg_value).filter((v): v is number => v != null);
+        if (!values.length) return null;
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        return { avg, min: Math.min(...values), max: Math.max(...values) };
+    }, [chartData]);
+
+    // X tick formatter with day boundary detection
+    const tickFormatter = useMemo(() => {
+        const ticks = chartData.map((d) => ({ value: d.ts }));
+        return (ts: number, index: number) => formatXTick(ts, index, ticks);
+    }, [chartData]);
 
     // Drag-to-zoom handlers
     const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
-        if (e?.activeLabel != null) setZoomLeft(String(e.activeLabel));
+        if (e?.activeLabel != null) setDragStart(Number(e.activeLabel));
     }, []);
 
     const handleMouseMove = useCallback(
         (e: { activeLabel?: string | number }) => {
-            if (zoomLeft && e?.activeLabel != null) setZoomRight(String(e.activeLabel));
+            if (dragStart != null && e?.activeLabel != null) setDragEnd(Number(e.activeLabel));
         },
-        [zoomLeft],
+        [dragStart],
     );
 
     const handleMouseUp = useCallback(() => {
-        if (zoomLeft && zoomRight) {
-            const left = Number(zoomLeft);
-            const right = Number(zoomRight);
-            if (left !== right) {
-                setZoomedDomain([Math.min(left, right), Math.max(left, right)]);
+        if (dragStart != null && dragEnd != null && dragStart !== dragEnd) {
+            const left = Math.min(dragStart, dragEnd);
+            const right = Math.max(dragStart, dragEnd);
+            // Only zoom if selection is at least 10 seconds
+            if (right - left > 10_000) {
+                setZoomStack((prev) => [
+                    ...prev,
+                    { start: new Date(left).toISOString(), end: new Date(right).toISOString() },
+                ]);
             }
         }
-        setZoomLeft(null);
-        setZoomRight(null);
-    }, [zoomLeft, zoomRight]);
+        setDragStart(null);
+        setDragEnd(null);
+    }, [dragStart, dragEnd]);
 
-    const resetZoom = useCallback(() => setZoomedDomain(null), []);
+    const handleResetZoom = useCallback(() => {
+        setZoomStack([]);
+    }, []);
 
-    // X axis domain
-    const xDomain = useMemo<[number, number] | undefined>(() => {
-        if (zoomedDomain) return zoomedDomain;
-        if (!chartData.length) return undefined;
-        return [chartData[0].ts, chartData[chartData.length - 1].ts];
-    }, [chartData, zoomedDomain]);
+    const handleZoomBack = useCallback(() => {
+        setZoomStack((prev) => prev.slice(0, -1));
+    }, []);
+
+    // Reset zoom when period or sensor changes
+    const handlePeriodChange = useCallback((v: string) => {
+        setSelectedPeriod(v);
+        setZoomStack([]);
+    }, []);
+
+    // Window label for zoomed state
+    const windowLabel = useMemo(() => {
+        if (!isZoomed) return null;
+        const s = dayjs(currentWindow.start).format('HH:mm:ss');
+        const e = dayjs(currentWindow.end).format('HH:mm:ss');
+        const dur = Math.round(windowDurationMs / 1000);
+        const durLabel =
+            dur >= 3600
+                ? `${(dur / 3600).toFixed(1)}ч`
+                : dur >= 60
+                  ? `${Math.round(dur / 60)}м`
+                  : `${dur}с`;
+        return `${s} — ${e} (${durLabel})`;
+    }, [isZoomed, currentWindow, windowDurationMs]);
 
     return (
-        <Card style={{ borderTop: '2px solid var(--mantine-color-ktzBlue-5)' }}>
-            <Group justify="space-between" mb="sm" wrap="wrap" gap="xs">
+        <Card
+            style={{
+                borderTop: `2px solid var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`,
+            }}
+        >
+            <Group justify="space-between" mb="xs" wrap="wrap" gap="xs">
                 <Group gap="xs">
                     <Text className="panel-label">ТРЕНДЫ</Text>
-                    {zoomedDomain && (
-                        <MantineTooltip label="Сбросить зум">
-                            <ActionIcon
-                                variant="subtle"
-                                size="xs"
-                                onClick={resetZoom}
-                                color="ktzBlue"
-                            >
-                                ↻
-                            </ActionIcon>
-                        </MantineTooltip>
+                    {isReplay && (
+                        <Badge size="xs" variant="light" color="ktzGold">
+                            REPLAY
+                        </Badge>
                     )}
+                    {isZoomed && (
+                        <>
+                            <Badge size="xs" variant="filled" color="ktzCyan">
+                                ZOOM x{zoomStack.length}
+                            </Badge>
+                            <MantineTooltip label="Сбросить зум">
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="xs"
+                                    onClick={handleResetZoom}
+                                    color="ktzCyan"
+                                >
+                                    ↻
+                                </ActionIcon>
+                            </MantineTooltip>
+                            {zoomStack.length > 1 && (
+                                <MantineTooltip label="Назад">
+                                    <ActionIcon
+                                        variant="subtle"
+                                        size="xs"
+                                        onClick={handleZoomBack}
+                                        color="gray"
+                                    >
+                                        ←
+                                    </ActionIcon>
+                                </MantineTooltip>
+                            )}
+                        </>
+                    )}
+                    {isFetching && <Loader size={12} />}
                 </Group>
-                <Group gap="xs" wrap="wrap">
-                    <Select
-                        size="xs"
-                        value={selectedSensor}
-                        onChange={(v) => v && setSelectedSensor(v)}
-                        data={sensorOptions}
-                        w={180}
-                    />
-                    <SegmentedControl
-                        size="xs"
-                        value={selectedRange}
-                        onChange={setSelectedRange}
-                        data={rangeOptions}
-                    />
-                </Group>
+                <Select
+                    size="xs"
+                    value={selectedSensor}
+                    onChange={(v) => {
+                        if (v) {
+                            setSelectedSensor(v);
+                            setZoomStack([]);
+                        }
+                    }}
+                    data={sensorOptions}
+                    w={180}
+                    searchable
+                    placeholder="Датчик"
+                />
             </Group>
 
+            {/* Period selector */}
+            {!isReplay && (
+                <SegmentedControl
+                    size="xs"
+                    value={selectedPeriod}
+                    onChange={handlePeriodChange}
+                    data={periodOptions}
+                    mb="sm"
+                    fullWidth
+                />
+            )}
+
+            {/* Zoom window info */}
+            {isZoomed && windowLabel && (
+                <Group gap="xs" mb="xs">
+                    <Badge
+                        size="xs"
+                        variant="outline"
+                        color="ktzCyan"
+                        ff="var(--font-mono), monospace"
+                    >
+                        {windowLabel}
+                    </Badge>
+                    <Badge size="xs" variant="outline" color="gray">
+                        шаг: {bucket}
+                    </Badge>
+                </Group>
+            )}
+
+            {/* Stats */}
+            {stats && (
+                <Group gap="xs" mb="xs">
+                    <Badge size="xs" variant="light" color="ktzBlue">
+                        Сред: {stats.avg.toFixed(1)} {unit}
+                    </Badge>
+                    <Badge size="xs" variant="light" color="green">
+                        Мин: {stats.min.toFixed(1)} {unit}
+                    </Badge>
+                    <Badge size="xs" variant="light" color="critical">
+                        Макс: {stats.max.toFixed(1)} {unit}
+                    </Badge>
+                </Group>
+            )}
+
+            {/* Chart */}
             {!locomotiveId ? (
                 <Center h={280}>
                     <Text c="dimmed">Выберите локомотив</Text>
                 </Center>
-            ) : isFetching && !data ? (
+            ) : isFetching && chartData.length === 0 ? (
                 <Center h={280}>
                     <Loader size="sm" />
                 </Center>
-            ) : !data || data.length === 0 ? (
+            ) : chartData.length === 0 ? (
                 <Center h={280}>
-                    <Text c="dimmed">Нет данных</Text>
+                    <Text c="dimmed">Нет данных за выбранный период</Text>
                 </Center>
             ) : (
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
                         data={chartData}
+                        margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
+                        style={{ cursor: 'crosshair' }}
                     >
                         <defs>
-                            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
                                 <stop
                                     offset="0%"
-                                    stopColor="var(--mantine-color-ktzBlue-5)"
+                                    stopColor={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
                                     stopOpacity={0.3}
                                 />
                                 <stop
                                     offset="100%"
-                                    stopColor="var(--mantine-color-ktzBlue-5)"
+                                    stopColor={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
                                     stopOpacity={0}
                                 />
                             </linearGradient>
@@ -285,49 +441,49 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
                             dataKey="ts"
                             type="number"
                             scale="time"
-                            domain={xDomain}
-                            tickCount={tickCount}
-                            tickFormatter={fmtTick}
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={tickFormatter}
                             tick={{ fontSize: 11 }}
+                            tickCount={8}
                         />
                         <YAxis
                             tick={{ fontSize: 11 }}
-                            width={70}
-                            domain={[0, 'auto']}
-                            allowDecimals={false}
+                            width={65}
+                            domain={['auto', 'auto']}
                             tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
                         />
                         <Tooltip
                             content={<CustomTooltipContent unit={unit} sensorLabel={sensorLabel} />}
                         />
+                        {stats && (
+                            <ReferenceLine
+                                y={stats.avg}
+                                stroke="var(--mantine-color-ktzGold-5)"
+                                strokeDasharray="5 5"
+                                strokeOpacity={0.4}
+                            />
+                        )}
                         <Area
                             type="monotone"
                             dataKey="avg_value"
-                            stroke="var(--mantine-color-ktzBlue-5)"
-                            fill="url(#trendGradient)"
+                            stroke={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
+                            fill="url(#trendGrad)"
                             strokeWidth={2}
                             dot={false}
                             isAnimationActive={false}
                             connectNulls
                         />
-                        {/* Drag-to-zoom selection overlay */}
-                        {zoomLeft && zoomRight && (
+                        {/* Drag selection overlay */}
+                        {dragStart != null && dragEnd != null && (
                             <ReferenceArea
-                                x1={Number(zoomLeft)}
-                                x2={Number(zoomRight)}
-                                strokeOpacity={0.3}
-                                fill="var(--mantine-color-ktzBlue-2)"
-                                fillOpacity={0.3}
+                                x1={Math.min(dragStart, dragEnd)}
+                                x2={Math.max(dragStart, dragEnd)}
+                                fill="var(--mantine-color-ktzCyan-5)"
+                                fillOpacity={0.15}
+                                stroke="var(--mantine-color-ktzCyan-5)"
+                                strokeOpacity={0.4}
                             />
                         )}
-                        {/* Brush for fine-grained scroll/zoom at bottom */}
-                        <Brush
-                            dataKey="ts"
-                            height={28}
-                            stroke="var(--mantine-color-ktzBlue-5)"
-                            fill="var(--dashboard-surface)"
-                            tickFormatter={fmtTick}
-                        />
                     </AreaChart>
                 </ResponsiveContainer>
             )}

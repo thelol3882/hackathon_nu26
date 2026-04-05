@@ -258,6 +258,53 @@ async def get_health_index(
     )
 
 
+async def get_health_at(
+    session: AsyncSession,
+    locomotive_id: str,
+    at: datetime,
+) -> HealthIndex:
+    """Return the health snapshot closest to (but not after) the given time."""
+    result = await session.execute(
+        text("""
+            SELECT score, category, top_factors, damage_penalty, calculated_at, locomotive_type
+            FROM health_snapshots
+            WHERE locomotive_id = CAST(:loco_id AS uuid)
+              AND calculated_at <= :at
+            ORDER BY calculated_at DESC
+            LIMIT 1
+        """),
+        {"loco_id": locomotive_id, "at": at},
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="No health data at this time")
+
+    top_factors = row.top_factors or []
+    factor_list = top_factors if isinstance(top_factors, list) else []
+    factors = [
+        HealthFactor(
+            sensor_type=f.get("sensor_type", ""),
+            value=f.get("value", 0),
+            unit=f.get("unit", ""),
+            penalty=f.get("penalty", 0),
+            contribution_pct=f.get("contribution_pct", 0),
+            deviation_pct=f.get("deviation_pct", 0),
+        )
+        for f in factor_list
+        if isinstance(f, dict)
+    ]
+
+    return HealthIndex(
+        locomotive_id=UUID(locomotive_id),
+        locomotive_type=row.locomotive_type or "TE33A",
+        overall_score=round(float(row.score), 1),
+        category=row.category or _categorize(float(row.score)),
+        top_factors=factors,
+        damage_penalty=float(row.damage_penalty or 0),
+        calculated_at=row.calculated_at,
+    )
+
+
 # --- Config CRUD ---
 
 

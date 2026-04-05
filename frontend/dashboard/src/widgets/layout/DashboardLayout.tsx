@@ -12,40 +12,22 @@ import {
     Tooltip,
     ActionIcon,
     Box,
+    Stack,
+    Badge,
+    Divider,
     useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconSun, IconMoon, IconLogout } from '@tabler/icons-react';
+import { IconSun, IconMoon, IconLogout, IconTrain } from '@tabler/icons-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { selectIsAdmin, selectUsername, logout } from '@/store/authSlice';
+import { selectIsAdmin, selectUsername, selectRole, logout } from '@/store/authSlice';
 import { LocomotiveSelect } from '@/features/locomotives';
 import { navigationItems } from './navigation';
 import { LocomotiveProvider, useLocomotive } from './LocomotiveContext';
 
 function LocomotiveSelector() {
-    const { locomotiveId, setLocomotiveId } = useLocomotive();
-    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotiveId} />;
-}
-
-function ConnectionStatus() {
-    const { locomotiveId } = useLocomotive();
-    const connected = !!locomotiveId;
-    const color = connected ? 'var(--mantine-color-green-5)' : 'var(--mantine-color-gray-5)';
-    const label = connected ? 'Подключено' : 'Не подключено';
-
-    return (
-        <Tooltip label={label}>
-            <Box
-                style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: color,
-                    flexShrink: 0,
-                }}
-            />
-        </Tooltip>
-    );
+    const { locomotiveId, setLocomotive } = useLocomotive();
+    return <LocomotiveSelect value={locomotiveId} onChange={setLocomotive} />;
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
@@ -53,6 +35,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const isAdmin = useAppSelector(selectIsAdmin);
     const username = useAppSelector(selectUsername);
+    const role = useAppSelector(selectRole);
     const dispatch = useAppDispatch();
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
@@ -61,83 +44,125 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     return (
         <LocomotiveProvider>
             <AppShell
-                header={{ height: 60 }}
+                header={{ height: 56 }}
                 navbar={{
-                    width: 260,
+                    width: 240,
                     breakpoint: 'sm',
                     collapsed: { mobile: !opened, desktop: !opened },
                 }}
                 padding="md"
             >
                 {/* Header */}
-                <AppShell.Header>
+                <AppShell.Header
+                    style={{
+                        borderBottom: '1px solid var(--dashboard-border)',
+                        backgroundColor: 'var(--dashboard-surface)',
+                    }}
+                >
                     <Group h="100%" px="md" justify="space-between">
-                        <Group>
+                        <Group gap="sm">
                             <Burger opened={opened} onClick={toggle} size="sm" />
-                            <Text
-                                fw={700}
-                                size="lg"
-                                ff="var(--font-mono), monospace"
-                                visibleFrom="sm"
-                            >
-                                КТЖ
-                            </Text>
+                            <Group gap={6} visibleFrom="sm">
+                                <IconTrain
+                                    size={20}
+                                    style={{ color: 'var(--mantine-color-ktzBlue-5)' }}
+                                />
+                                <Text
+                                    fw={700}
+                                    size="md"
+                                    ff="var(--font-mono), monospace"
+                                    c="var(--mantine-color-ktzBlue-5)"
+                                >
+                                    КТЖ
+                                </Text>
+                            </Group>
                         </Group>
 
                         <Group gap="md">
                             <LocomotiveSelector />
-                            <ConnectionStatus />
                             <ActionIcon
                                 variant="subtle"
-                                size="lg"
+                                size="md"
                                 onClick={toggleColorScheme}
                                 aria-label="Переключить тему"
                             >
                                 {colorScheme === 'dark' ? (
-                                    <IconSun size={18} stroke={1.5} />
+                                    <IconSun size={16} stroke={1.5} />
                                 ) : (
-                                    <IconMoon size={18} stroke={1.5} />
+                                    <IconMoon size={16} stroke={1.5} />
                                 )}
                             </ActionIcon>
-                            {username && (
-                                <Text size="sm" c="dimmed">
-                                    {username}
-                                </Text>
-                            )}
-                            <Tooltip label="Выйти">
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="lg"
-                                    color="red"
-                                    onClick={() => dispatch(logout())}
-                                    aria-label="Выйти"
-                                >
-                                    <IconLogout size={18} stroke={1.5} />
-                                </ActionIcon>
-                            </Tooltip>
                         </Group>
                     </Group>
                 </AppShell.Header>
 
                 {/* Navbar */}
-                <AppShell.Navbar p="md" style={{ backgroundColor: 'var(--dashboard-surface)' }}>
+                <AppShell.Navbar
+                    p="sm"
+                    style={{
+                        backgroundColor: 'var(--dashboard-surface)',
+                        borderRight: '1px solid var(--dashboard-border)',
+                    }}
+                >
                     <AppShell.Section grow>
-                        {visibleNavItems.map((item) => (
-                            <NavLink
-                                key={item.key}
-                                component={Link}
-                                href={item.href}
-                                label={item.label}
-                                leftSection={<item.icon size={20} stroke={1.5} />}
-                                active={pathname === item.href}
-                                mb={4}
-                            />
-                        ))}
+                        <Stack gap={2}>
+                            {visibleNavItems.map((item) => (
+                                <NavLink
+                                    key={item.key}
+                                    component={Link}
+                                    href={item.href}
+                                    label={item.label}
+                                    leftSection={<item.icon size={18} stroke={1.5} />}
+                                    active={pathname === item.href}
+                                    variant="light"
+                                    style={{ borderRadius: 'var(--mantine-radius-md)' }}
+                                />
+                            ))}
+                        </Stack>
+                    </AppShell.Section>
+
+                    <AppShell.Section>
+                        <Divider mb="sm" />
+                        <Box
+                            p="xs"
+                            style={{
+                                borderRadius: 'var(--mantine-radius-md)',
+                                backgroundColor: 'var(--dashboard-surface-elevated)',
+                            }}
+                        >
+                            <Group justify="space-between">
+                                <Stack gap={0}>
+                                    <Text size="sm" fw={500} truncate>
+                                        {username ?? 'Гость'}
+                                    </Text>
+                                    <Badge
+                                        size="xs"
+                                        variant="light"
+                                        color={role === 'admin' ? 'ktzGold' : 'ktzBlue'}
+                                    >
+                                        {role === 'admin' ? 'Администратор' : 'Оператор'}
+                                    </Badge>
+                                </Stack>
+                                <Tooltip label="Выйти">
+                                    <ActionIcon
+                                        variant="subtle"
+                                        size="md"
+                                        color="red"
+                                        onClick={() => dispatch(logout())}
+                                        aria-label="Выйти"
+                                    >
+                                        <IconLogout size={16} stroke={1.5} />
+                                    </ActionIcon>
+                                </Tooltip>
+                            </Group>
+                        </Box>
                     </AppShell.Section>
                 </AppShell.Navbar>
 
                 {/* Main content */}
-                <AppShell.Main>{children}</AppShell.Main>
+                <AppShell.Main style={{ backgroundColor: 'var(--dashboard-bg)' }}>
+                    {children}
+                </AppShell.Main>
             </AppShell>
         </LocomotiveProvider>
     );

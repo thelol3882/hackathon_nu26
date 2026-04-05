@@ -6,8 +6,10 @@ from api_gateway.api.dependencies import DbSession
 from api_gateway.services.telemetry_query_service import (
     TelemetryBucket,
     TelemetryRaw,
+    TelemetrySnapshot,
     query_telemetry_bucketed,
     query_telemetry_raw,
+    query_telemetry_snapshot,
 )
 
 router = APIRouter()
@@ -38,6 +40,16 @@ async def get_telemetry(
         offset=offset,
         limit=limit,
     )
+
+
+@router.get("/snapshot", response_model=list[TelemetrySnapshot])
+async def get_telemetry_snapshot(
+    db: DbSession,
+    locomotive_id: str = Query(..., description="Locomotive UUID"),
+    at: datetime = Query(..., description="Point in time (ISO 8601)"),
+):
+    """Get the latest sensor readings at or before the given timestamp."""
+    return await query_telemetry_snapshot(db, locomotive_id=locomotive_id, at=at)
 
 
 @router.get("/raw", response_model=list[TelemetryRaw])

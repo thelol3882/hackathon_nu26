@@ -2,19 +2,28 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-    padding: 16px;
+    gap: 12px;
+    padding: 8px;
+}
+
+@media (min-width: 1200px) {
+    .wrapper {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 20px;
+    }
 }
 
 .gaugeContainer {
     position: relative;
     width: 100%;
-    max-width: 240px;
+    max-width: 200px;
+    flex-shrink: 0;
 }
 
 .ring {
     transition:
-        stroke-dashoffset 0.8s ease-out,
+        stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1),
         stroke 0.5s ease;
 }
 
@@ -22,25 +31,26 @@
     transition: fill 0.5s ease;
 }
 
-.tickMark {
-    stroke: var(--dashboard-border);
-    stroke-width: 2;
-    opacity: 0.6;
-}
-
 .factorsContainer {
     width: 100%;
+    flex: 1;
+    min-width: 0;
 }
 
 .factorRow {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 0;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--dashboard-border);
+}
+
+.factorRow:last-child {
+    border-bottom: none;
 }
 
 .factorLabel {
-    flex: 0 0 130px;
+    flex: 0 0 120px;
     font-size: 12px;
     color: var(--dashboard-text-secondary);
     text-align: right;
@@ -51,13 +61,14 @@
 
 .factorBar {
     flex: 1;
-    min-width: 60px;
+    min-width: 50px;
 }
 
 .factorValue {
-    flex: 0 0 50px;
+    flex: 0 0 52px;
     font-family: var(--font-mono), monospace;
     font-size: 12px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     text-align: right;
     color: var(--dashboard-text-primary);
@@ -67,7 +78,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 280px;
+    min-height: 240px;
     color: var(--dashboard-text-secondary);
     font-size: 14px;
 }
@@ -76,5 +87,5 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 280px;
+    min-height: 240px;
 }

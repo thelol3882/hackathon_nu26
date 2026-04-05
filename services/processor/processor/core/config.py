@@ -40,6 +40,12 @@ class ProcessorSettings(BaseSettings):
     telemetry_batch_size: int = 100
     alert_cooldown_seconds: int = 30
 
+    # --- Retention ---
+    retention_telemetry_hours: int = 72
+    retention_alerts_hours: int = 168
+    retention_health_hours: int = 168
+    compression_after_hours: int = 1
+
 
 @lru_cache
 def get_settings() -> ProcessorSettings:

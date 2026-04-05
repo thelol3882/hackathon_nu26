@@ -1,22 +1,47 @@
 .mapContainer {
-    border-radius: var(--panel-radius, 8px);
+    border-radius: var(--dashboard-panel-radius, 8px);
     overflow: hidden;
+    position: relative;
 }
 
 .mapContainer :global(.leaflet-container) {
-    height: 300px;
+    height: 350px;
     width: 100%;
-    border-radius: var(--panel-radius, 8px);
+    border-radius: var(--dashboard-panel-radius, 8px);
+}
+
+.mapControls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1000;
+    background: var(--dashboard-surface);
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--dashboard-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.coordDisplay {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    z-index: 1000;
+    background: var(--dashboard-surface);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--dashboard-border);
+    opacity: 0.85;
 }
 
 .trainMarker {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     background-color: var(--mantine-color-ktzBlue-5);
-    border: 2px solid #fff;
+    border: 3px solid #fff;
     border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 12px rgba(3, 136, 230, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
 }

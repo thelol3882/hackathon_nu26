@@ -43,7 +43,14 @@ export interface TelemetryBucket {
     unit: string;
 }
 
-export type BucketInterval = '1 minute' | '5 minutes' | '15 minutes' | '1 hour' | '1 day';
+export type BucketInterval =
+    | '1 minute'
+    | '5 minutes'
+    | '10 minutes'
+    | '15 minutes'
+    | '30 minutes'
+    | '1 hour'
+    | '1 day';
 
 export interface TelemetryQuery {
     locomotive_id?: string;
@@ -53,6 +60,18 @@ export interface TelemetryQuery {
     bucket_interval?: BucketInterval;
     offset?: number;
     limit?: number;
+}
+
+export interface TelemetrySnapshotItem {
+    locomotive_id: string;
+    locomotive_type: string;
+    sensor_type: SensorType;
+    value: number;
+    filtered_value: number | null;
+    unit: string;
+    timestamp: string;
+    latitude: number | null;
+    longitude: number | null;
 }
 
 export interface TelemetryRawQuery {

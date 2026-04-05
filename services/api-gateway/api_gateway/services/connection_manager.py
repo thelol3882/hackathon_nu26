@@ -46,6 +46,13 @@ class _ClientSlot:
     filter_loco_id: str | None = None  # if set, only forward messages matching this loco
 
 
+@dataclass
+class _WsState:
+    """Per-WebSocket heartbeat state."""
+
+    pong_received: bool = True  # starts True so first ping doesn't immediately kill
+
+
 class _ChannelRelay:
     """Manages a single Redis pub/sub channel shared by N WebSocket clients."""
 
@@ -190,6 +197,7 @@ class ConnectionManager:
         self._relays: dict[str, _ChannelRelay] = {}
         self._connections: dict[int, set[str]] = {}  # id(ws) -> set of channel keys
         self._ws_refs: dict[int, WebSocket] = {}
+        self._ws_states: dict[int, _WsState] = {}  # heartbeat tracking
         self._lock = asyncio.Lock()
         self._heartbeat_task: asyncio.Task | None = None
 
@@ -215,6 +223,7 @@ class ConnectionManager:
             ws_id = id(ws)
             self._connections[ws_id] = set()
             self._ws_refs[ws_id] = ws
+            self._ws_states[ws_id] = _WsState()
         await ws.accept()
         logger.info(
             "WebSocket connected",
@@ -240,12 +249,20 @@ class ConnectionManager:
 
         await self._relays[channel].add_client(ws, filter_loco_id=filter_loco_id)
 
+    def mark_pong(self, ws: WebSocket) -> None:
+        """Mark that a pong was received from this client."""
+        ws_id = id(ws)
+        state = self._ws_states.get(ws_id)
+        if state:
+            state.pong_received = True
+
     async def disconnect(self, ws: WebSocket) -> None:
         """Remove a client from all channels and tracking."""
         async with self._lock:
             ws_id = id(ws)
             channels = self._connections.pop(ws_id, set())
             self._ws_refs.pop(ws_id, None)
+            self._ws_states.pop(ws_id, None)
 
         for ch in channels:
             relay = self._relays.get(ch)
@@ -292,23 +309,34 @@ class ConnectionManager:
                 pass
 
     async def _heartbeat_loop(self) -> None:
-        """Periodically ping all connections, remove stale ones."""
+        """Periodically ping all connections, remove stale ones that didn't pong."""
         while True:
             try:
                 await asyncio.sleep(_HEARTBEAT_INTERVAL)
-                async with self._lock:
-                    ws_list = list(self._ws_refs.values())
 
                 stale: list[WebSocket] = []
                 ping_data = wire_encode({"type": "ping"})
-                for ws in ws_list:
+
+                async with self._lock:
+                    ws_items = list(self._ws_refs.items())
+
+                for ws_id, ws in ws_items:
+                    state = self._ws_states.get(ws_id)
+                    if state and not state.pong_received:
+                        # No pong since last ping — connection is dead
+                        stale.append(ws)
+                        continue
+
+                    # Reset flag and send new ping
+                    if state:
+                        state.pong_received = False
                     try:
                         await ws.send_bytes(ping_data)
                     except Exception:
                         stale.append(ws)
 
                 for ws in stale:
-                    logger.info("Removing stale connection", code=WS_STALE_REMOVED)
+                    logger.info("Removing stale connection (no pong)", code=WS_STALE_REMOVED)
                     await self.disconnect(ws)
             except asyncio.CancelledError:
                 break

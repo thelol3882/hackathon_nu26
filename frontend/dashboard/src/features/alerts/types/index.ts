@@ -17,6 +17,8 @@ export interface AlertsQuery {
     locomotive_id?: string;
     severity?: AlertSeverity;
     acknowledged?: boolean;
+    start?: string;
+    end?: string;
     offset?: number;
     limit?: number;
 }

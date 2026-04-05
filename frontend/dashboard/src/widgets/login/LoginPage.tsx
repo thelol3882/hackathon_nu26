@@ -12,8 +12,11 @@ import {
     Center,
     Box,
     Alert,
+    Group,
+    ThemeIcon,
+    Divider,
 } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { IconAlertCircle, IconTrain, IconShieldCheck } from '@tabler/icons-react';
 import { useLoginMutation } from '@/features/auth';
 import { useAppDispatch } from '@/store/hooks';
 import { setCredentials } from '@/store/authSlice';
@@ -35,7 +38,6 @@ export function LoginPage() {
                 setCredentials({
                     access_token: result.access_token,
                     username,
-                    role: 'operator', // role comes from JWT decode in real app
                 }),
             );
             router.push('/dashboard');
@@ -52,30 +54,82 @@ export function LoginPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: 'var(--dashboard-bg)',
+                position: 'relative',
+                overflow: 'hidden',
             }}
         >
-            <Card
-                w={400}
-                padding="xl"
-                shadow="lg"
+            {/* Background decoration */}
+            <Box
                 style={{
-                    borderTop: '3px solid var(--mantine-color-ktzGold-5)',
+                    position: 'absolute',
+                    top: '-20%',
+                    right: '-10%',
+                    width: '50vw',
+                    height: '50vw',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(3,136,230,0.08) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                }}
+            />
+            <Box
+                style={{
+                    position: 'absolute',
+                    bottom: '-30%',
+                    left: '-15%',
+                    width: '60vw',
+                    height: '60vw',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(254,198,4,0.05) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                }}
+            />
+
+            <Card
+                w={420}
+                padding="xl"
+                shadow="xl"
+                style={{
+                    borderTop: '3px solid var(--mantine-color-ktzBlue-5)',
+                    position: 'relative',
+                    zIndex: 1,
                 }}
             >
                 <Stack gap="lg">
+                    {/* Logo */}
                     <Center>
-                        <Text
-                            size="xl"
-                            fw={700}
-                            ff="var(--font-mono), monospace"
-                            c="var(--mantine-color-ktzGold-5)"
-                        >
-                            КТЖ
-                        </Text>
+                        <Stack align="center" gap={8}>
+                            <ThemeIcon size={56} radius="xl" variant="light" color="ktzBlue">
+                                <IconTrain size={28} stroke={1.5} />
+                            </ThemeIcon>
+                            <Text
+                                size="xl"
+                                fw={700}
+                                ff="var(--font-mono), monospace"
+                                c="var(--mantine-color-ktzBlue-5)"
+                            >
+                                КТЖ
+                            </Text>
+                        </Stack>
                     </Center>
-                    <Text ta="center" size="sm" c="var(--dashboard-text-secondary)">
-                        Цифровой двойник локомотива
-                    </Text>
+
+                    <Stack align="center" gap={2}>
+                        <Text size="lg" fw={600} c="var(--dashboard-text-primary)">
+                            Цифровой двойник
+                        </Text>
+                        <Text size="sm" c="var(--dashboard-text-secondary)">
+                            Система мониторинга локомотивов
+                        </Text>
+                    </Stack>
+
+                    <Divider
+                        label={
+                            <Group gap={4}>
+                                <IconShieldCheck size={14} />
+                                <Text size="xs">Авторизация</Text>
+                            </Group>
+                        }
+                        labelPosition="center"
+                    />
 
                     {error && (
                         <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />}>
@@ -91,6 +145,7 @@ export function LoginPage() {
                                 value={username}
                                 onChange={(e) => setUsername(e.currentTarget.value)}
                                 required
+                                size="md"
                             />
                             <PasswordInput
                                 label="Пароль"
@@ -98,12 +153,17 @@ export function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.currentTarget.value)}
                                 required
+                                size="md"
                             />
-                            <Button type="submit" fullWidth loading={isLoading} mt="sm">
-                                Войти
+                            <Button type="submit" fullWidth loading={isLoading} mt="sm" size="md">
+                                Войти в систему
                             </Button>
                         </Stack>
                     </form>
+
+                    <Text size="xs" c="dimmed" ta="center">
+                        Защищённое подключение
+                    </Text>
                 </Stack>
             </Card>
         </Box>

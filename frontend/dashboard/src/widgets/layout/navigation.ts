@@ -1,4 +1,4 @@
-import { IconGauge, IconFileAnalytics, IconSettings } from '@tabler/icons-react';
+import { IconGauge, IconFileAnalytics, IconSettings, IconUsers } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 
 export interface NavItem {
@@ -12,5 +12,6 @@ export interface NavItem {
 export const navigationItems: NavItem[] = [
     { key: 'dashboard', href: '/dashboard', icon: IconGauge, label: 'Кабина' },
     { key: 'reports', href: '/reports', icon: IconFileAnalytics, label: 'Отчёты' },
+    { key: 'users', href: '/users', icon: IconUsers, label: 'Пользователи', adminOnly: true },
     { key: 'config', href: '/config', icon: IconSettings, label: 'Настройки', adminOnly: true },
 ];
