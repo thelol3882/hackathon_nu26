@@ -6,15 +6,15 @@
     margin-top: calc(-1 * var(--mantine-spacing-md));
 }
 
-/* Status strip at top */
+/* Status strip */
 .statusStrip {
-    background: var(--dashboard-surface);
-    border-bottom: 1px solid var(--dashboard-border);
-    margin: 0 calc(-1 * var(--mantine-spacing-md));
+    background: var(--dashboard-surface-elevated);
+    border: 1px solid var(--dashboard-border);
+    border-radius: var(--mantine-radius-md);
     margin-bottom: var(--mantine-spacing-sm);
 }
 
-/* Empty state icon animation */
+/* Empty state */
 .emptyIcon {
     animation: float 3s ease-in-out infinite;
 }
@@ -24,10 +24,10 @@
     50% { transform: translateY(-10px); }
 }
 
+/* Dashboard grid */
 .grid {
     display: grid;
-    gap: var(--mantine-spacing-md);
-    padding: 0 var(--mantine-spacing-xs);
+    gap: var(--mantine-spacing-sm);
     grid-template-columns: 1fr;
     grid-template-areas:
         "health"
@@ -40,7 +40,6 @@
         "trends";
 }
 
-/* Ensure cards fill their grid cell */
 .grid > div > * {
     height: 100%;
 }
@@ -62,30 +61,33 @@
             "health  health"
             "speed   fuel"
             "press   elec"
-            "alerts  map"
+            "alerts  alerts"
+            "map     map"
             "trends  trends";
     }
 }
 
-/* Large: 4 columns */
+/* Large: 3 columns — balanced layout */
 @media (min-width: 1200px) {
     .grid {
-        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+        grid-template-columns: 1fr 1fr 1fr;
         grid-template-areas:
-            "health  health  speed   alerts"
-            "fuel    press   elec    alerts"
-            "map     map     map     map"
-            "trends  trends  trends  trends";
+            "health  health  health"
+            "speed   fuel    alerts"
+            "press   elec    alerts"
+            "map     map     map"
+            "trends  trends  trends";
     }
 }
 
-/* XL: wider screens */
+/* XL: 4 columns */
 @media (min-width: 1600px) {
     .grid {
-        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
         grid-template-areas:
-            "health  health  speed   fuel    alerts"
-            "press   elec    elec    map     alerts"
-            "trends  trends  trends  trends  trends";
+            "health  health  speed   fuel"
+            "alerts  alerts  press   elec"
+            "map     map     map     map"
+            "trends  trends  trends  trends";
     }
 }

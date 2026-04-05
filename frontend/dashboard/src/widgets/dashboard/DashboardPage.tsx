@@ -3,15 +3,7 @@
 import { useMemo } from 'react';
 import { Box, Text, Center, Loader, Group, Badge, Stack, ThemeIcon, Slider } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
-import {
-    IconTrain,
-    IconWifi,
-    IconWifiOff,
-    IconActivity,
-    IconClock,
-    IconPlayerPlay,
-    IconBroadcast,
-} from '@tabler/icons-react';
+import { IconTrain, IconPlayerPlay, IconBroadcast } from '@tabler/icons-react';
 import { ActionIcon, Tooltip } from '@mantine/core';
 import { useLocomotive } from '@/widgets/layout/LocomotiveContext';
 import { useLiveTelemetry, useGetTelemetrySnapshotQuery } from '@/features/telemetry';
@@ -33,18 +25,73 @@ import { RouteMap } from './components/RouteMap/RouteMap';
 
 import styles from './DashboardPage.module.css';
 
-function ConnectionBadge({ status }: { status: string }) {
-    const connected = status === 'connected';
-    const reconnecting = status === 'reconnecting';
+function StatusStrip({
+    locomotiveId,
+    locoType,
+    connectionStatus,
+    latestTimestamp,
+    sensorCount,
+}: {
+    locomotiveId: string;
+    locoType: string | undefined;
+    connectionStatus: string;
+    latestTimestamp: string | null;
+    sensorCount: number;
+}) {
+    const connected = connectionStatus === 'connected';
+    const reconnecting = connectionStatus === 'reconnecting';
     return (
-        <Badge
-            size="sm"
-            variant="dot"
-            color={connected ? 'green' : reconnecting ? 'yellow' : 'red'}
-            leftSection={connected ? <IconWifi size={10} /> : <IconWifiOff size={10} />}
-        >
-            {connected ? 'Онлайн' : reconnecting ? 'Переподключение...' : 'Нет связи'}
-        </Badge>
+        <Box className={styles.statusStrip}>
+            <Group px="md" py={8} justify="space-between">
+                {/* Left: loco info */}
+                <Group gap="sm">
+                    <IconTrain size={14} style={{ opacity: 0.5 }} />
+                    <Text
+                        size="xs"
+                        fw={600}
+                        ff="var(--font-mono), monospace"
+                        c="var(--dashboard-text-primary)"
+                    >
+                        {locomotiveId.slice(0, 8)}
+                    </Text>
+                    {locoType && (
+                        <Badge
+                            size="xs"
+                            variant="light"
+                            color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
+                        >
+                            {locoType}
+                        </Badge>
+                    )}
+                    <div
+                        style={{
+                            width: 1,
+                            height: 14,
+                            background: 'var(--dashboard-border)',
+                        }}
+                    />
+                    <Badge
+                        size="xs"
+                        variant="dot"
+                        color={connected ? 'green' : reconnecting ? 'yellow' : 'red'}
+                    >
+                        {connected ? 'Онлайн' : reconnecting ? 'Переподкл.' : 'Нет связи'}
+                    </Badge>
+                </Group>
+
+                {/* Right: meta */}
+                <Group gap="sm">
+                    {latestTimestamp && (
+                        <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
+                            {getRelativeTime(latestTimestamp)}
+                        </Text>
+                    )}
+                    <Text size="xs" c="dimmed">
+                        {sensorCount} датчиков
+                    </Text>
+                </Group>
+            </Group>
+        </Box>
     );
 }
 
@@ -243,44 +290,13 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
 
     return (
         <>
-            <Box className={styles.statusStrip}>
-                <Group justify="space-between" px="md" py={6}>
-                    <Group gap="md">
-                        <Group gap={6}>
-                            <IconTrain size={16} style={{ opacity: 0.7 }} />
-                            <Text size="sm" fw={600} ff="var(--font-mono), monospace">
-                                {locomotiveId.slice(0, 8)}
-                            </Text>
-                            {locoType && (
-                                <Badge
-                                    size="xs"
-                                    variant="light"
-                                    color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
-                                >
-                                    {locoType}
-                                </Badge>
-                            )}
-                        </Group>
-                        <ConnectionBadge status={connectionStatus} />
-                    </Group>
-                    <Group gap="md">
-                        {latestTimestamp && (
-                            <Group gap={4}>
-                                <IconClock size={12} style={{ opacity: 0.5 }} />
-                                <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
-                                    {getRelativeTime(latestTimestamp)}
-                                </Text>
-                            </Group>
-                        )}
-                        <Group gap={4}>
-                            <IconActivity size={12} style={{ opacity: 0.5 }} />
-                            <Text size="xs" c="dimmed">
-                                {sensors.size} датчиков
-                            </Text>
-                        </Group>
-                    </Group>
-                </Group>
-            </Box>
+            <StatusStrip
+                locomotiveId={locomotiveId}
+                locoType={locoType}
+                connectionStatus={connectionStatus}
+                latestTimestamp={latestTimestamp}
+                sensorCount={sensors.size}
+            />
             <DashboardGrid
                 getSensor={getSensor}
                 health={health}
@@ -371,37 +387,35 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 className={styles.statusStrip}
                 style={{ borderColor: 'var(--mantine-color-ktzGold-5)' }}
             >
-                <Group justify="space-between" px="md" py={6}>
-                    <Group gap="md">
-                        <Group gap={6}>
-                            <IconTrain size={16} style={{ opacity: 0.7 }} />
-                            <Text size="sm" fw={600} ff="var(--font-mono), monospace">
-                                {locomotiveId.slice(0, 8)}
-                            </Text>
-                            {locoType && (
-                                <Badge
-                                    size="xs"
-                                    variant="light"
-                                    color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
-                                >
-                                    {locoType}
-                                </Badge>
-                            )}
-                        </Group>
-                        <Badge size="sm" variant="filled" color="ktzGold">
+                <Group px="md" py={8} justify="space-between">
+                    <Group gap="sm">
+                        <IconTrain size={14} style={{ opacity: 0.5 }} />
+                        <Text size="xs" fw={600} ff="var(--font-mono), monospace">
+                            {locomotiveId.slice(0, 8)}
+                        </Text>
+                        {locoType && (
+                            <Badge
+                                size="xs"
+                                variant="light"
+                                color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
+                            >
+                                {locoType}
+                            </Badge>
+                        )}
+                        <div
+                            style={{ width: 1, height: 14, background: 'var(--dashboard-border)' }}
+                        />
+                        <Badge size="xs" variant="filled" color="ktzGold">
                             REPLAY
                         </Badge>
                     </Group>
-                    <Group gap="md">
+                    <Group gap="sm">
                         <Text size="xs" fw={600} c="ktzGold" ff="var(--font-mono), monospace">
                             {replay.cursor ? formatDateTime(replay.cursor) : ''}
                         </Text>
-                        <Group gap={4}>
-                            <IconActivity size={12} style={{ opacity: 0.5 }} />
-                            <Text size="xs" c="dimmed">
-                                {sensorMap.size} датчиков
-                            </Text>
-                        </Group>
+                        <Text size="xs" c="dimmed">
+                            {sensorMap.size} датчиков
+                        </Text>
                     </Group>
                 </Group>
             </Box>
