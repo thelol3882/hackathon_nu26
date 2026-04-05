@@ -1,13 +1,18 @@
 'use client';
 
-import { Box, Text, Center, Loader, Group, Badge, Stack, ThemeIcon } from '@mantine/core';
-import { IconTrain, IconWifi, IconWifiOff, IconActivity, IconClock } from '@tabler/icons-react';
-import { useLocomotive } from '@/widgets/layout/LocomotiveContext';
-import { useLiveTelemetry } from '@/features/telemetry';
+import { useMemo } from 'react';
+import { Box, Text, Center, Loader, Group, Badge, Stack, ThemeIcon, Slider } from '@mantine/core';
+import { DateTimePicker } from '@mantine/dates';
+import { IconTrain, IconWifi, IconWifiOff, IconActivity, IconClock, IconPlayerPlay, IconLive } from '@tabler/icons-react';
+import { ActionIcon, Tooltip } from '@mantine/core';
+import { useLocomotive, type ReplayState } from '@/widgets/layout/LocomotiveContext';
+import { useLiveTelemetry, useGetTelemetrySnapshotQuery } from '@/features/telemetry';
 import { useHealthIndex } from '@/features/health';
+import { healthApi } from '@/features/health/api/healthApi';
 import { useLiveAlerts } from '@/features/alerts';
-import type { SensorType } from '@/features/telemetry/types';
-import { getRelativeTime } from '@/shared/utils/date';
+import { alertsApi } from '@/features/alerts/api/alertsApi';
+import type { SensorType, TelemetryReading } from '@/features/telemetry/types';
+import { getRelativeTime, formatDateTime, dayjs } from '@/shared/utils/date';
 
 import { HealthIndexGauge } from './components/HealthIndexGauge/HealthIndexGauge';
 import SpeedPanel from './components/SpeedPanel/SpeedPanel';
@@ -24,12 +29,8 @@ function ConnectionBadge({ status }: { status: string }) {
     const connected = status === 'connected';
     const reconnecting = status === 'reconnecting';
     return (
-        <Badge
-            size="sm"
-            variant="dot"
-            color={connected ? 'green' : reconnecting ? 'yellow' : 'red'}
-            leftSection={connected ? <IconWifi size={10} /> : <IconWifiOff size={10} />}
-        >
+        <Badge size="sm" variant="dot" color={connected ? 'green' : reconnecting ? 'yellow' : 'red'}
+            leftSection={connected ? <IconWifi size={10} /> : <IconWifiOff size={10} />}>
             {connected ? 'Онлайн' : reconnecting ? 'Переподключение...' : 'Нет связи'}
         </Badge>
     );
@@ -40,22 +41,14 @@ function EmptyDashboard() {
         <Center h="70vh">
             <Stack align="center" gap="lg">
                 <div className={styles.emptyIcon}>
-                    <ThemeIcon
-                        size={80}
-                        radius="xl"
-                        variant="light"
-                        color="ktzBlue"
-                        style={{ opacity: 0.8 }}
-                    >
+                    <ThemeIcon size={80} radius="xl" variant="light" color="ktzBlue" style={{ opacity: 0.8 }}>
                         <IconTrain size={40} stroke={1.2} />
                     </ThemeIcon>
                 </div>
                 <Stack align="center" gap={4}>
-                    <Text size="xl" fw={600} c="var(--dashboard-text-primary)">
-                        Выберите локомотив
-                    </Text>
+                    <Text size="xl" fw={600}>Выберите локомотив</Text>
                     <Text size="md" c="var(--dashboard-text-secondary)" ta="center" maw={400}>
-                        Выберите локомотив из списка в верхней панели для отображения телеметрии в реальном времени
+                        Выберите локомотив из списка в верхней панели для отображения телеметрии
                     </Text>
                 </Stack>
                 <Group gap="xs">
@@ -68,31 +61,118 @@ function EmptyDashboard() {
     );
 }
 
-export function DashboardPage() {
-    const { locomotiveId } = useLocomotive();
+function ReplayControls() {
+    const { replay, setReplay } = useLocomotive();
+
+    const toggleReplay = () => {
+        if (replay.enabled) {
+            setReplay({ enabled: false, start: null, end: null, cursor: null });
+        } else {
+            // Default: last 15 minutes
+            const end = new Date();
+            const start = new Date(end.getTime() - 15 * 60_000);
+            setReplay({ enabled: true, start, end, cursor: end });
+        }
+    };
+
+    const handleCursorChange = (pct: number) => {
+        if (!replay.start || !replay.end) return;
+        const startMs = replay.start.getTime();
+        const endMs = replay.end.getTime();
+        const cursorMs = startMs + (endMs - startMs) * (pct / 100);
+        setReplay({ ...replay, cursor: new Date(cursorMs) });
+    };
+
+    const cursorPct = useMemo(() => {
+        if (!replay.start || !replay.end || !replay.cursor) return 100;
+        const range = replay.end.getTime() - replay.start.getTime();
+        if (range <= 0) return 100;
+        return ((replay.cursor.getTime() - replay.start.getTime()) / range) * 100;
+    }, [replay]);
+
+    return (
+        <Box className={styles.replayBar}>
+            <Group px="md" py={6} justify="space-between" wrap="wrap" gap="xs">
+                <Group gap="sm">
+                    <Tooltip label={replay.enabled ? 'Вернуться к Live' : 'Режим перемотки'}>
+                        <ActionIcon
+                            variant={replay.enabled ? 'filled' : 'light'}
+                            color={replay.enabled ? 'ktzGold' : 'gray'}
+                            size="md"
+                            onClick={toggleReplay}
+                        >
+                            {replay.enabled ? <IconLive size={16} /> : <IconPlayerPlay size={16} />}
+                        </ActionIcon>
+                    </Tooltip>
+
+                    {replay.enabled ? (
+                        <Badge size="sm" variant="filled" color="ktzGold" leftSection={<IconPlayerPlay size={10} />}>
+                            REPLAY
+                        </Badge>
+                    ) : (
+                        <Badge size="sm" variant="dot" color="green">LIVE</Badge>
+                    )}
+                </Group>
+
+                {replay.enabled && (
+                    <Group gap="sm" wrap="wrap" style={{ flex: 1 }}>
+                        <DateTimePicker
+                            size="xs" value={replay.start}
+                            onChange={(v) => v && setReplay({ ...replay, start: v, cursor: v })}
+                            maxDate={new Date()} w={170} placeholder="Начало"
+                        />
+                        <DateTimePicker
+                            size="xs" value={replay.end}
+                            onChange={(v) => v && setReplay({ ...replay, end: v })}
+                            maxDate={new Date()} w={170} placeholder="Конец"
+                        />
+                    </Group>
+                )}
+
+                {replay.enabled && replay.cursor && (
+                    <Text size="xs" c="ktzGold" ff="var(--font-mono), monospace" fw={600}>
+                        {formatDateTime(replay.cursor)}
+                    </Text>
+                )}
+            </Group>
+
+            {/* Timeline slider */}
+            {replay.enabled && replay.start && replay.end && (
+                <Box px="md" pb={6}>
+                    <Slider
+                        value={cursorPct}
+                        onChange={handleCursorChange}
+                        min={0} max={100} step={0.5}
+                        size="xs"
+                        color="ktzGold"
+                        label={(v) => {
+                            if (!replay.start || !replay.end) return '';
+                            const ms = replay.start.getTime() + (replay.end.getTime() - replay.start.getTime()) * (v / 100);
+                            return dayjs(ms).format('HH:mm:ss');
+                        }}
+                        marks={[
+                            { value: 0, label: replay.start ? dayjs(replay.start).format('HH:mm') : '' },
+                            { value: 50 },
+                            { value: 100, label: replay.end ? dayjs(replay.end).format('HH:mm') : '' },
+                        ]}
+                    />
+                </Box>
+            )}
+        </Box>
+    );
+}
+
+function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const { sensors, position, connectionStatus } = useLiveTelemetry(locomotiveId);
     const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
-
     const getSensor = (type: SensorType) => sensors.get(type);
     const locoType = health?.locomotive_type ?? sensors.values().next().value?.locomotive_type;
 
-    if (!locomotiveId) {
-        return <EmptyDashboard />;
-    }
-
     if (healthLoading && sensors.size === 0) {
-        return (
-            <Center h="60vh">
-                <Stack align="center" gap="md">
-                    <Loader size="lg" color="ktzBlue" />
-                    <Text size="sm" c="dimmed">Подключение к телеметрии...</Text>
-                </Stack>
-            </Center>
-        );
+        return <Center h="50vh"><Stack align="center" gap="md"><Loader size="lg" color="ktzBlue" /><Text size="sm" c="dimmed">Подключение...</Text></Stack></Center>;
     }
 
-    // Find latest timestamp from sensors
     const latestTimestamp = Array.from(sensors.values()).reduce<string | null>((latest, s) => {
         if (!latest || s.timestamp > latest) return s.timestamp;
         return latest;
@@ -100,101 +180,168 @@ export function DashboardPage() {
 
     return (
         <>
-            {/* Status strip */}
             <Box className={styles.statusStrip}>
                 <Group justify="space-between" px="md" py={6}>
                     <Group gap="md">
                         <Group gap={6}>
                             <IconTrain size={16} style={{ opacity: 0.7 }} />
-                            <Text size="sm" fw={600} ff="var(--font-mono), monospace">
-                                {locomotiveId.slice(0, 8)}
-                            </Text>
-                            {locoType && (
-                                <Badge
-                                    size="xs"
-                                    variant="light"
-                                    color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}
-                                >
-                                    {locoType}
-                                </Badge>
-                            )}
+                            <Text size="sm" fw={600} ff="var(--font-mono), monospace">{locomotiveId.slice(0, 8)}</Text>
+                            {locoType && <Badge size="xs" variant="light" color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}>{locoType}</Badge>}
                         </Group>
                         <ConnectionBadge status={connectionStatus} />
                     </Group>
                     <Group gap="md">
-                        {latestTimestamp && (
-                            <Group gap={4}>
-                                <IconClock size={12} style={{ opacity: 0.5 }} />
-                                <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">
-                                    {getRelativeTime(latestTimestamp)}
-                                </Text>
-                            </Group>
-                        )}
-                        <Group gap={4}>
-                            <IconActivity size={12} style={{ opacity: 0.5 }} />
-                            <Text size="xs" c="dimmed">
-                                {sensors.size} датчиков
-                            </Text>
-                        </Group>
+                        {latestTimestamp && <Group gap={4}><IconClock size={12} style={{ opacity: 0.5 }} /><Text size="xs" c="dimmed" ff="var(--font-mono), monospace">{getRelativeTime(latestTimestamp)}</Text></Group>}
+                        <Group gap={4}><IconActivity size={12} style={{ opacity: 0.5 }} /><Text size="xs" c="dimmed">{sensors.size} датчиков</Text></Group>
                     </Group>
                 </Group>
             </Box>
+            <DashboardGrid
+                getSensor={getSensor}
+                health={health}
+                healthLoading={healthLoading}
+                locoType={locoType}
+                alerts={alerts}
+                clearAlerts={clearAlerts}
+                locomotiveId={locomotiveId}
+                position={position}
+            />
+        </>
+    );
+}
 
-            <Box className={styles.grid}>
-                <Box className={styles.health}>
-                    <HealthIndexGauge health={health} isLoading={healthLoading} />
-                </Box>
+function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
+    const { replay } = useLocomotive();
+    const cursorIso = replay.cursor?.toISOString() ?? '';
 
-                <Box className={styles.speed}>
-                    <SpeedPanel
-                        speedActual={getSensor('speed_actual')}
-                        speedTarget={getSensor('speed_target')}
-                    />
-                </Box>
+    // Fetch snapshot telemetry at cursor time
+    const { data: snapshot, isFetching: snapFetching } = useGetTelemetrySnapshotQuery(
+        { locomotive_id: locomotiveId, at: cursorIso },
+        { skip: !cursorIso },
+    );
 
-                <Box className={styles.fuel}>
-                    <FuelEnergyPanel
-                        locomotiveType={locoType}
-                        fuelLevel={getSensor('fuel_level')}
-                        fuelRate={getSensor('fuel_rate')}
-                        catenaryVoltage={getSensor('catenary_voltage')}
-                        pantographCurrent={getSensor('pantograph_current')}
-                    />
-                </Box>
+    // Fetch health at cursor time
+    const { data: health, isFetching: healthFetching } = healthApi.useGetHealthAtQuery(
+        { locomotiveId, at: cursorIso },
+        { skip: !cursorIso },
+    );
 
-                <Box className={styles.press}>
-                    <PressureTemperaturePanel
-                        coolantTemp={getSensor('coolant_temp')}
-                        oilPressure={getSensor('oil_pressure')}
-                        brakePipePressure={getSensor('brake_pipe_pressure')}
-                    />
-                </Box>
+    // Fetch alerts in replay window
+    const startIso = replay.start?.toISOString();
+    const endIso = replay.cursor?.toISOString();
+    const { data: alerts = [] } = alertsApi.useGetAlertsQuery(
+        { locomotive_id: locomotiveId, start: startIso, end: endIso, limit: 50 },
+        { skip: !startIso || !endIso },
+    );
 
-                <Box className={styles.elec}>
-                    <ElectricalPanel
-                        locomotiveType={locoType}
-                        tractionMotorTemp={getSensor('traction_motor_temp')}
-                        crankcasePressure={getSensor('crankcase_pressure')}
-                        dieselRpm={getSensor('diesel_rpm')}
-                        transformerTemp={getSensor('transformer_temp')}
-                        igbtTemp={getSensor('igbt_temp')}
-                        dcLinkVoltage={getSensor('dc_link_voltage')}
-                        recuperationCurrent={getSensor('recuperation_current')}
-                    />
-                </Box>
+    // Build sensor map from snapshot
+    const sensorMap = useMemo(() => {
+        const map = new Map<string, TelemetryReading>();
+        if (!snapshot) return map;
+        for (const s of snapshot) {
+            map.set(s.sensor_type, {
+                locomotive_id: s.locomotive_id,
+                locomotive_type: s.locomotive_type,
+                sensor_type: s.sensor_type,
+                value: s.value,
+                filtered_value: s.filtered_value,
+                unit: s.unit,
+                timestamp: s.timestamp,
+                latitude: s.latitude,
+                longitude: s.longitude,
+            });
+        }
+        return map;
+    }, [snapshot]);
 
-                <Box className={styles.alerts}>
-                    <AlertsPanel alerts={alerts} onClear={clearAlerts} />
-                </Box>
+    const getSensor = (type: SensorType) => sensorMap.get(type);
+    const locoType = health?.locomotive_type ?? snapshot?.[0]?.locomotive_type;
 
-                <Box className={styles.trends}>
-                    <TrendsPanel locomotiveId={locomotiveId} />
-                </Box>
+    const position = useMemo(() => {
+        if (!snapshot) return null;
+        const withGps = snapshot.find((s) => s.latitude != null && s.longitude != null);
+        return withGps ? { latitude: withGps.latitude!, longitude: withGps.longitude! } : null;
+    }, [snapshot]);
 
-                <Box className={styles.map}>
-                    <RouteMap position={position} />
-                </Box>
+    const isLoading = snapFetching || healthFetching;
+
+    if (isLoading && sensorMap.size === 0) {
+        return <Center h="50vh"><Stack align="center" gap="md"><Loader size="lg" color="ktzGold" /><Text size="sm" c="dimmed">Загрузка данных за {replay.cursor ? formatDateTime(replay.cursor) : '...'}...</Text></Stack></Center>;
+    }
+
+    return (
+        <>
+            <Box className={styles.statusStrip} style={{ borderColor: 'var(--mantine-color-ktzGold-5)' }}>
+                <Group justify="space-between" px="md" py={6}>
+                    <Group gap="md">
+                        <Group gap={6}>
+                            <IconTrain size={16} style={{ opacity: 0.7 }} />
+                            <Text size="sm" fw={600} ff="var(--font-mono), monospace">{locomotiveId.slice(0, 8)}</Text>
+                            {locoType && <Badge size="xs" variant="light" color={locoType === 'TE33A' ? 'ktzGold' : 'ktzCyan'}>{locoType}</Badge>}
+                        </Group>
+                        <Badge size="sm" variant="filled" color="ktzGold">REPLAY</Badge>
+                    </Group>
+                    <Group gap="md">
+                        <Text size="xs" fw={600} c="ktzGold" ff="var(--font-mono), monospace">
+                            {replay.cursor ? formatDateTime(replay.cursor) : ''}
+                        </Text>
+                        <Group gap={4}><IconActivity size={12} style={{ opacity: 0.5 }} /><Text size="xs" c="dimmed">{sensorMap.size} датчиков</Text></Group>
+                    </Group>
+                </Group>
             </Box>
+            <DashboardGrid
+                getSensor={getSensor}
+                health={health ?? null}
+                healthLoading={isLoading}
+                locoType={locoType}
+                alerts={alerts}
+                clearAlerts={() => {}}
+                locomotiveId={locomotiveId}
+                position={position}
+            />
+        </>
+    );
+}
+
+interface DashboardGridProps {
+    getSensor: (type: SensorType) => TelemetryReading | undefined;
+    health: import('@/features/health/types').HealthIndex | null;
+    healthLoading: boolean;
+    locoType: string | undefined;
+    alerts: import('@/features/alerts/types').AlertEvent[];
+    clearAlerts: () => void;
+    locomotiveId: string;
+    position: { latitude: number; longitude: number } | null;
+}
+
+function DashboardGrid({ getSensor, health, healthLoading, locoType, alerts, clearAlerts, locomotiveId, position }: DashboardGridProps) {
+    return (
+        <Box className={styles.grid}>
+            <Box className={styles.health}><HealthIndexGauge health={health} isLoading={healthLoading} /></Box>
+            <Box className={styles.speed}><SpeedPanel speedActual={getSensor('speed_actual')} speedTarget={getSensor('speed_target')} /></Box>
+            <Box className={styles.fuel}><FuelEnergyPanel locomotiveType={locoType} fuelLevel={getSensor('fuel_level')} fuelRate={getSensor('fuel_rate')} catenaryVoltage={getSensor('catenary_voltage')} pantographCurrent={getSensor('pantograph_current')} /></Box>
+            <Box className={styles.press}><PressureTemperaturePanel coolantTemp={getSensor('coolant_temp')} oilPressure={getSensor('oil_pressure')} brakePipePressure={getSensor('brake_pipe_pressure')} /></Box>
+            <Box className={styles.elec}><ElectricalPanel locomotiveType={locoType} tractionMotorTemp={getSensor('traction_motor_temp')} crankcasePressure={getSensor('crankcase_pressure')} dieselRpm={getSensor('diesel_rpm')} transformerTemp={getSensor('transformer_temp')} igbtTemp={getSensor('igbt_temp')} dcLinkVoltage={getSensor('dc_link_voltage')} recuperationCurrent={getSensor('recuperation_current')} /></Box>
+            <Box className={styles.alerts}><AlertsPanel alerts={alerts} onClear={clearAlerts} /></Box>
+            <Box className={styles.trends}><TrendsPanel locomotiveId={locomotiveId} /></Box>
+            <Box className={styles.map}><RouteMap position={position} /></Box>
+        </Box>
+    );
+}
+
+export function DashboardPage() {
+    const { locomotiveId, replay } = useLocomotive();
+
+    if (!locomotiveId) return <EmptyDashboard />;
+
+    return (
+        <>
+            <ReplayControls />
+            {replay.enabled && replay.cursor ? (
+                <ReplayDashboardContent locomotiveId={locomotiveId} />
+            ) : (
+                <LiveDashboardContent locomotiveId={locomotiveId} />
+            )}
         </>
     );
 }

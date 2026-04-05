@@ -55,6 +55,18 @@ export interface TelemetryQuery {
     limit?: number;
 }
 
+export interface TelemetrySnapshotItem {
+    locomotive_id: string;
+    locomotive_type: string;
+    sensor_type: SensorType;
+    value: number;
+    filtered_value: number | null;
+    unit: string;
+    timestamp: string;
+    latitude: number | null;
+    longitude: number | null;
+}
+
 export interface TelemetryRawQuery {
     locomotive_id?: string;
     sensor_type?: string;

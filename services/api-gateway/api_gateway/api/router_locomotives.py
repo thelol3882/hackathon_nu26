@@ -1,8 +1,10 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Query
 
 from api_gateway.api.dependencies import DbSession, Redis
 from api_gateway.services import locomotive_service
-from api_gateway.services.health_service import get_health_index
+from api_gateway.services.health_service import get_health_at, get_health_index
 from shared.schemas.health import HealthIndex
 from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 
@@ -49,3 +51,13 @@ async def get_locomotive(locomotive_id: str, db: DbSession):
 async def get_locomotive_health(locomotive_id: str, db: DbSession, redis: Redis):
     """Get the current health index for a locomotive."""
     return await get_health_index(db, redis, locomotive_id)
+
+
+@router.get("/{locomotive_id}/health/at", response_model=HealthIndex)
+async def get_locomotive_health_at(
+    locomotive_id: str,
+    db: DbSession,
+    at: datetime = Query(..., description="Point in time (ISO 8601)"),
+):
+    """Get the health index at a specific point in time (replay)."""
+    return await get_health_at(db, locomotive_id, at)

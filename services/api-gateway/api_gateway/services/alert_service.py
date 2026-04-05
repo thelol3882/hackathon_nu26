@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 
 import redis.asyncio as redis
 from fastapi import HTTPException
@@ -142,6 +143,8 @@ async def list_alerts(
     locomotive_id: str | None = None,
     severity: str | None = None,
     acknowledged: bool | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     offset: int = 0,
     limit: int = 50,
 ) -> list[AlertEvent]:
@@ -153,6 +156,10 @@ async def list_alerts(
         stmt = stmt.where(AlertRecord.severity == severity)
     if acknowledged is not None:
         stmt = stmt.where(AlertRecord.acknowledged == acknowledged)
+    if start:
+        stmt = stmt.where(AlertRecord.timestamp >= start)
+    if end:
+        stmt = stmt.where(AlertRecord.timestamp <= end)
 
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)

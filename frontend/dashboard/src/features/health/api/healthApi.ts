@@ -7,7 +7,13 @@ export const healthApi = baseApi.injectEndpoints({
             query: (locomotiveId) => `/locomotives/${locomotiveId}/health`,
             providesTags: (_result, _error, locomotiveId) => [{ type: 'Health', id: locomotiveId }],
         }),
+        getHealthAt: build.query<HealthIndex, { locomotiveId: string; at: string }>({
+            query: ({ locomotiveId, at }) => ({
+                url: `/locomotives/${locomotiveId}/health/at`,
+                params: { at },
+            }),
+        }),
     }),
 });
 
-export const { useGetHealthQuery } = healthApi;
+export const { useGetHealthQuery, useGetHealthAtQuery } = healthApi;

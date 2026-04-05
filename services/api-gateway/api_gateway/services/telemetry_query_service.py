@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-_ALLOWED_BUCKETS = {"1 minute", "5 minutes", "15 minutes", "1 hour", "1 day"}
+_ALLOWED_BUCKETS = {"1 minute", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "1 day"}
 _DEFAULT_BUCKET = "1 minute"
 
 
@@ -159,6 +159,60 @@ async def query_telemetry_bucketed(
             max_value=row.max_value,
             last_value=row.last_value,
             unit=row.unit,
+        )
+        for row in result.fetchall()
+    ]
+
+
+class TelemetrySnapshot(BaseModel):
+    locomotive_id: str
+    locomotive_type: str = ""
+    sensor_type: str
+    value: float
+    filtered_value: float | None = None
+    unit: str
+    timestamp: datetime
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+async def query_telemetry_snapshot(
+    session: AsyncSession,
+    *,
+    locomotive_id: str,
+    at: datetime,
+) -> list[TelemetrySnapshot]:
+    """Get the latest reading for each sensor at or before the given time."""
+    result = await session.execute(
+        text("""
+            SELECT DISTINCT ON (sensor_type)
+                CAST(locomotive_id AS text) AS locomotive_id,
+                locomotive_type,
+                sensor_type,
+                value,
+                filtered_value,
+                unit,
+                time AS timestamp,
+                latitude,
+                longitude
+            FROM raw_telemetry
+            WHERE locomotive_id = CAST(:loco_id AS uuid)
+              AND time <= :at
+            ORDER BY sensor_type, time DESC
+        """),
+        {"loco_id": locomotive_id, "at": at},
+    )
+    return [
+        TelemetrySnapshot(
+            locomotive_id=row.locomotive_id,
+            locomotive_type=row.locomotive_type,
+            sensor_type=row.sensor_type,
+            value=row.value,
+            filtered_value=row.filtered_value,
+            unit=row.unit,
+            timestamp=row.timestamp,
+            latitude=row.latitude,
+            longitude=row.longitude,
         )
         for row in result.fetchall()
     ]

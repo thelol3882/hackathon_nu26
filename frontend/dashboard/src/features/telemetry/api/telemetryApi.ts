@@ -4,6 +4,7 @@ import type {
     TelemetryQuery,
     TelemetryRawQuery,
     TelemetryReading,
+    TelemetrySnapshotItem,
 } from '../types';
 
 export const telemetryApi = baseApi.injectEndpoints({
@@ -21,7 +22,13 @@ export const telemetryApi = baseApi.injectEndpoints({
                 params,
             }),
         }),
+        getTelemetrySnapshot: builder.query<TelemetrySnapshotItem[], { locomotive_id: string; at: string }>({
+            query: (params) => ({
+                url: '/telemetry/snapshot',
+                params,
+            }),
+        }),
     }),
 });
 
-export const { useGetTelemetryQuery, useGetRawTelemetryQuery } = telemetryApi;
+export const { useGetTelemetryQuery, useGetRawTelemetryQuery, useGetTelemetrySnapshotQuery } = telemetryApi;

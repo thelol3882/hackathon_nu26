@@ -1,3 +1,11 @@
+/* Replay control bar */
+.replayBar {
+    background: var(--dashboard-surface);
+    border-bottom: 1px solid var(--dashboard-border);
+    margin: 0 calc(-1 * var(--mantine-spacing-md));
+    margin-top: calc(-1 * var(--mantine-spacing-md));
+}
+
 /* Status strip at top */
 .statusStrip {
     background: var(--dashboard-surface);
