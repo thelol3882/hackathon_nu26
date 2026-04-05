@@ -73,6 +73,7 @@ async def run_alert_persistence(
                                         "threshold_min": r.threshold_min,
                                         "threshold_max": r.threshold_max,
                                         "message": r.message,
+                                        "recommendation": r.recommendation,
                                         "timestamp": r.timestamp,
                                         "acknowledged": r.acknowledged,
                                     }
@@ -108,6 +109,7 @@ async def run_alert_persistence(
                             threshold_min=alert.threshold_min,
                             threshold_max=alert.threshold_max,
                             message=alert.message,
+                            recommendation=alert.recommendation,
                             timestamp=alert.timestamp,
                             acknowledged=alert.acknowledged,
                         )
@@ -172,7 +174,7 @@ async def list_alerts(
 
     base = (
         "SELECT id, locomotive_id, sensor_type, severity, value,"
-        " threshold_min, threshold_max, message, timestamp, acknowledged"
+        " threshold_min, threshold_max, message, recommendation, timestamp, acknowledged"
         " FROM alert_events"
     )
     sql = f"{base} {where} ORDER BY timestamp DESC OFFSET :off LIMIT :lim"
@@ -188,6 +190,7 @@ async def list_alerts(
             threshold_min=float(r["threshold_min"]),
             threshold_max=float(r["threshold_max"]),
             message=r["message"],
+            recommendation=r.get("recommendation", ""),
             timestamp=r["timestamp"],
             acknowledged=r["acknowledged"],
         )
@@ -199,7 +202,7 @@ async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
     result = await session.execute(
         text(
             "SELECT id, locomotive_id, sensor_type, severity, value,"
-            " threshold_min, threshold_max, message, timestamp, acknowledged"
+            " threshold_min, threshold_max, message, recommendation, timestamp, acknowledged"
             " FROM alert_events WHERE id = CAST(:aid AS uuid)"
         ),
         {"aid": alert_id},
@@ -216,6 +219,7 @@ async def get_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
         threshold_min=float(r["threshold_min"]),
         threshold_max=float(r["threshold_max"]),
         message=r["message"],
+        recommendation=r.get("recommendation", ""),
         timestamp=r["timestamp"],
         acknowledged=r["acknowledged"],
     )
@@ -236,7 +240,7 @@ async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
     result = await session.execute(
         text(
             "SELECT id, locomotive_id, sensor_type, severity, value,"
-            " threshold_min, threshold_max, message, timestamp, acknowledged"
+            " threshold_min, threshold_max, message, recommendation, timestamp, acknowledged"
             " FROM alert_events WHERE id = CAST(:aid AS uuid)"
         ),
         {"aid": alert_id},
@@ -256,6 +260,7 @@ async def acknowledge_alert(session: AsyncSession, alert_id: str) -> AlertEvent:
         threshold_min=r["threshold_min"],
         threshold_max=r["threshold_max"],
         message=r["message"],
+        recommendation=r.get("recommendation", ""),
         timestamp=r["timestamp"],
         acknowledged=r["acknowledged"],
     )

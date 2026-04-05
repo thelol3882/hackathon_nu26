@@ -94,6 +94,7 @@ async def _process_single(
             threshold_min=ae.threshold_min,
             threshold_max=ae.threshold_max,
             message=ae.message,
+            recommendation=ae.recommendation,
             timestamp=ae.timestamp,
             acknowledged=ae.acknowledged,
         )
@@ -209,6 +210,7 @@ def _process_readings_sync(
                     "threshold_min": ae.threshold_min,
                     "threshold_max": ae.threshold_max,
                     "message": ae.message,
+                    "recommendation": ae.recommendation,
                     "timestamp": ae.timestamp,
                     "acknowledged": ae.acknowledged,
                 }

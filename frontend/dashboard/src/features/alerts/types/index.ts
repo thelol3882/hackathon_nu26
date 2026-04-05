@@ -9,6 +9,7 @@ export interface AlertEvent {
     threshold_min: number | null;
     threshold_max: number | null;
     message: string;
+    recommendation: string;
     timestamp: string;
     acknowledged: boolean;
 }

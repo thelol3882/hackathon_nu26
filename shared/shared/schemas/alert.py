@@ -22,5 +22,6 @@ class AlertEvent(BaseModel):
     threshold_min: float
     threshold_max: float
     message: str
+    recommendation: str = ""
     timestamp: datetime
     acknowledged: bool = False

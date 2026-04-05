@@ -14,7 +14,7 @@ import {
     Tooltip,
     ThemeIcon,
 } from '@mantine/core';
-import {IconCheck, IconAlertTriangle, IconAlertCircle, IconInfoCircle} from '@tabler/icons-react';
+import {IconCheck, IconAlertTriangle, IconAlertCircle, IconInfoCircle, IconArrowRight} from '@tabler/icons-react';
 import type {AlertEvent} from '@/features/alerts/types';
 import {useAcknowledgeAlertMutation} from '@/features/alerts';
 import {getRelativeTime} from '@/shared/utils/date';
@@ -103,6 +103,14 @@ function AlertItem({
                     >
                         {alert.message}
                     </Text>
+                    {alert.recommendation && (
+                        <Group gap={4} wrap="nowrap">
+                            <IconArrowRight size={12} style={{flexShrink: 0, color: 'var(--mantine-color-ktzBlue-5)'}}/>
+                            <Text size="xs" c="ktzBlue" fw={500} lineClamp={2}>
+                                {alert.recommendation}
+                            </Text>
+                        </Group>
+                    )}
                     <Group gap="xs">
                         <Badge
                             size="xs"

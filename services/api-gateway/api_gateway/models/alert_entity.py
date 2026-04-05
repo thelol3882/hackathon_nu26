@@ -20,6 +20,7 @@ class AlertRecord(Base):
     threshold_min: Mapped[float] = mapped_column(Float, nullable=False)
     threshold_max: Mapped[float] = mapped_column(Float, nullable=False)
     message: Mapped[str] = mapped_column(String(500), nullable=False)
+    recommendation: Mapped[str] = mapped_column(String(500), nullable=False, server_default="")
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
