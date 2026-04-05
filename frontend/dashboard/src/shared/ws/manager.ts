@@ -1,12 +1,10 @@
 import { decode } from '@msgpack/msgpack';
+import { encode } from '@msgpack/msgpack';
 
 type MessageHandler = (data: unknown) => void;
 
-export type WireFormat = 'json' | 'msgpack';
-
 export interface WsManagerOptions {
     url: string;
-    wireFormat?: WireFormat;
     onStatusChange?: (status: WsStatus) => void;
     maxReconnectAttempts?: number;
 }
@@ -21,13 +19,11 @@ export class WebSocketManager {
     private onStatusChange?: (status: WsStatus) => void;
     private reconnectAttempts = 0;
     private maxReconnectAttempts: number;
-    private wireFormat: WireFormat;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private disposed = false;
 
     constructor(options: WsManagerOptions) {
         this.url = options.url;
-        this.wireFormat = options.wireFormat ?? 'json';
         this.onStatusChange = options.onStatusChange;
         this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     }
@@ -37,9 +33,7 @@ export class WebSocketManager {
         this.setStatus('connecting');
 
         this.ws = new WebSocket(this.url);
-        if (this.wireFormat === 'msgpack') {
-            this.ws.binaryType = 'arraybuffer';
-        }
+        this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
             this.reconnectAttempts = 0;
@@ -104,7 +98,7 @@ export class WebSocketManager {
     private sendPong() {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
         try {
-            this.ws.send(JSON.stringify({ type: 'pong' }));
+            this.ws.send(encode({ type: 'pong' }));
         } catch {
             // connection might be closing
         }
@@ -113,9 +107,6 @@ export class WebSocketManager {
     private decodeMessage(raw: unknown): unknown {
         if (raw instanceof ArrayBuffer) {
             return decode(new Uint8Array(raw));
-        }
-        if (typeof raw === 'string') {
-            return JSON.parse(raw);
         }
         return raw;
     }

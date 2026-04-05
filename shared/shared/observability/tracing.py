@@ -14,8 +14,8 @@ from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
 def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
     # Sample only a fraction of traces to keep Jaeger memory usage low.
-    # Default 10% — override via OTEL_TRACE_SAMPLE_RATE (0.0–1.0).
-    sample_rate = float(os.environ.get("OTEL_TRACE_SAMPLE_RATE", "0.1"))
+    # Default 5% — override via OTEL_TRACE_SAMPLE_RATE (0.0–1.0).
+    sample_rate = float(os.environ.get("OTEL_TRACE_SAMPLE_RATE", "0.05"))
     sampler = TraceIdRatioBased(sample_rate)
 
     resource = Resource.create({"service.name": service_name})

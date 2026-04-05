@@ -166,7 +166,6 @@ services:
       args:
         NEXT_PUBLIC_API_URL: /api
         NEXT_PUBLIC_WS_URL: ""
-        WIRE_FORMAT: ${WIRE_FORMAT:-json}
     env_file: .env
     depends_on:
       api-gateway:

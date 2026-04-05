@@ -1,6 +1,6 @@
 """WebSocket endpoint for real-time combined telemetry/alert/health streaming.
 
-Wire format (JSON or msgpack) is controlled globally by WIRE_FORMAT env var.
+Wire format: msgpack (binary).
 """
 
 from __future__ import annotations
@@ -46,17 +46,11 @@ async def ws_live(ws: WebSocket, loco_id: str):
     try:
         while True:
             msg = await ws.receive()
-            # Handle both text and bytes messages
-            raw = msg.get("text") or msg.get("bytes")
+            raw = msg.get("bytes")
             if raw is None:
                 continue
             try:
-                if isinstance(raw, bytes):
-                    data = wire_decode(raw)
-                else:
-                    import json
-
-                    data = json.loads(raw)
+                data = wire_decode(raw)
                 if isinstance(data, dict) and data.get("type") == "pong":
                     manager.mark_pong(ws)
             except Exception:
