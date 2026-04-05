@@ -120,7 +120,6 @@ def evaluate_alerts(reading: TelemetryReading) -> list[AlertEvent]:
 
         severity = _severity_from_spec(value, spec)
 
-        # Determine readable threshold bounds for the alert message
         if spec.threshold_type == ThresholdType.UPPER_BOUND:
             thr_min, thr_max = spec.p_nom - spec.delta_safe, spec.p_crit
         elif spec.threshold_type == ThresholdType.LOWER_BOUND:

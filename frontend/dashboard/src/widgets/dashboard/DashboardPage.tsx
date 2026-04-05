@@ -43,7 +43,6 @@ function StatusStrip({
     return (
         <Box className={styles.statusStrip}>
             <Group px="md" py={8} justify="space-between">
-                {/* Left: loco info */}
                 <Group gap="sm">
                     <IconTrain size={14} style={{ opacity: 0.5 }} />
                     <Text
@@ -70,7 +69,6 @@ function StatusStrip({
                     </Badge>
                 </Group>
 
-                {/* Right: meta */}
                 <Group gap="sm">
                     {latestTimestamp && (
                         <Text size="xs" c="dimmed" ff="var(--font-mono), monospace">

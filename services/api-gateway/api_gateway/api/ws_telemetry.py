@@ -46,7 +46,6 @@ async def ws_live(ws: WebSocket, loco_id: str):
     try:
         while True:
             msg = await ws.receive()
-            # Handle both text and bytes messages
             raw = msg.get("text") or msg.get("bytes")
             if raw is None:
                 continue

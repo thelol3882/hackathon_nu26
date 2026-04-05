@@ -38,7 +38,6 @@ from shared.schemas.telemetry import SensorPayload, TelemetryReading
 
 logger = get_logger(__name__)
 
-# Damage accumulator: (locomotive_id_str, sensor_type_str) → accumulated penalty
 _damage_state: dict[tuple[str, str], float] = {}
 
 
@@ -139,7 +138,7 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
         category = "Критично"
 
     top5 = penalties[:5]
-    contribution_base = max(total_penalty, 1e-6)  # avoid division by zero
+    contribution_base = max(total_penalty, 1e-6)
     top_factors = [
         HealthFactor(
             sensor_type=name,
