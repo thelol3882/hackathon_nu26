@@ -70,7 +70,6 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
     sensors.append(SensorPayload(sensor_type=SensorType.FUEL_LEVEL, value=add_noise(state.fuel_level, 50), unit="%"))
     sensors.append(SensorPayload(sensor_type=SensorType.CRANKCASE_PRESSURE, value=add_noise(2.0, 0), unit="mbar"))
 
-    # Common sensors
     sensors.extend(_common_sensors(state))
     return sensors
 

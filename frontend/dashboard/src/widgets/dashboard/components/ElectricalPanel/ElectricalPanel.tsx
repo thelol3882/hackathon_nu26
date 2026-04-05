@@ -6,11 +6,11 @@ import SensorRow from '@/widgets/dashboard/components/SensorRow';
 
 interface ElectricalPanelProps {
     locomotiveType: string | undefined;
-    // TE33A
+    // TE33A (diesel) sensors
     tractionMotorTemp?: TelemetryReading;
     crankcasePressure?: TelemetryReading;
     dieselRpm?: TelemetryReading;
-    // KZ8A
+    // KZ8A (electric) sensors
     transformerTemp?: TelemetryReading;
     igbtTemp?: TelemetryReading;
     dcLinkVoltage?: TelemetryReading;

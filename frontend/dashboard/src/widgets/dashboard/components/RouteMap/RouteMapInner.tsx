@@ -49,7 +49,6 @@ function MapUpdater({
     const map = useMap();
     const hasInitialized = useRef(false);
 
-    // Disable follow when user drags
     useEffect(() => {
         const handler = () => onUserDrag();
         map.on('dragstart', handler);
@@ -73,7 +72,6 @@ function MapUpdater({
         }
     }, [map, position, followMode, onFirstPosition]);
 
-    // Immediately center when button is pressed
     useEffect(() => {
         if (centerTrigger > 0 && position) {
             map.flyTo([position.latitude, position.longitude], POSITION_ZOOM, { duration: 0.8 });

@@ -107,14 +107,13 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
     sensor_map: dict[str, SensorPayload] = {s.sensor_type.value: s for s in reading.sensors}
 
     penalties: list[tuple[str, float, float, float, str]] = []
-    # Each entry: (sensor_type, penalty, deviation_pct, value, unit)
 
     total_damage = 0.0
 
     for sensor_key, spec in specs.items():
         sensor = sensor_map.get(sensor_key)
         if sensor is None:
-            continue  # sensor not present in this reading
+            continue
 
         penalty, dev_pct = _sensor_penalty(sensor.value, spec)
 
@@ -126,7 +125,6 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
 
         penalties.append((sensor_key, penalty, dev_pct, sensor.value, sensor.unit))
 
-    # Sort by penalty descending → top-5 worst contributors
     penalties.sort(key=lambda x: x[1], reverse=True)
 
     total_penalty = sum(p[1] for p in penalties)
@@ -140,7 +138,6 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
     else:
         category = "Критично"
 
-    # Build top-5 HealthFactor list with contribution percentages
     top5 = penalties[:5]
     contribution_base = max(total_penalty, 1e-6)  # avoid division by zero
     top_factors = [

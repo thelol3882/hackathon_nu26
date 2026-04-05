@@ -3,7 +3,6 @@ import random
 
 def add_noise(value: float, nominal: float) -> float:
     """Add Gaussian sensor noise (0.5% of nominal) + rare EMI spikes."""
-    # Normal sensor noise
     value += random.gauss(0, nominal * 0.005) if nominal != 0 else random.gauss(0, 0.01)
 
     # Rare EMI spike: 0.1% chance per tick

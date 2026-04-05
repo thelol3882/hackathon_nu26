@@ -21,7 +21,7 @@ function loadFromStorage(): AuthState {
         if (raw) {
             const saved = JSON.parse(raw) as AuthState;
             if (saved.accessToken) {
-                // Check JWT expiry
+                // Discard token if JWT has expired
                 try {
                     const payload = JSON.parse(atob(saved.accessToken.split('.')[1]));
                     if (payload.exp && payload.exp * 1000 < Date.now()) {
@@ -29,13 +29,11 @@ function loadFromStorage(): AuthState {
                         return emptyState;
                     }
                 } catch {
-                    // malformed token
                 }
                 return saved;
             }
         }
     } catch {
-        // corrupted storage
     }
     return emptyState;
 }

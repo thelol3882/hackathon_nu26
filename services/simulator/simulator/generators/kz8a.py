@@ -53,7 +53,6 @@ def generate_kz8a(state: LocomotiveState) -> list[SensorPayload]:
         ]
     )
 
-    # Common sensors
     brake = state.brake_override if state.brake_override is not None else 5.1
     sensors.extend(
         [

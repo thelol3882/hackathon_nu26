@@ -205,7 +205,7 @@ async def get_health_index(
             detail="No telemetry data found for this locomotive",
         )
 
-    factors: list[tuple[float, HealthFactor]] = []  # (penalty, factor)
+    factors: list[tuple[float, HealthFactor]] = []
     total_penalty = 0.0
     locomotive_type = getattr(rows[0], "locomotive_type", "TE33A") if rows else "TE33A"
 
@@ -230,7 +230,7 @@ async def get_health_index(
                     value=row.value,
                     unit=row.unit,
                     penalty=round(penalty, 4),
-                    contribution_pct=0.0,  # filled below
+                    contribution_pct=0.0,
                     deviation_pct=round(deviation_pct, 1),
                 ),
             )

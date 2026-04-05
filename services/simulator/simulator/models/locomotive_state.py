@@ -84,7 +84,6 @@ def _transition(state: LocomotiveState) -> None:
                 _enter_mode(state, LocomotiveMode.DEPARTURE)
 
         case LocomotiveMode.DEPARTURE:
-            # Ramp up notch/speed
             if state.loco_type == LocomotiveType.TE33A:
                 target_notch = min(8, state.notch + 1)
                 if state.mode_ticks % 20 == 0 and state.notch < target_notch:
@@ -94,12 +93,10 @@ def _transition(state: LocomotiveState) -> None:
                 _enter_mode(state, LocomotiveMode.CRUISING)
 
         case LocomotiveMode.CRUISING:
-            # Maintain cruising speed with slight variation
             if state.loco_type == LocomotiveType.TE33A:
                 state.notch = random.choice([5, 6, 7])
             state.speed = max(50.0, min(110.0, state.speed + random.gauss(0, 1)))
 
-            # Random events
             if random.random() < 0.0001:
                 _enter_mode(state, LocomotiveMode.EMERGENCY)
                 return
@@ -110,7 +107,6 @@ def _transition(state: LocomotiveState) -> None:
                 _enter_mode(state, LocomotiveMode.ARRIVAL)
 
         case LocomotiveMode.ARRIVAL:
-            # Slow down
             if state.loco_type == LocomotiveType.TE33A:
                 state.notch = max(0, state.notch - 1)
             state.speed = max(0.0, state.speed - 0.8)
@@ -132,7 +128,6 @@ def _transition(state: LocomotiveState) -> None:
                 _enter_mode(state, LocomotiveMode.RECOVERY)
 
         case LocomotiveMode.RECOVERY:
-            # Gradually return to normal
             state.speed = min(60.0, state.speed + 0.3)
             if state.loco_type == LocomotiveType.TE33A:
                 state.notch = min(4, state.notch + (1 if state.mode_ticks % 30 == 0 else 0))

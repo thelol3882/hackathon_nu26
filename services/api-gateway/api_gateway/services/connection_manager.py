@@ -60,7 +60,7 @@ class _ChannelRelay:
         self.channel = channel
         self._redis = redis_client
         self._envelope_type = envelope_type
-        self._clients: dict[int, _ClientSlot] = {}  # id(ws) -> slot
+        self._clients: dict[int, _ClientSlot] = {}
         self._ws_map: dict[int, WebSocket] = {}
         self._listener_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
@@ -130,13 +130,11 @@ class _ChannelRelay:
                     if message["type"] != "message":
                         continue
                     raw: bytes = message["data"]
-                    # Parse once for filtering and envelope wrapping
                     parsed_msg = None
                     try:
                         parsed_msg = wire_decode(raw)
                     except Exception:
                         pass
-                    # Wrap in envelope if configured
                     if self._envelope_type and parsed_msg is not None:
                         data = wire_encode({"type": self._envelope_type, "data": parsed_msg})
                     else:
@@ -195,9 +193,9 @@ class ConnectionManager:
         self._redis = redis_client
         self._max_connections = max_connections
         self._relays: dict[str, _ChannelRelay] = {}
-        self._connections: dict[int, set[str]] = {}  # id(ws) -> set of channel keys
+        self._connections: dict[int, set[str]] = {}
         self._ws_refs: dict[int, WebSocket] = {}
-        self._ws_states: dict[int, _WsState] = {}  # heartbeat tracking
+        self._ws_states: dict[int, _WsState] = {}
         self._lock = asyncio.Lock()
         self._heartbeat_task: asyncio.Task | None = None
 
@@ -323,11 +321,9 @@ class ConnectionManager:
                 for ws_id, ws in ws_items:
                     state = self._ws_states.get(ws_id)
                     if state and not state.pong_received:
-                        # No pong since last ping — connection is dead
                         stale.append(ws)
                         continue
 
-                    # Reset flag and send new ping
                     if state:
                         state.pong_received = False
                     try:

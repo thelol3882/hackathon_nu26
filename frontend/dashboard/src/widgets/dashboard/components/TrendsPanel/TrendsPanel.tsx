@@ -76,7 +76,7 @@ const periodConfig: Record<string, { getStart: () => string; refreshMs: number }
     '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
 
-/** Auto-pick bucket interval based on window duration in ms */
+/** Pick aggregation bucket size proportional to the visible time window */
 function autoBucket(durationMs: number): BucketInterval {
     const min = durationMs / 60_000;
     if (min <= 5) return '1 minute';
@@ -92,10 +92,9 @@ function toEpoch(bucket: string | Date): number {
     return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
-/** Format X tick — show "DD MMM" only when day changes from previous tick, else HH:mm */
+/** Show full date only on midnight crossing, otherwise just HH:mm */
 function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
     const d = dayjs(ts);
-    // Only show date when the day differs from the previous tick (midnight crossing)
     if (index > 0 && allTicks[index - 1]) {
         const prevDay = dayjs(allTicks[index - 1].value).format('DD');
         if (prevDay !== d.format('DD')) return d.format('DD MMM');
@@ -160,19 +159,16 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
     const [selectedPeriod, setSelectedPeriod] = useState('15m');
 
-    // Zoom stack: each entry = { start, end } ISO strings. Empty = no zoom.
     const [zoomStack, setZoomStack] = useState<Array<{ start: string; end: string }>>([]);
 
-    // Drag selection state
     const [dragStart, setDragStart] = useState<number | null>(null);
     const [dragEnd, setDragEnd] = useState<number | null>(null);
 
     const cfg = periodConfig[selectedPeriod];
     const isZoomed = zoomStack.length > 0;
 
-    // Current window: zoom overrides period
+    // Zoom takes priority over period selector and replay range
     const currentWindow = useMemo(() => {
-        // Zoom always takes priority (works in both live and replay)
         if (isZoomed) {
             const top = zoomStack[zoomStack.length - 1];
             return { start: top.start, end: top.end };
@@ -188,7 +184,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         new Date(currentWindow.end).getTime() - new Date(currentWindow.start).getTime();
     const bucket = autoBucket(windowDurationMs);
 
-    // Query
     const queryParams = useMemo(
         () => ({
             locomotive_id: locomotiveId ?? undefined,
@@ -206,7 +201,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
 
-    // Chart data
     const chartData = useMemo(() => {
         if (!data?.length) return [];
         return data
@@ -223,7 +217,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const unit = data?.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
 
-    // Stats
     const stats = useMemo(() => {
         const values = chartData.map((d) => d.avg_value).filter((v): v is number => v != null);
         if (!values.length) return null;
@@ -231,13 +224,11 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         return { avg, min: Math.min(...values), max: Math.max(...values) };
     }, [chartData]);
 
-    // X tick formatter with day boundary detection
     const tickFormatter = useMemo(() => {
         const ticks = chartData.map((d) => ({ value: d.ts }));
         return (ts: number, index: number) => formatXTick(ts, index, ticks);
     }, [chartData]);
 
-    // Drag-to-zoom handlers
     const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
         if (e?.activeLabel != null) setDragStart(Number(e.activeLabel));
     }, []);
@@ -253,7 +244,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         if (dragStart != null && dragEnd != null && dragStart !== dragEnd) {
             const left = Math.min(dragStart, dragEnd);
             const right = Math.max(dragStart, dragEnd);
-            // Only zoom if selection is at least 10 seconds
+            // Ignore tiny selections (< 10s) to prevent accidental zooms
             if (right - left > 10_000) {
                 setZoomStack((prev) => [
                     ...prev,
@@ -273,13 +264,11 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         setZoomStack((prev) => prev.slice(0, -1));
     }, []);
 
-    // Reset zoom when period or sensor changes
     const handlePeriodChange = useCallback((v: string) => {
         setSelectedPeriod(v);
         setZoomStack([]);
     }, []);
 
-    // Window label for zoomed state
     const windowLabel = useMemo(() => {
         if (!isZoomed) return null;
         const s = dayjs(currentWindow.start).format('HH:mm:ss');
@@ -355,7 +344,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 />
             </Group>
 
-            {/* Period selector */}
             {!isReplay && (
                 <SegmentedControl
                     size="xs"
@@ -367,7 +355,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 />
             )}
 
-            {/* Zoom window info */}
             {isZoomed && windowLabel && (
                 <Group gap="xs" mb="xs">
                     <Badge
@@ -384,7 +371,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 </Group>
             )}
 
-            {/* Stats */}
             {stats && (
                 <Group gap="xs" mb="xs">
                     <Badge size="xs" variant="light" color="ktzBlue">
@@ -399,7 +385,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 </Group>
             )}
 
-            {/* Chart */}
             {!locomotiveId ? (
                 <Center h={280}>
                     <Text c="dimmed">Выберите локомотив</Text>
@@ -473,7 +458,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             isAnimationActive={false}
                             connectNulls
                         />
-                        {/* Drag selection overlay */}
                         {dragStart != null && dragEnd != null && (
                             <ReferenceArea
                                 x1={Math.min(dragStart, dragEnd)}

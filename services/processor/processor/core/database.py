@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
-# Hypertables to create after DDL (table_name, time_column)
 # Only raw_telemetry has a time-based composite PK suitable for hypertables.
 # health_snapshots and alert_events use UUID PKs with indexed timestamp columns.
 _HYPERTABLES = [
@@ -25,7 +24,6 @@ _HYPERTABLES = [
 
 async def _setup_retention_policies(conn, settings) -> None:
     """Configure TimescaleDB compression and retention policies."""
-    # Enable compression on raw_telemetry (compress chunks older than N hours)
     try:
         await conn.execute(
             text(
@@ -46,7 +44,6 @@ async def _setup_retention_policies(conn, settings) -> None:
     except Exception as e:
         logger.warning("Could not set compression policy: %s", e)
 
-    # Retention policy: auto-drop old telemetry chunks
     try:
         await conn.execute(
             text(
@@ -58,7 +55,7 @@ async def _setup_retention_policies(conn, settings) -> None:
     except Exception as e:
         logger.warning("Could not set retention policy: %s", e)
 
-    # Cleanup old alerts and health snapshots (regular tables — use simple DELETE)
+    # Regular tables (not hypertables) — use DELETE instead of retention policy
     try:
         await conn.execute(
             text("DELETE FROM alert_events WHERE timestamp < NOW() - make_interval(hours => :h)"),
@@ -88,7 +85,6 @@ async def init_db_pool() -> None:
     )
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
-    # Auto-create tables and hypertables on startup
     import processor.models  # noqa: F401 — ensure all models are registered
     from processor.models.base import Base
 

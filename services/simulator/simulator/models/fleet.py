@@ -72,11 +72,9 @@ def _fetch_locomotive_ids(gateway_url: str) -> list[dict] | None:
 
 
 def generate_fleet(n: int = 1700, gateway_url: str | None = None) -> list[LocomotiveState]:
-    # Try to fetch real locomotive IDs from the api-gateway
     gateway_locos = _fetch_locomotive_ids(gateway_url) if gateway_url else None
 
     if gateway_locos:
-        # Separate by model type
         te33a_ids = [rec for rec in gateway_locos if "TE33A" in rec.get("model", "")]
         kz8a_ids = [rec for rec in gateway_locos if "KZ8A" in rec.get("model", "")]
         logger.info(
@@ -95,7 +93,6 @@ def generate_fleet(n: int = 1700, gateway_url: str | None = None) -> list[Locomo
     for i in range(n):
         loco_type = LocomotiveType.TE33A if i < te33a_count else LocomotiveType.KZ8A
 
-        # Use gateway ID if available, otherwise generate random
         if loco_type == LocomotiveType.TE33A and te33a_ids:
             idx = i % len(te33a_ids)
             loco_id = uuid.UUID(te33a_ids[idx]["id"])
