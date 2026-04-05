@@ -1,18 +1,16 @@
-"""Fleet-wide aggregation and utilization statistics."""
+"""Fleet-wide aggregation and utilization statistics via gRPC."""
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from report_service.repositories import health_snapshot_repository, telemetry_repository
+from shared.grpc_client import AnalyticsClient
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
 
-async def get_fleet_summary(session: AsyncSession) -> dict:
+async def get_fleet_summary(analytics: AnalyticsClient) -> dict:
     """Aggregate fleet-wide statistics from health snapshots."""
     logger.info("Fetching fleet summary")
 
-    rows = await health_snapshot_repository.query_fleet_latest_snapshots(session)
+    rows = await analytics.get_fleet_latest_snapshots()
 
     total = len(rows)
     categories: dict[str, int] = {}
@@ -29,10 +27,10 @@ async def get_fleet_summary(session: AsyncSession) -> dict:
     }
 
 
-async def get_utilization_stats(session: AsyncSession, locomotive_id: str | None = None) -> dict:
+async def get_utilization_stats(analytics: AnalyticsClient, locomotive_id: str | None = None) -> dict:
     """Calculate utilization rates from speed readings."""
     logger.info("Calculating utilization stats", locomotive_id=locomotive_id)
-    raw = await telemetry_repository.query_utilization(session, locomotive_id, hours=24)
+    raw = await analytics.get_utilization(locomotive_id=locomotive_id or "", hours=24)
     total = raw["total_readings"]
     active = raw["active_readings"]
     return {

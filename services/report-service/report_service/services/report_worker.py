@@ -21,6 +21,14 @@ from shared.schemas.report import ReportJobMessage, ReportStatus
 logger = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
+# Analytics gRPC client is set from lifespan via set_analytics_client()
+_analytics = None
+
+
+def set_analytics_client(client) -> None:
+    global _analytics
+    _analytics = client
+
 
 async def process_report_job(message: aio_pika.abc.AbstractIncomingMessage) -> None:
     """Process a single report generation job from RabbitMQ."""
@@ -54,12 +62,14 @@ async def _execute_job(job: ReportJobMessage) -> None:
     ):
         logger.info("Processing report job", code=REPORT_PROCESSING)
 
+        # DB session for report status updates (PostgreSQL)
         async for session in get_db_session():
             await report_repository.update_status(session, job.report_id, ReportStatus.PROCESSING)
 
             try:
                 with tracer.start_as_current_span("report.query_data"):
-                    data = await generate_report_data(session, job)
+                    # Analytics queries go via gRPC, not direct DB
+                    data = await generate_report_data(_analytics, job)
 
                 with tracer.start_as_current_span("report.format"):
                     formatted = format_report(data, job.format, job)

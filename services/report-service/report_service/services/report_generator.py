@@ -1,18 +1,15 @@
-"""Orchestrates report generation: query repositories -> calculate -> return structured data."""
+"""Orchestrates report generation: query Analytics Service via gRPC -> calculate -> return structured data."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from report_service.repositories import alert_repository, health_snapshot_repository, telemetry_repository
 from report_service.services.anomaly_detector import detect_zscore_anomalies
 from report_service.services.health_index_calculator import (
     calculate_component_score,
     calculate_overall_score,
 )
+from shared.grpc_client import AnalyticsClient
 from shared.log_codes import REPORT_PROCESSING
 from shared.observability import get_logger
 from shared.schemas.report import ReportJobMessage
@@ -20,8 +17,8 @@ from shared.schemas.report import ReportJobMessage
 logger = get_logger(__name__)
 
 
-async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> dict:
-    """Generate report data by querying telemetry, health, and alert tables."""
+async def generate_report_data(analytics: AnalyticsClient, job: ReportJobMessage) -> dict:
+    """Generate report data by querying Analytics Service via gRPC."""
     logger.info(
         "Report generation started",
         code=REPORT_PROCESSING,
@@ -29,25 +26,30 @@ async def generate_report_data(session: AsyncSession, job: ReportJobMessage) -> 
         report_type=job.report_type,
     )
 
-    loco_id = UUID(job.locomotive_id) if job.locomotive_id else None
-    start = job.date_range.start
-    end = job.date_range.end
+    loco_id = job.locomotive_id
+    start = job.date_range.start.isoformat()
+    end = job.date_range.end.isoformat()
 
     if loco_id is None:
-        return await _generate_fleet_report(session, start, end, job)
+        return await _generate_fleet_report(analytics, start, end, job)
 
-    return await _generate_single_report(session, loco_id, start, end, job)
+    return await _generate_single_report(analytics, loco_id, start, end, job)
 
 
 async def _generate_single_report(
-    session: AsyncSession, loco_id: UUID, start: datetime, end: datetime, job: ReportJobMessage
+    analytics: AnalyticsClient,
+    loco_id: str,
+    start: str,
+    end: str,
+    job: ReportJobMessage,
 ) -> dict:
-    locomotive_type = await telemetry_repository.query_locomotive_type(session, loco_id)
-    sensor_stats = await telemetry_repository.query_sensor_stats(session, loco_id, start, end)
-    health_trend = await health_snapshot_repository.query_health_trend(session, loco_id, start, end)
-    latest_health = await health_snapshot_repository.query_latest_health(session, loco_id, start, end)
-    alerts = await alert_repository.query_alerts(session, loco_id, start, end)
-    anomalies = await _detect_anomalies(session, loco_id, start, end)
+    stats_data = await analytics.get_sensor_stats(locomotive_id=loco_id, start=start, end=end)
+    sensor_stats = stats_data["stats"]
+    locomotive_type = stats_data["locomotive_type"]
+    health_trend = await analytics.get_health_trend(locomotive_id=loco_id, start=start, end=end)
+    latest_health = await analytics.get_latest_health(locomotive_id=loco_id, start=start, end=end)
+    alerts = await analytics.get_report_alerts(locomotive_id=loco_id, start=start, end=end)
+    anomalies = await _detect_anomalies(analytics, loco_id, start, end)
 
     logger.info(
         "Report data collected",
@@ -64,10 +66,10 @@ async def _generate_single_report(
     overall_score = calculate_overall_score(components) * 100
 
     return {
-        "locomotive_id": str(loco_id),
+        "locomotive_id": loco_id,
         "locomotive_type": locomotive_type,
         "report_type": job.report_type,
-        "date_range": {"start": start.isoformat(), "end": end.isoformat()},
+        "date_range": {"start": start, "end": end},
         "health_overview": {
             "calculated_score": round(overall_score, 2),
             "avg_score": latest_health.get("avg_score", 0.0),
@@ -87,15 +89,34 @@ async def _generate_single_report(
     }
 
 
-async def _generate_fleet_report(session: AsyncSession, start: datetime, end: datetime, job: ReportJobMessage) -> dict:
+async def _generate_fleet_report(
+    analytics: AnalyticsClient,
+    start: str,
+    end: str,
+    job: ReportJobMessage,
+) -> dict:
     logger.info("Generating fleet report (aggregated)")
 
-    fleet_health = await health_snapshot_repository.query_fleet_health(session, start, end)
-    fleet_alerts = await alert_repository.query_fleet_alert_summary(session, start, end)
-    fleet_sensor_stats = await telemetry_repository.query_sensor_stats(session, None, start, end)
-    worst_locos = await health_snapshot_repository.query_worst_locomotives(session, start, end)
+    fleet_health_list = await analytics.get_fleet_health(start=start, end=end)
+    fleet_health = (
+        fleet_health_list[0]
+        if fleet_health_list
+        else {
+            "avg_score": 0,
+            "min_score": 0,
+            "max_score": 0,
+            "locomotive_count": 0,
+            "healthy_count": 0,
+            "warning_count": 0,
+            "critical_count": 0,
+        }
+    )
+    fleet_alerts = await analytics.get_fleet_alert_summary(start=start, end=end)
+    stats_data = await analytics.get_sensor_stats(start=start, end=end)
+    fleet_sensor_stats = stats_data["stats"]
+    worst_locos = await analytics.get_worst_locomotives(start=start, end=end)
 
-    total_locos = fleet_health.get("total_locomotives", 0)
+    total_locos = fleet_health.get("locomotive_count", 0)
     avg_score = fleet_health.get("avg_score", 0.0)
 
     if avg_score >= 80:
@@ -109,7 +130,7 @@ async def _generate_fleet_report(session: AsyncSession, start: datetime, end: da
         "locomotive_id": None,
         "locomotive_type": "Парк",
         "report_type": "fleet",
-        "date_range": {"start": start.isoformat(), "end": end.isoformat()},
+        "date_range": {"start": start, "end": end},
         "health_overview": {
             "calculated_score": round(avg_score, 2),
             "avg_score": round(avg_score, 2),
@@ -145,17 +166,18 @@ def _summarize_alerts(alerts: list[dict]) -> dict:
 
 
 async def _detect_anomalies(
-    session: AsyncSession, loco_id: UUID | None, start: datetime, end: datetime
+    analytics: AnalyticsClient,
+    loco_id: str,
+    start: str,
+    end: str,
 ) -> dict[str, list[dict]]:
-    if not loco_id:
-        return {}
-
-    rows = await telemetry_repository.query_raw_for_anomalies(session, loco_id, start, end)
+    rows = await analytics.get_raw_for_anomalies(locomotive_id=loco_id, start=start, end=end)
 
     series: dict[str, list[tuple[float, str]]] = {}
     for row in rows:
         s = series.setdefault(row["sensor_type"], [])
-        s.append((row["filtered_value"], row["time"].isoformat()))
+        time_str = row["time"] if isinstance(row["time"], str) else row["time"].isoformat()
+        s.append((row["filtered_value"], time_str))
 
     anomalies: dict[str, list[dict]] = {}
     for sensor_type, values_times in series.items():

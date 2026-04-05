@@ -1,11 +1,10 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from api_gateway.api.dependencies import AppSession, Redis, TsSession
+from api_gateway.api.dependencies import Analytics, AppSession
 from api_gateway.services import locomotive_service
-from api_gateway.services.health_service import get_health_at, get_health_index
-from shared.schemas.health import HealthIndex
+from shared.schemas.health import HealthFactor, HealthIndex
 from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 
 router = APIRouter()
@@ -48,22 +47,45 @@ async def get_locomotive(locomotive_id: str, db: AppSession):
 
 
 @router.get("/{locomotive_id}/health", response_model=HealthIndex)
-async def get_locomotive_health(locomotive_id: str, ts_db: TsSession, redis: Redis):
+async def get_locomotive_health(locomotive_id: str, analytics: Analytics):
     """Get the current health index for a locomotive.
 
-    Reads latest sensor values from TimescaleDB and thresholds/weights from Redis.
+    Queries Analytics Service (gRPC) which reads from Redis cache
+    or falls back to TimescaleDB.
     """
-    return await get_health_index(ts_db, redis, locomotive_id)
+    try:
+        data = await analytics.get_current_health(locomotive_id)
+    except Exception as exc:
+        if "NOT_FOUND" in str(exc):
+            raise HTTPException(status_code=404, detail="No telemetry data for this locomotive") from exc
+        raise
+    return _dict_to_health_index(data)
 
 
 @router.get("/{locomotive_id}/health/at", response_model=HealthIndex)
 async def get_locomotive_health_at(
     locomotive_id: str,
-    ts_db: TsSession,
+    analytics: Analytics,
     at: datetime = Query(..., description="Point in time (ISO 8601)"),
 ):
-    """Get the health index at a specific point in time (replay).
+    """Get the health index at a specific point in time (replay)."""
+    try:
+        data = await analytics.get_health_at(locomotive_id, at.isoformat())
+    except Exception as exc:
+        if "NOT_FOUND" in str(exc):
+            raise HTTPException(status_code=404, detail="No health data at this time") from exc
+        raise
+    return _dict_to_health_index(data)
 
-    Reads health snapshots from TimescaleDB.
-    """
-    return await get_health_at(ts_db, locomotive_id, at)
+
+def _dict_to_health_index(d: dict) -> HealthIndex:
+    """Convert gRPC response dict to HealthIndex Pydantic model."""
+    return HealthIndex(
+        locomotive_id=d["locomotive_id"],
+        locomotive_type=d.get("locomotive_type", ""),
+        overall_score=d["overall_score"],
+        category=d["category"],
+        top_factors=[HealthFactor(**f) for f in d.get("top_factors", [])],
+        damage_penalty=d.get("damage_penalty", 0.0),
+        calculated_at=d.get("calculated_at", ""),
+    )

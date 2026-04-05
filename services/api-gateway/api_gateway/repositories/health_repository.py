@@ -1,66 +1,17 @@
-"""Health repository — split across two databases.
+"""Health config repository — PostgreSQL only.
 
-Config queries (thresholds, weights, seed) use AppSession (PostgreSQL).
-Telemetry queries (latest readings, health snapshots) use TsSession (TimescaleDB).
-Callers are responsible for passing the correct session.
+Manages threshold and weight configuration in PostgreSQL.
+Telemetry queries (get_latest_readings, get_snapshot_at) have moved
+to Analytics Service.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway.models.health_config_entity import HealthThreshold, HealthWeight
 from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS
-
-
-async def get_latest_readings(session: AsyncSession, locomotive_id: str) -> list[dict]:
-    result = await session.execute(
-        text("""
-            SELECT DISTINCT ON (sensor_type)
-                sensor_type, value, unit, locomotive_type
-            FROM raw_telemetry
-            WHERE locomotive_id = CAST(:loco_id AS uuid)
-            ORDER BY sensor_type, time DESC
-        """),
-        {"loco_id": locomotive_id},
-    )
-    return [
-        {
-            "sensor_type": row.sensor_type,
-            "value": row.value,
-            "unit": row.unit,
-            "locomotive_type": getattr(row, "locomotive_type", "TE33A"),
-        }
-        for row in result.fetchall()
-    ]
-
-
-async def get_snapshot_at(session: AsyncSession, locomotive_id: str, at: datetime) -> dict | None:
-    result = await session.execute(
-        text("""
-            SELECT score, category, top_factors, damage_penalty, calculated_at, locomotive_type
-            FROM health_snapshots
-            WHERE locomotive_id = CAST(:loco_id AS uuid)
-              AND calculated_at <= :at
-            ORDER BY calculated_at DESC
-            LIMIT 1
-        """),
-        {"loco_id": locomotive_id, "at": at},
-    )
-    row = result.fetchone()
-    if not row:
-        return None
-    return {
-        "score": row.score,
-        "category": row.category,
-        "top_factors": row.top_factors,
-        "damage_penalty": row.damage_penalty,
-        "calculated_at": row.calculated_at,
-        "locomotive_type": row.locomotive_type,
-    }
 
 
 async def list_thresholds(session: AsyncSession) -> list[HealthThreshold]:

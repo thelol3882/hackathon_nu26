@@ -248,6 +248,11 @@ TELEMETRY_CHANNEL = "telemetry:live"
 ALERT_CHANNEL = "alerts:live"
 HEALTH_CHANNEL = "health:live"
 
+# Fleet aggregation channels — published by fleet aggregator inside Analytics Service.
+# Consumed by WS Server for fleet dashboard streaming.
+FLEET_SUMMARY_CHANNEL = "fleet:summary"
+FLEET_CHANGES_CHANNEL = "fleet:changes"
+
 # ── Legacy — kept for report-service backward compatibility ─────────────────
 DEFAULT_THRESHOLDS: dict[str, tuple[float, float]] = {
     "diesel_rpm": (0.0, 1050.0),

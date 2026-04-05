@@ -103,6 +103,7 @@ services:
       - report-service
       - db-writer
       - ws-server
+      - analytics-service
 
   grafana:
     image: grafana/grafana:latest
@@ -148,6 +149,18 @@ services:
       processor:
         condition: service_started
 
+  # Analytics Service — single reader of TimescaleDB, exposes data via gRPC.
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    env_file: .env
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   api-gateway:
     build:
       context: .
@@ -156,8 +169,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      timescaledb:
-        condition: service_healthy
+      analytics-service:
+        condition: service_started
       redis:
         condition: service_healthy
       rabbitmq:
@@ -177,8 +190,10 @@ services:
       dockerfile: services/report-service/Dockerfile
     env_file: .env
     depends_on:
-      timescaledb:
+      postgres:
         condition: service_healthy
+      analytics-service:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       jaeger:

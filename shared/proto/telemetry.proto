@@ -1,0 +1,421 @@
+// telemetry.proto — defines the data structures and RPC methods
+// for querying telemetry data from TimescaleDB.
+//
+// HOW PROTOBUF WORKS:
+//   1. You define messages (data structures) and services (RPC methods)
+//   2. The protoc compiler generates Python classes from this file
+//   3. Server implements the service methods
+//   4. Client calls them as if they were local functions
+//
+// WHY PROTOBUF INSTEAD OF JSON:
+//   - Binary format: 5-10x smaller than JSON for numeric data
+//   - Schema-enforced: typos caught at compile time, not runtime
+//   - Code generation: no manual serialization/deserialization
+//   - Language-agnostic: same .proto works for Python, Go, TypeScript
+//
+// GENERATED FILES (run shared/proto/generate.sh):
+//   telemetry_pb2.py      — message classes (TelemetryPoint, AlertEvent, etc.)
+//   telemetry_pb2_grpc.py — service stubs and base classes
+//   telemetry_pb2.pyi     — type stubs for IDE autocompletion
+
+syntax = "proto3";
+
+// Package name prevents naming collisions between .proto files.
+// Convention: company.project.service
+package locomotive.analytics;
+
+// ============================================================================
+// DATA STRUCTURES (Messages)
+// ============================================================================
+
+// A single telemetry data point (bucketed or raw).
+// Used in responses — maps to what the frontend needs for charts.
+message TelemetryPoint {
+  string bucket = 1;          // ISO 8601 timestamp (bucket start time)
+  string locomotive_id = 2;
+  string sensor_type = 3;
+  double avg_value = 4;       // Average value in this bucket
+  double min_value = 5;
+  double max_value = 6;
+  double last_value = 7;      // Last recorded value in this bucket
+  string unit = 8;
+}
+
+// Raw telemetry point (not aggregated, per-second resolution).
+message TelemetryRawPoint {
+  string time = 1;            // ISO 8601 timestamp
+  string locomotive_id = 2;
+  string locomotive_type = 3;
+  string sensor_type = 4;
+  double value = 5;
+  double filtered_value = 6;
+  string unit = 7;
+  double latitude = 8;
+  double longitude = 9;
+}
+
+// A single alert event from alert_events table.
+message AlertEvent {
+  string id = 1;
+  string locomotive_id = 2;
+  string sensor_type = 3;
+  string severity = 4;        // info, warning, critical, emergency
+  double value = 5;
+  double threshold_min = 6;
+  double threshold_max = 7;
+  string message = 8;
+  string recommendation = 9;
+  string timestamp = 10;      // ISO 8601
+  bool acknowledged = 11;
+}
+
+// Health index snapshot from health_snapshots table.
+message HealthSnapshot {
+  string locomotive_id = 1;
+  string locomotive_type = 2;
+  double overall_score = 3;   // 0-100
+  string category = 4;        // "Норма" / "Внимание" / "Критично"
+  repeated HealthFactor top_factors = 5;
+  double damage_penalty = 6;
+  string calculated_at = 7;   // ISO 8601
+}
+
+message HealthFactor {
+  string sensor_type = 1;
+  double value = 2;
+  string unit = 3;
+  double penalty = 4;
+  double contribution_pct = 5;
+  double deviation_pct = 6;
+}
+
+// Fleet-wide statistics per time bucket (for Z-score and reports).
+message FleetHealthStats {
+  string bucket = 1;
+  string locomotive_type = 2;
+  double avg_score = 3;
+  double min_score = 4;
+  double max_score = 5;
+  double stddev_score = 6;    // For Z-score calculation
+  int32 locomotive_count = 7;
+  int32 healthy_count = 8;
+  int32 warning_count = 9;
+  int32 critical_count = 10;
+}
+
+// Alert frequency distribution per time bucket.
+message AlertFrequency {
+  string bucket = 1;
+  string sensor_type = 2;
+  string severity = 3;
+  int32 count = 4;
+}
+
+// Sensor statistics (aggregated over a time range).
+message SensorStats {
+  string sensor_type = 1;
+  string unit = 2;
+  double avg = 3;
+  double min = 4;
+  double max = 5;
+  double stddev = 6;
+  int32 samples = 7;
+}
+
+// Worst-performing locomotive in the fleet.
+message WorstLocomotive {
+  string locomotive_id = 1;
+  string locomotive_type = 2;
+  string serial_number = 3;
+  double avg_score = 4;
+  double min_score = 5;
+  double max_score = 6;
+}
+
+// ============================================================================
+// REQUEST / RESPONSE Messages
+// ============================================================================
+
+// --- Telemetry ---
+
+message TelemetryBucketedRequest {
+  // All fields optional — empty string / zero means "not set".
+  string locomotive_id = 1;
+  string sensor_type = 2;
+  string start = 3;           // ISO 8601; empty = no filter
+  string end = 4;
+  int32 offset = 5;
+  int32 limit = 6;            // 0 means server default (500)
+}
+
+message TelemetryBucketedResponse {
+  repeated TelemetryPoint points = 1;
+  string data_source = 2;     // "raw (1s)", "1min aggregate", etc.
+  int32 total_points = 3;
+}
+
+message TelemetryRawRequest {
+  string locomotive_id = 1;
+  string sensor_type = 2;
+  string start = 3;
+  string end = 4;
+  int32 offset = 5;
+  int32 limit = 6;
+}
+
+message TelemetryRawResponse {
+  repeated TelemetryRawPoint points = 1;
+}
+
+message TelemetrySnapshotRequest {
+  string locomotive_id = 1;   // Required
+  string at = 2;              // ISO 8601 point in time
+}
+
+message TelemetrySnapshotResponse {
+  repeated TelemetryRawPoint points = 1;
+}
+
+// --- Alerts ---
+
+message AlertsListRequest {
+  string locomotive_id = 1;
+  string severity = 2;
+  // Proto3 has no "nullable bool"; use a separate flag to express
+  // "filter by acknowledged" vs "don't filter".
+  bool filter_acknowledged = 3;
+  bool acknowledged = 4;
+  string start = 5;
+  string end = 6;
+  int32 offset = 7;
+  int32 limit = 8;
+}
+
+message AlertsListResponse {
+  repeated AlertEvent alerts = 1;
+  int32 total = 2;
+}
+
+message AlertGetRequest {
+  string alert_id = 1;
+}
+
+message AlertAcknowledgeRequest {
+  string alert_id = 1;
+}
+
+// --- Health ---
+
+message HealthCurrentRequest {
+  string locomotive_id = 1;
+}
+
+message HealthAtRequest {
+  string locomotive_id = 1;
+  string at = 2;              // ISO 8601
+}
+
+// --- Fleet Analytics ---
+
+message FleetHealthRequest {
+  string start = 1;
+  string end = 2;
+  string locomotive_type = 3; // Optional filter
+}
+
+message FleetHealthResponse {
+  repeated FleetHealthStats stats = 1;
+}
+
+message AlertFrequencyRequest {
+  string start = 1;
+  string end = 2;
+  string sensor_type = 3;
+  string severity = 4;
+}
+
+message AlertFrequencyResponse {
+  repeated AlertFrequency frequencies = 1;
+}
+
+// --- Report-oriented queries ---
+
+message SensorStatsRequest {
+  string locomotive_id = 1;   // Empty = fleet-wide
+  string start = 2;
+  string end = 3;
+}
+
+message SensorStatsResponse {
+  repeated SensorStats stats = 1;
+  string locomotive_type = 2; // Only set for single-locomotive queries
+}
+
+message HealthTrendRequest {
+  string locomotive_id = 1;   // Empty = fleet-wide
+  string start = 2;
+  string end = 3;
+}
+
+message HealthTrendPoint {
+  string time = 1;
+  double avg_score = 2;
+  double min_score = 3;
+  double max_score = 4;
+}
+
+message HealthTrendResponse {
+  repeated HealthTrendPoint points = 1;
+}
+
+message LatestHealthRequest {
+  string locomotive_id = 1;   // Empty = fleet-wide
+  string start = 2;
+  string end = 3;
+}
+
+message LatestHealthResponse {
+  double avg_score = 1;
+  double min_score = 2;
+  double max_score = 3;
+  string category = 4;
+  double damage_penalty = 5;
+  repeated HealthFactor top_factors = 6;
+}
+
+message WorstLocomotivesRequest {
+  string start = 1;
+  string end = 2;
+  int32 limit = 3;
+}
+
+message WorstLocomotivesResponse {
+  repeated WorstLocomotive locomotives = 1;
+}
+
+message FleetAlertSummaryRequest {
+  string start = 1;
+  string end = 2;
+}
+
+message FleetAlertSummaryResponse {
+  int32 total = 1;
+  map<string, int32> by_severity = 2;
+}
+
+message ReportAlertsRequest {
+  string locomotive_id = 1;   // Empty = fleet-wide
+  string start = 2;
+  string end = 3;
+}
+
+message ReportAlertsResponse {
+  repeated AlertEvent alerts = 1;
+}
+
+message RawForAnomaliesRequest {
+  string locomotive_id = 1;
+  string start = 2;
+  string end = 3;
+}
+
+message AnomalyDataPoint {
+  string sensor_type = 1;
+  double filtered_value = 2;
+  string time = 3;
+}
+
+message RawForAnomaliesResponse {
+  repeated AnomalyDataPoint points = 1;
+}
+
+message FleetLatestSnapshotsResponse {
+  repeated FleetSnapshotEntry entries = 1;
+}
+
+message FleetSnapshotEntry {
+  string locomotive_id = 1;
+  string locomotive_type = 2;
+  double score = 3;
+  string category = 4;
+}
+
+message UtilizationRequest {
+  string locomotive_id = 1;   // Empty = fleet-wide
+  int32 hours = 2;
+}
+
+message UtilizationResponse {
+  int32 total_readings = 1;
+  int32 active_readings = 2;
+  double avg_speed = 3;
+  double max_speed = 4;
+}
+
+// Empty message for requests with no parameters.
+message Empty {}
+
+// ============================================================================
+// SERVICE DEFINITION
+// ============================================================================
+
+// The service definition is the core of gRPC.
+// Each rpc method maps to a function the server implements
+// and the client can call remotely.
+//
+// gRPC RPC types:
+//   1. Unary:             client sends 1 message, server returns 1 message
+//   2. Server streaming:  client sends 1, server returns stream of messages
+//   3. Client streaming:  client sends stream, server returns 1
+//   4. Bidirectional:     both sides stream
+//
+// We use Unary for all methods — historical queries are request/response.
+// Real-time streaming is already handled by WebSocket (ws-server).
+
+service AnalyticsService {
+  // --- Telemetry queries (used by API Gateway) ---
+
+  // Get bucketed telemetry with auto-resolution.
+  // Server picks the optimal continuous aggregate based on the time range.
+  rpc GetTelemetryBucketed(TelemetryBucketedRequest)
+      returns (TelemetryBucketedResponse);
+
+  // Get raw (per-second) telemetry — only for short time ranges.
+  rpc GetTelemetryRaw(TelemetryRawRequest)
+      returns (TelemetryRawResponse);
+
+  // Get the latest sensor reading per sensor at or before a given time.
+  rpc GetTelemetrySnapshot(TelemetrySnapshotRequest)
+      returns (TelemetrySnapshotResponse);
+
+  // --- Alert queries (used by API Gateway) ---
+
+  rpc ListAlerts(AlertsListRequest) returns (AlertsListResponse);
+  rpc GetAlert(AlertGetRequest) returns (AlertEvent);
+  // The only WRITE operation — marks an alert as acknowledged.
+  rpc AcknowledgeAlert(AlertAcknowledgeRequest) returns (AlertEvent);
+
+  // --- Health queries (used by API Gateway) ---
+
+  // Get current health index (tries Redis cache first, falls back to DB).
+  rpc GetCurrentHealth(HealthCurrentRequest) returns (HealthSnapshot);
+  // Get health index at a specific point in time (replay from snapshots).
+  rpc GetHealthAt(HealthAtRequest) returns (HealthSnapshot);
+
+  // --- Fleet analytics (used by Report Service) ---
+
+  rpc GetFleetHealth(FleetHealthRequest) returns (FleetHealthResponse);
+  rpc GetAlertFrequency(AlertFrequencyRequest) returns (AlertFrequencyResponse);
+
+  // --- Report-oriented queries (used by Report Service) ---
+
+  rpc GetSensorStats(SensorStatsRequest) returns (SensorStatsResponse);
+  rpc GetHealthTrend(HealthTrendRequest) returns (HealthTrendResponse);
+  rpc GetLatestHealth(LatestHealthRequest) returns (LatestHealthResponse);
+  rpc GetWorstLocomotives(WorstLocomotivesRequest) returns (WorstLocomotivesResponse);
+  rpc GetFleetAlertSummary(FleetAlertSummaryRequest) returns (FleetAlertSummaryResponse);
+  rpc GetReportAlerts(ReportAlertsRequest) returns (ReportAlertsResponse);
+  rpc GetRawForAnomalies(RawForAnomaliesRequest) returns (RawForAnomaliesResponse);
+  rpc GetFleetLatestSnapshots(Empty) returns (FleetLatestSnapshotsResponse);
+  rpc GetUtilization(UtilizationRequest) returns (UtilizationResponse);
+}

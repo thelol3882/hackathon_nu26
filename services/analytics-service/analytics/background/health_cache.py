@@ -1,12 +1,19 @@
-"""Background task: cache health indices from Redis pub/sub."""
+"""Background task: cache health indices from Redis pub/sub.
+
+The processor publishes real-time HealthIndex snapshots to Redis pub/sub
+channels like health:live:{locomotive_id}. This task subscribes and caches
+the latest value per locomotive in Redis with a short TTL.
+
+When GetCurrentHealth is called, the servicer checks this cache first
+before falling back to a TimescaleDB query.
+"""
 
 from __future__ import annotations
 
 import asyncio
 
-import redis.asyncio as redis
+import redis.asyncio as aioredis
 
-from api_gateway.core.redis_client import get_redis_raw
 from shared.constants import HEALTH_CHANNEL
 from shared.observability import get_logger
 
@@ -16,21 +23,15 @@ _HEALTH_CACHE_PREFIX = "health:cache"
 _HEALTH_CACHE_TTL = 60  # seconds
 
 
-async def cache_health(loco_id: str, data: bytes) -> None:
-    """Cache the latest HealthIndex (wire-encoded bytes) for a locomotive."""
-    await get_redis_raw().set(f"{_HEALTH_CACHE_PREFIX}:{loco_id}", data, ex=_HEALTH_CACHE_TTL)
+async def get_cached_health(redis_raw: aioredis.Redis, loco_id: str) -> bytes | None:
+    return await redis_raw.get(f"{_HEALTH_CACHE_PREFIX}:{loco_id}")
 
 
-async def get_cached_health(loco_id: str) -> bytes | None:
-    """Get cached HealthIndex as raw bytes. Returns None if expired or missing."""
-    return await get_redis_raw().get(f"{_HEALTH_CACHE_PREFIX}:{loco_id}")
-
-
-async def run_health_cache(redis_client: redis.Redis) -> None:
+async def run_health_cache(redis_raw: aioredis.Redis) -> None:
     """Subscribe to health:live:* and cache latest HealthIndex per locomotive."""
     backoff = 1.0
     while True:
-        pubsub = redis_client.pubsub()
+        pubsub = redis_raw.pubsub()
         try:
             await pubsub.psubscribe(f"{HEALTH_CHANNEL}:*")
             backoff = 1.0
@@ -41,7 +42,11 @@ async def run_health_cache(redis_client: redis.Redis) -> None:
                 try:
                     channel: bytes = message["channel"]
                     loco_id = channel.decode().rsplit(":", maxsplit=1)[-1]
-                    await cache_health(loco_id, message["data"])
+                    await redis_raw.set(
+                        f"{_HEALTH_CACHE_PREFIX}:{loco_id}",
+                        message["data"],
+                        ex=_HEALTH_CACHE_TTL,
+                    )
                 except Exception:
                     logger.exception("Failed to cache health index")
         except asyncio.CancelledError:

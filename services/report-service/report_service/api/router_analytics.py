@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query
 
-from report_service.api.dependencies import DbSession
-from report_service.repositories import health_snapshot_repository, telemetry_repository
+from report_service.api.dependencies import Analytics
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
@@ -10,11 +9,11 @@ router = APIRouter()
 
 
 @router.get("/fleet")
-async def fleet_analytics(db: DbSession):
+async def fleet_analytics(analytics: Analytics):
     """Fleet-wide analytics: health distribution, counts by category."""
     logger.info("Fleet analytics requested")
 
-    rows = await health_snapshot_repository.query_fleet_latest_snapshots(db)
+    rows = await analytics.get_fleet_latest_snapshots()
 
     total = len(rows)
     by_category: dict[str, int] = {}
@@ -36,14 +35,14 @@ async def fleet_analytics(db: DbSession):
 
 @router.get("/utilization")
 async def utilization(
-    db: DbSession,
+    analytics: Analytics,
     locomotive_id: str | None = Query(None),
     hours: int = Query(24, ge=1, le=168),
 ):
     """Utilization statistics based on speed > 0 readings."""
     logger.info("Utilization stats requested", locomotive_id=locomotive_id)
 
-    stats = await telemetry_repository.query_utilization(db, locomotive_id, hours)
+    stats = await analytics.get_utilization(locomotive_id=locomotive_id or "", hours=hours)
 
     total = stats["total_readings"]
     active = stats["active_readings"]

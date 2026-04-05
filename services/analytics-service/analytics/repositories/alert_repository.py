@@ -1,4 +1,4 @@
-"""Alert repository — reads from alert_events in TimescaleDB via raw SQL."""
+"""Alert queries against alert_events table in TimescaleDB."""
 
 from __future__ import annotations
 
@@ -40,12 +40,11 @@ async def find_many(
 
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
-    base = (
+    sql = (
         "SELECT id, locomotive_id, sensor_type, severity, value,"
         " threshold_min, threshold_max, message, recommendation, timestamp, acknowledged"
-        " FROM alert_events"
+        f" FROM alert_events {where} ORDER BY timestamp DESC OFFSET :off LIMIT :lim"
     )
-    sql = f"{base} {where} ORDER BY timestamp DESC OFFSET :off LIMIT :lim"
     result = await session.execute(text(sql), params)
     return [dict(r) for r in result.mappings().all()]
 
@@ -63,10 +62,54 @@ async def find_by_id(session: AsyncSession, alert_id: str) -> dict | None:
     return dict(r) if r is not None else None
 
 
-async def acknowledge(session: AsyncSession, alert_id: str) -> dict | None:
+async def acknowledge(session: AsyncSession, alert_id: str) -> None:
     await session.execute(
         text("UPDATE alert_events SET acknowledged = TRUE WHERE id = CAST(:aid AS uuid)"),
         {"aid": alert_id},
     )
     await session.commit()
-    return await find_by_id(session, alert_id)
+
+
+# -- Report-oriented queries -----------------------------------------------
+
+
+async def query_alerts(
+    session: AsyncSession,
+    locomotive_id: str | None,
+    start: datetime,
+    end: datetime,
+) -> list[dict]:
+    params: dict = {"start": start, "end": end}
+    where_loco = ""
+    if locomotive_id:
+        where_loco = "AND locomotive_id = CAST(:loco_id AS uuid)"
+        params["loco_id"] = locomotive_id
+
+    result = await session.execute(
+        text(f"""
+            SELECT id, locomotive_id, sensor_type, severity, value, threshold_min, threshold_max,
+                   message, recommendation, timestamp, acknowledged
+            FROM alert_events
+            WHERE timestamp BETWEEN :start AND :end {where_loco}
+            ORDER BY timestamp DESC LIMIT 500
+        """),
+        params,
+    )
+    return [dict(r) for r in result.mappings().all()]
+
+
+async def query_fleet_alert_summary(session: AsyncSession, start: datetime, end: datetime) -> dict:
+    result = await session.execute(
+        text("""
+            SELECT severity, COUNT(*) AS cnt
+            FROM alert_events WHERE timestamp BETWEEN :start AND :end
+            GROUP BY severity
+        """),
+        {"start": start, "end": end},
+    )
+    by_severity = {}
+    total = 0
+    for row in result.fetchall():
+        by_severity[row.severity] = int(row.cnt)
+        total += int(row.cnt)
+    return {"total": total, "by_severity": by_severity}

@@ -16,7 +16,8 @@ class GatewaySettings(BaseSettings):
 
     # --- Application database (PostgreSQL) ---
     # Small CRUD tables: users, locomotives, reports, health config.
-    # Standard ORM operations with JOINs between business entities.
+    # API Gateway does NOT connect to TimescaleDB — all telemetry queries
+    # go through the Analytics Service via gRPC.
     app_db_host: str = "postgres"
     app_db_port: int = 5432
     app_db_user: str = "locomotive_app"
@@ -32,23 +33,11 @@ class GatewaySettings(BaseSettings):
             f"@{self.app_db_host}:{self.app_db_port}/{self.app_db_name}"
         )
 
-    # --- Telemetry database (TimescaleDB) ---
-    # Huge time-series tables: raw_telemetry, alert_events, health_snapshots,
-    # continuous aggregates. Read-only from API Gateway (DB Writer handles writes).
-    ts_db_host: str = "timescaledb"
-    ts_db_port: int = 5432
-    ts_db_user: str = "telemetry"
-    ts_db_password: str = "changeme"
-    ts_db_name: str = "locomotive_telemetry"
-    ts_db_pool_min: int = 3
-    ts_db_pool_max: int = 10
-
-    @property
-    def ts_database_url(self) -> str:
-        return (
-            f"postgresql://{self.ts_db_user}:{self.ts_db_password}"
-            f"@{self.ts_db_host}:{self.ts_db_port}/{self.ts_db_name}"
-        )
+    # --- Analytics Service (gRPC) ---
+    # All telemetry, alert, and health queries go through this service.
+    # It is the single reader of TimescaleDB.
+    analytics_grpc_target: str = "analytics-service:50051"
+    analytics_grpc_timeout: float = 5.0
 
     # --- Redis ---
     redis_host: str = "localhost"
