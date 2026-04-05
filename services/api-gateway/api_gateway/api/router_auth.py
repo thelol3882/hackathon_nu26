@@ -37,8 +37,8 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register", status_code=201, response_model=UserResponse)
-async def register(body: RegisterRequest, db: DbSession):
-    """Register a new user."""
+async def register(body: RegisterRequest, db: DbSession, _admin: AdminUser):
+    """Register a new user (admin only)."""
     user = User(
         username=body.username,
         hashed_password=hash_password(body.password),
