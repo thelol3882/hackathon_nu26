@@ -205,6 +205,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 clearAlerts={clearAlerts}
                 locomotiveId={locomotiveId}
                 position={position}
+                isReplay={false}
             />
         </>
     );
@@ -298,6 +299,9 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 clearAlerts={() => {}}
                 locomotiveId={locomotiveId}
                 position={position}
+                isReplay={true}
+                replayStart={replay.start?.toISOString()}
+                replayEnd={replay.end?.toISOString()}
             />
         </>
     );
@@ -312,9 +316,12 @@ interface DashboardGridProps {
     clearAlerts: () => void;
     locomotiveId: string;
     position: { latitude: number; longitude: number } | null;
+    isReplay?: boolean;
+    replayStart?: string;
+    replayEnd?: string;
 }
 
-function DashboardGrid({ getSensor, health, healthLoading, locoType, alerts, clearAlerts, locomotiveId, position }: DashboardGridProps) {
+function DashboardGrid({ getSensor, health, healthLoading, locoType, alerts, clearAlerts, locomotiveId, position, isReplay, replayStart, replayEnd }: DashboardGridProps) {
     return (
         <Box className={styles.grid}>
             <Box className={styles.health}><HealthIndexGauge health={health} isLoading={healthLoading} /></Box>
@@ -322,8 +329,8 @@ function DashboardGrid({ getSensor, health, healthLoading, locoType, alerts, cle
             <Box className={styles.fuel}><FuelEnergyPanel locomotiveType={locoType} fuelLevel={getSensor('fuel_level')} fuelRate={getSensor('fuel_rate')} catenaryVoltage={getSensor('catenary_voltage')} pantographCurrent={getSensor('pantograph_current')} /></Box>
             <Box className={styles.press}><PressureTemperaturePanel coolantTemp={getSensor('coolant_temp')} oilPressure={getSensor('oil_pressure')} brakePipePressure={getSensor('brake_pipe_pressure')} /></Box>
             <Box className={styles.elec}><ElectricalPanel locomotiveType={locoType} tractionMotorTemp={getSensor('traction_motor_temp')} crankcasePressure={getSensor('crankcase_pressure')} dieselRpm={getSensor('diesel_rpm')} transformerTemp={getSensor('transformer_temp')} igbtTemp={getSensor('igbt_temp')} dcLinkVoltage={getSensor('dc_link_voltage')} recuperationCurrent={getSensor('recuperation_current')} /></Box>
-            <Box className={styles.alerts}><AlertsPanel alerts={alerts} onClear={clearAlerts} /></Box>
-            <Box className={styles.trends}><TrendsPanel locomotiveId={locomotiveId} /></Box>
+            <Box className={styles.alerts}><AlertsPanel alerts={alerts} onClear={clearAlerts} isReplay={isReplay} /></Box>
+            <Box className={styles.trends}><TrendsPanel locomotiveId={locomotiveId} replayStart={replayStart} replayEnd={replayEnd} /></Box>
             <Box className={styles.map}><RouteMap position={position} /></Box>
         </Box>
     );

@@ -32,6 +32,7 @@ import classes from './AlertsPanel.module.css';
 interface AlertsPanelProps {
     alerts: AlertEvent[];
     onClear: () => void;
+    isReplay?: boolean;
 }
 
 type SeverityFilter = 'all' | 'emergency' | 'critical' | 'warning' | 'info';
@@ -136,13 +137,14 @@ function AlertItem({ alert, isNew }: { alert: AlertEvent; isNew: boolean }) {
     );
 }
 
-export default function AlertsPanel({ alerts, onClear }: AlertsPanelProps) {
+export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelProps) {
     const [filter, setFilter] = useState<SeverityFilter>('all');
     const [soundEnabled, setSoundEnabled] = useState(true);
     const prevCountRef = useRef(alerts.length);
 
-    // Show notification for new critical/emergency alerts
+    // Show notification for new critical/emergency alerts (only in live mode)
     useEffect(() => {
+        if (isReplay) return;
         if (alerts.length > prevCountRef.current) {
             const newAlerts = alerts.slice(0, alerts.length - prevCountRef.current);
             for (const alert of newAlerts) {
@@ -155,7 +157,6 @@ export default function AlertsPanel({ alerts, onClear }: AlertsPanelProps) {
                         icon: <IconAlertCircle size={18} />,
                     });
 
-                    // Play alert sound
                     if (soundEnabled) {
                         try {
                             const ctx = new AudioContext();
@@ -176,7 +177,7 @@ export default function AlertsPanel({ alerts, onClear }: AlertsPanelProps) {
             }
         }
         prevCountRef.current = alerts.length;
-    }, [alerts, soundEnabled]);
+    }, [alerts, soundEnabled, isReplay]);
 
     const filteredAlerts =
         filter === 'all' ? alerts : alerts.filter((a) => a.severity === filter);
@@ -190,31 +191,43 @@ export default function AlertsPanel({ alerts, onClear }: AlertsPanelProps) {
     const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
     const newAlertIds = new Set(alerts.slice(0, 3).map((a) => a.id));
 
+    const acknowledgedCount = alerts.filter((a) => a.acknowledged).length;
+
     return (
-        <Card style={{ borderTop: '2px solid var(--mantine-color-critical-5)' }}>
+        <Card style={{ borderTop: `2px solid var(--mantine-color-${isReplay ? 'ktzGold' : 'critical'}-5)` }}>
             <Group justify="space-between" mb="xs">
                 <Group gap="xs">
                     <Text className="panel-label">ОПОВЕЩЕНИЯ</Text>
+                    {isReplay && <Badge size="xs" variant="light" color="ktzGold">REPLAY</Badge>}
                     {unacknowledgedCount > 0 && (
-                        <Badge size="sm" color="red" variant="filled" className={unacknowledgedCount > 0 ? 'led-pulse' : ''}>
+                        <Badge size="sm" color="red" variant="filled" className={!isReplay && unacknowledgedCount > 0 ? 'led-pulse' : ''}>
                             {unacknowledgedCount}
+                        </Badge>
+                    )}
+                    {isReplay && acknowledgedCount > 0 && (
+                        <Badge size="xs" variant="light" color="green">
+                            {acknowledgedCount} подтв.
                         </Badge>
                     )}
                 </Group>
                 <Group gap={4}>
-                    <Tooltip label={soundEnabled ? 'Выкл. звук' : 'Вкл. звук'}>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
-                            color={soundEnabled ? 'ktzBlue' : 'gray'}
-                            onClick={() => setSoundEnabled(!soundEnabled)}
-                        >
-                            {soundEnabled ? <IconBell size={14} /> : <IconBellOff size={14} />}
-                        </ActionIcon>
-                    </Tooltip>
-                    <Button variant="subtle" size="xs" onClick={onClear}>
-                        Очистить
-                    </Button>
+                    {!isReplay && (
+                        <>
+                            <Tooltip label={soundEnabled ? 'Выкл. звук' : 'Вкл. звук'}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    color={soundEnabled ? 'ktzBlue' : 'gray'}
+                                    onClick={() => setSoundEnabled(!soundEnabled)}
+                                >
+                                    {soundEnabled ? <IconBell size={14} /> : <IconBellOff size={14} />}
+                                </ActionIcon>
+                            </Tooltip>
+                            <Button variant="subtle" size="xs" onClick={onClear}>
+                                Очистить
+                            </Button>
+                        </>
+                    )}
                 </Group>
             </Group>
 

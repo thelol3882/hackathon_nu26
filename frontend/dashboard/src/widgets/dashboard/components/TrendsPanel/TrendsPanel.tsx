@@ -16,6 +16,8 @@ import { formatTime, dayjs } from '@/shared/utils/date';
 
 interface TrendsPanelProps {
     locomotiveId: string | null;
+    replayStart?: string;
+    replayEnd?: string;
 }
 
 const sensorLabels: Record<string, string> = {
@@ -129,7 +131,8 @@ function DateAwareXTick({ x, y, payload, data }: { x: number; y: number; payload
     );
 }
 
-export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
+export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: TrendsPanelProps) {
+    const isReplay = !!(replayStart && replayEnd);
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
     const [selectedStep, setSelectedStep] = useState('5m');
     const [pollTick, setPollTick] = useState(0);
@@ -144,9 +147,21 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
 
     // Calculate start time for initial load
     const startIso = useMemo(() => {
+        if (isReplay && replayStart) return replayStart;
         return dayjs().subtract(cfg.initialPoints * cfg.stepMs, 'millisecond').toISOString();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedStep, selectedSensor, locomotiveId]);
+    }, [selectedStep, selectedSensor, locomotiveId, isReplay, replayStart]);
+
+    // Pick bucket interval for replay based on window size
+    const effectiveBucket = useMemo(() => {
+        if (!isReplay || !replayStart || !replayEnd) return cfg.bucket_interval;
+        const diffMin = (new Date(replayEnd).getTime() - new Date(replayStart).getTime()) / 60_000;
+        if (diffMin <= 10) return '1 minute' as BucketInterval;
+        if (diffMin <= 60) return '1 minute' as BucketInterval;
+        if (diffMin <= 180) return '5 minutes' as BucketInterval;
+        if (diffMin <= 720) return '15 minutes' as BucketInterval;
+        return '1 hour' as BucketInterval;
+    }, [isReplay, replayStart, replayEnd, cfg.bucket_interval]);
 
     // Initial data fetch
     const { data: freshData, isFetching } = useGetTelemetryQuery(
@@ -154,12 +169,13 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
             locomotive_id: locomotiveId ?? undefined,
             sensor_type: selectedSensor,
             start: startIso,
-            bucket_interval: cfg.bucket_interval,
-            limit: cfg.initialPoints + 5,
+            end: isReplay ? replayEnd : undefined,
+            bucket_interval: isReplay ? effectiveBucket : cfg.bucket_interval,
+            limit: isReplay ? 500 : cfg.initialPoints + 5,
         },
         {
-            skip: !locomotiveId,
-            pollingInterval: cfg.refreshMs,
+            skip: !locomotiveId || (isReplay && (!replayStart || !replayEnd)),
+            pollingInterval: isReplay ? 0 : cfg.refreshMs,
         },
     );
 
@@ -219,12 +235,12 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
         setLoadingMore(false);
     }, [olderData, loadingMore]);
 
-    // Reset when sensor or step changes
+    // Reset when sensor, step, or replay changes
     useEffect(() => {
         setAllData([]);
         setLoadingMore(false);
         didInitialScroll.current = false;
-    }, [selectedSensor, selectedStep, locomotiveId]);
+    }, [selectedSensor, selectedStep, locomotiveId, isReplay, replayStart, replayEnd]);
 
     // Auto-scroll to right on initial load
     useEffect(() => {
@@ -234,14 +250,15 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
         }
     }, [allData]);
 
-    // Handle scroll — load more when near left edge
+    // Handle scroll — load more when near left edge (live mode only)
     const handleScroll = useCallback(() => {
+        if (isReplay) return; // No infinite scroll in replay
         const el = scrollRef.current;
         if (!el || loadingMore || olderFetching) return;
         if (el.scrollLeft < 100 && allData.length > 0) {
             setLoadingMore(true);
         }
-    }, [loadingMore, olderFetching, allData.length]);
+    }, [loadingMore, olderFetching, allData.length, isReplay]);
 
     const unit = allData.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
@@ -257,10 +274,11 @@ export default function TrendsPanel({ locomotiveId }: TrendsPanelProps) {
     const chartWidth = Math.max(600, allData.length * 40);
 
     return (
-        <Card style={{ borderTop: '2px solid var(--mantine-color-ktzBlue-5)' }}>
+        <Card style={{ borderTop: `2px solid var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)` }}>
             <Group justify="space-between" mb="xs" wrap="wrap" gap="xs">
                 <Group gap="xs">
                     <Text className="panel-label">ТРЕНДЫ</Text>
+                    {isReplay && <Badge size="xs" variant="light" color="ktzGold">REPLAY</Badge>}
                     {(isFetching || loadingMore) && <Loader size={12} />}
                 </Group>
                 <Select size="xs" value={selectedSensor} onChange={(v) => v && setSelectedSensor(v)} data={sensorOptions} w={180} searchable placeholder="Датчик" />
