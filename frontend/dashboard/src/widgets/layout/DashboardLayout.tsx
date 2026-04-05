@@ -52,7 +52,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 }}
                 padding="md"
             >
-                {/* Header */}
                 <AppShell.Header
                     style={{
                         borderBottom: '1px solid var(--dashboard-border)',
@@ -96,7 +95,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     </Group>
                 </AppShell.Header>
 
-                {/* Navbar */}
                 <AppShell.Navbar
                     p="sm"
                     style={{
@@ -159,7 +157,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     </AppShell.Section>
                 </AppShell.Navbar>
 
-                {/* Main content */}
                 <AppShell.Main style={{ backgroundColor: 'var(--dashboard-bg)' }}>
                     {children}
                 </AppShell.Main>

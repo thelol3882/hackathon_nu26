@@ -39,7 +39,6 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
     const speedRatio = actualValue !== null ? clamp(actualValue / MAX_SPEED, 0, 1) : 0;
     const targetRatio = targetValue !== null ? clamp(targetValue / MAX_SPEED, 0, 1) : null;
 
-    // Determine arc color based on difference between actual and target
     let arcColor = 'var(--mantine-color-healthy-5)';
     if (actualValue !== null && targetValue !== null) {
         const diff = Math.abs(actualValue - targetValue);
@@ -47,12 +46,10 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
         else if (diff >= 10) arcColor = 'var(--mantine-color-ktzGold-5)';
     }
 
-    // Arc goes from 180° (left) to 0° (right), so foreground covers 180° to 180°-ratio*180°
     const fgEndAngle = 180 - speedRatio * 180;
     const bgPath = describeArc(100, 100, 80, 0, 180);
     const fgPath = speedRatio > 0 ? describeArc(100, 100, 80, fgEndAngle, 180) : '';
 
-    // Target tick mark position
     let tickMark: { x1: number; y1: number; x2: number; y2: number } | null = null;
     if (targetRatio !== null) {
         const tickAngle = 180 - targetRatio * 180;
@@ -82,7 +79,6 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
                     width="100%"
                     style={{ maxWidth: 240, alignSelf: 'center' }}
                 >
-                    {/* Background arc */}
                     <path
                         d={bgPath}
                         fill="none"
@@ -90,7 +86,6 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
                         strokeWidth={10}
                         strokeLinecap="round"
                     />
-                    {/* Foreground arc */}
                     {fgPath && (
                         <path
                             d={fgPath}
@@ -100,7 +95,6 @@ export default function SpeedPanel({ speedActual, speedTarget }: SpeedPanelProps
                             strokeLinecap="round"
                         />
                     )}
-                    {/* Target tick */}
                     {tickMark && (
                         <line
                             x1={tickMark.x1}
