@@ -31,3 +31,9 @@ export interface UsersListResponse {
     users: UserListItem[];
     total: number;
 }
+
+export interface WsTicketResponse {
+    ticket: string;
+    expires_in: number;
+    ws_url: string;
+}

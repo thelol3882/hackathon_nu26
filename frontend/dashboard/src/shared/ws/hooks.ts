@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { store } from '@/store/store';
+import { authApi } from '@/features/auth/api/authApi';
 import { WebSocketManager, type WsStatus } from './manager';
 
 function getWsBaseUrl(): string {
@@ -9,22 +10,26 @@ function getWsBaseUrl(): string {
     return `${proto}//${window.location.host}`;
 }
 
-function getApiBaseUrl(): string {
-    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-    if (typeof window === 'undefined') return 'http://localhost:8000';
-    return `${window.location.origin}/api`;
-}
-
 const WS_BASE_URL = getWsBaseUrl();
-const API_BASE_URL = getApiBaseUrl();
 
 /**
- * Reads the current JWT access token from the Redux store.
- * Called lazily by the WebSocketManager on each connect/reconnect
- * so it always gets the freshest token.
+ * Fetches a one-time WS ticket via RTK Query.
+ *
+ * Uses store.dispatch(initiate()) so the JWT Authorization header
+ * is injected automatically by baseApi.prepareHeaders — same as
+ * every other API call in the app.
+ *
+ * Called on every connect/reconnect because tickets are single-use.
  */
-function getAccessToken(): string | null {
-    return store.getState().auth.accessToken;
+async function fetchTicket(): Promise<string | null> {
+    try {
+        const result = await store.dispatch(
+            authApi.endpoints.getWsTicket.initiate(undefined, { forceRefetch: true }),
+        ).unwrap();
+        return result.ticket;
+    } catch {
+        return null;
+    }
 }
 
 /** Shared managers keyed by path.  Ref-counted so the socket is
@@ -40,8 +45,7 @@ function acquireManager(path: string, onStatusChange: (s: WsStatus) => void): We
     const manager = new WebSocketManager({
         path,
         wsBaseUrl: WS_BASE_URL,
-        apiBaseUrl: API_BASE_URL,
-        getAccessToken,
+        fetchTicket,
         onStatusChange,
     });
     sharedManagers.set(path, { manager, refCount: 1 });

@@ -8,41 +8,23 @@ export interface WsManagerOptions {
     path: string;
     /** Full WS base URL — e.g. ws://localhost or wss://example.com */
     wsBaseUrl: string;
-    /** API base URL for fetching tickets — e.g. /api */
-    apiBaseUrl: string;
-    /** Returns the current JWT token, or null if not authenticated. */
-    getAccessToken: () => string | null;
+    /**
+     * Fetches a one-time WebSocket ticket from the API Gateway.
+     * Called on every connect/reconnect because tickets are single-use.
+     * Returns the ticket string, or null if auth failed.
+     */
+    fetchTicket: () => Promise<string | null>;
     onStatusChange?: (status: WsStatus) => void;
     maxReconnectAttempts?: number;
 }
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
-/**
- * Fetches a one-time WebSocket ticket from the API Gateway.
- *
- * The ticket endpoint requires a valid JWT in the Authorization header.
- * Returns the ticket string or null if auth failed.
- */
-async function fetchTicket(apiBaseUrl: string, accessToken: string): Promise<string | null> {
-    try {
-        const res = await fetch(`${apiBaseUrl}/ws/ticket`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!res.ok) return null;
-        const data = (await res.json()) as { ticket: string };
-        return data.ticket;
-    } catch {
-        return null;
-    }
-}
-
 export class WebSocketManager {
     private ws: WebSocket | null = null;
     private path: string;
     private wsBaseUrl: string;
-    private apiBaseUrl: string;
-    private getAccessToken: () => string | null;
+    private fetchTicket: () => Promise<string | null>;
     private handlers = new Set<MessageHandler>();
     private status: WsStatus = 'disconnected';
     private onStatusChange?: (status: WsStatus) => void;
@@ -54,8 +36,7 @@ export class WebSocketManager {
     constructor(options: WsManagerOptions) {
         this.path = options.path;
         this.wsBaseUrl = options.wsBaseUrl;
-        this.apiBaseUrl = options.apiBaseUrl;
-        this.getAccessToken = options.getAccessToken;
+        this.fetchTicket = options.fetchTicket;
         this.onStatusChange = options.onStatusChange;
         this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     }
@@ -64,17 +45,9 @@ export class WebSocketManager {
         if (this.disposed) return;
         this.setStatus('connecting');
 
-        // Read the current JWT — must be fresh on each attempt
-        // because the token may have been refreshed or the user re-logged in.
-        const token = this.getAccessToken();
-        if (!token) {
-            this.setStatus('disconnected');
-            return;
-        }
-
-        // Fetch a one-time ticket using the JWT.
-        // Each connection/reconnection needs a NEW ticket (single-use GETDEL).
-        const ticket = await fetchTicket(this.apiBaseUrl, token);
+        // Each connection needs a fresh ticket (single-use, GETDEL in Redis).
+        // The fetchTicket callback uses RTK Query which handles JWT injection.
+        const ticket = await this.fetchTicket();
         if (!ticket) {
             this.setStatus('disconnected');
             return;
@@ -110,8 +83,7 @@ export class WebSocketManager {
         this.ws.onclose = (event: CloseEvent) => {
             if (this.disposed) return;
             this.setStatus('disconnected');
-            // Don't reconnect on auth failures — the ticket or JWT is invalid,
-            // user needs to re-authenticate via the UI.
+            // Don't reconnect on auth failures — ticket or JWT is invalid
             if (event.code === 4401 || event.code === 4400) return;
             if (!event.wasClean) {
                 this.scheduleReconnect();
