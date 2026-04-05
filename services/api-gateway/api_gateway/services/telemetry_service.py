@@ -52,21 +52,23 @@ async def query_telemetry_bucketed(
     sensor_type: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
-    bucket_interval: str = "1 minute",
     offset: int = 0,
-    limit: int = 50,
-) -> list[TelemetryBucket]:
-    rows = await telemetry_repository.query_bucketed(
+    limit: int = 500,
+) -> tuple[list[TelemetryBucket], str]:
+    """Query historical telemetry with automatic resolution selection.
+
+    Returns (buckets, data_source_label) so the router can set X-Data-Source.
+    """
+    rows, data_source = await telemetry_repository.query_bucketed(
         session,
         locomotive_id=locomotive_id,
         sensor_type=sensor_type,
         start=start,
         end=end,
-        bucket_interval=bucket_interval,
         offset=offset,
         limit=limit,
     )
-    return [TelemetryBucket(**r) for r in rows]
+    return [TelemetryBucket(**r) for r in rows], data_source
 
 
 async def query_telemetry_snapshot(

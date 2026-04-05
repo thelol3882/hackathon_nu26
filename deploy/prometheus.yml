@@ -18,3 +18,7 @@ scrape_configs:
   - job_name: "db-writer"
     static_configs:
       - targets: ["db-writer:8004"]
+
+  - job_name: "ws-server"
+    static_configs:
+      - targets: ["ws-server:8010"]

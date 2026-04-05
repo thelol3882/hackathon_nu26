@@ -18,6 +18,7 @@ members = [
     "services/report-service",
     "services/simulator",
     "services/db-writer",
+    "services/ws-server",
 ]
 
 # ── Ruff ─────────────────────────────────────────────────────────────
@@ -92,10 +93,13 @@ ignore = [
 "**/repositories/alert_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "**/repositories/health_snapshot_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
 "services/db-writer/**/stream_consumer.py" = ["S110"]  # best-effort metric in update_lag
+"services/db-writer/**/database.py" = ["S608"]  # SQL f-strings inject from hardcoded _CONTINUOUS_AGGREGATES list, not user input
 "services/db-writer/main.py" = ["S104"]  # bind to 0.0.0.0 — expected in containers
+"services/ws-server/**/connection_manager.py" = ["S110", "SIM105", "PLR0912"]  # try-except-pass for best-effort cleanup
+"services/ws-server/**/handler.py" = ["S110"]  # try-except-pass for WS disconnect
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator", "db_writer"]
+known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator", "db_writer", "ws_server"]
 
 [tool.ruff.format]
 quote-style = "double"

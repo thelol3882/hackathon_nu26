@@ -1,14 +1,101 @@
-"""Telemetry repository — PostgreSQL/TimescaleDB only."""
+"""Telemetry repository — PostgreSQL/TimescaleDB queries.
+
+Historical queries auto-select the optimal data source (raw table or
+continuous aggregate) based on the requested time range.  This keeps
+response payloads consistently small (< 1000 points) regardless of
+the window, which matters for frontend performance and network bandwidth.
+
+    < 15 min   -> raw_telemetry   (every second, max ~900 points)
+    15m - 2h   -> telemetry_1min  (one per minute, max ~120 points)
+    2h  - 24h  -> telemetry_15min (one per 15 min, max ~96 points)
+    24h - 72h  -> telemetry_1hour (one per hour, max ~72 points)
+"""
 
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-_ALLOWED_BUCKETS = {"1 minute", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "1 day"}
-_DEFAULT_BUCKET = "1 minute"
+from shared.observability import get_logger
+
+logger = get_logger(__name__)
+
+
+# ── Aggregate level resolution ────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _AggregateLevel:
+    """Describes one level of the continuous aggregate hierarchy."""
+
+    source_table: str  # Table or materialized view to query
+    bucket_column: str  # Column name for the time bucket
+    needs_time_bucket: bool  # Whether to apply time_bucket() in the query
+    label: str  # Human-readable label for logging/debugging
+
+
+# Ordered from finest to coarsest resolution.
+# The first level whose threshold exceeds the requested range is selected.
+_LEVELS = [
+    (
+        timedelta(minutes=15),
+        _AggregateLevel(
+            source_table="raw_telemetry",
+            bucket_column="time",
+            needs_time_bucket=False,
+            label="raw (1s)",
+        ),
+    ),
+    (
+        timedelta(hours=2),
+        _AggregateLevel(
+            source_table="telemetry_1min",
+            bucket_column="bucket",
+            needs_time_bucket=False,
+            label="1min aggregate",
+        ),
+    ),
+    (
+        timedelta(hours=24),
+        _AggregateLevel(
+            source_table="telemetry_15min",
+            bucket_column="bucket",
+            needs_time_bucket=False,
+            label="15min aggregate",
+        ),
+    ),
+    (
+        timedelta(hours=999),
+        _AggregateLevel(
+            source_table="telemetry_1hour",
+            bucket_column="bucket",
+            needs_time_bucket=False,
+            label="1hour aggregate",
+        ),
+    ),
+]
+
+
+def pick_level(start: datetime | None, end: datetime | None) -> _AggregateLevel:
+    """Select the optimal data source based on the requested time range.
+
+    If start or end is None, defaults to raw_telemetry (safest fallback).
+    """
+    if start is None or end is None:
+        return _LEVELS[0][1]  # raw
+
+    span = end - start
+    for threshold, level in _LEVELS:
+        if span <= threshold:
+            return level
+
+    return _LEVELS[-1][1]  # coarsest
+
+
+# ── WHERE clause builder ──────────────────────────────────────────────
 
 
 def _build_where(
@@ -36,6 +123,9 @@ def _build_where(
     return ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
 
+# ── Bucketed query (auto-selects aggregate level) ─────────────────────
+
+
 async def query_bucketed(
     session: AsyncSession,
     *,
@@ -43,82 +133,65 @@ async def query_bucketed(
     sensor_type: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
-    bucket_interval: str = _DEFAULT_BUCKET,
     offset: int = 0,
-    limit: int = 50,
-) -> list[dict]:
-    if bucket_interval not in _ALLOWED_BUCKETS:
-        bucket_interval = _DEFAULT_BUCKET
+    limit: int = 500,
+) -> tuple[list[dict], str]:
+    """Query historical telemetry with automatic resolution selection.
+
+    Returns a tuple of (rows, data_source_label) so the caller can
+    expose the chosen level in a response header for debugging.
+    """
+    level = pick_level(start, end)
+    time_col = level.bucket_column
 
     params: dict = {"off": offset, "lim": limit}
-    where = _build_where(params, locomotive_id=locomotive_id, sensor_type=sensor_type, start=start, end=end)
+    where = _build_where(
+        params,
+        locomotive_id=locomotive_id,
+        sensor_type=sensor_type,
+        start=start,
+        end=end,
+        time_col=time_col,
+    )
 
-    if start is not None:
-        params["series_start"] = start
-        if end is not None:
-            params["series_end"] = end
-        params.setdefault("loco_id", "")
-        params.setdefault("sensor", "")
-
-        series_end_expr = ":series_end" if end is not None else "NOW()"
-
-        query = text(f"""
-            WITH data AS (
-                SELECT
-                    time_bucket('{bucket_interval}', time) AS bucket,
-                    CAST(locomotive_id AS text) AS locomotive_id,
-                    sensor_type,
-                    avg(value)  AS avg_value,
-                    min(value)  AS min_value,
-                    max(value)  AS max_value,
-                    last(value, time) AS last_value,
-                    unit
-                FROM raw_telemetry
-                {where}
-                GROUP BY bucket, locomotive_id, sensor_type, unit
-            ),
-            series AS (
-                SELECT time_bucket('{bucket_interval}', gs) AS bucket
-                FROM generate_series(
-                    CAST(:series_start AS timestamptz),
-                    CAST({series_end_expr} AS timestamptz),
-                    CAST('{bucket_interval}' AS interval)
-                ) AS gs
-            )
-            SELECT
-                s.bucket,
-                COALESCE(d.locomotive_id, CAST(:loco_id AS text))  AS locomotive_id,
-                COALESCE(d.sensor_type,   :sensor)    AS sensor_type,
-                d.avg_value,
-                d.min_value,
-                d.max_value,
-                d.last_value,
-                COALESCE(d.unit, '')      AS unit
-            FROM series s
-            LEFT JOIN data d ON d.bucket = s.bucket
-            ORDER BY s.bucket ASC
-            OFFSET :off LIMIT :lim
-        """)
-    else:
+    if level.source_table == "raw_telemetry":
+        # Raw data: return individual rows with consistent column names.
         query = text(f"""
             SELECT
-                time_bucket('{bucket_interval}', time) AS bucket,
+                time AS bucket,
                 CAST(locomotive_id AS text) AS locomotive_id,
                 sensor_type,
-                avg(value)  AS avg_value,
-                min(value)  AS min_value,
-                max(value)  AS max_value,
-                last(value, time) AS last_value,
+                value AS avg_value,
+                value AS min_value,
+                value AS max_value,
+                value AS last_value,
                 unit
             FROM raw_telemetry
             {where}
-            GROUP BY bucket, locomotive_id, sensor_type, unit
-            ORDER BY bucket ASC
+            ORDER BY time ASC
+            OFFSET :off LIMIT :lim
+        """)
+    else:
+        # Continuous aggregate: data is already bucketed.
+        query = text(f"""
+            SELECT
+                {time_col} AS bucket,
+                CAST(locomotive_id AS text) AS locomotive_id,
+                sensor_type,
+                avg_value,
+                min_value,
+                max_value,
+                last_value,
+                unit
+            FROM {level.source_table}
+            {where}
+            ORDER BY {time_col} ASC
             OFFSET :off LIMIT :lim
         """)
 
+    logger.debug("Telemetry query using %s", level.label)
     result = await session.execute(query, params)
-    return [
+    rows = [
         {
             "bucket": row.bucket,
             "locomotive_id": row.locomotive_id,
@@ -131,6 +204,10 @@ async def query_bucketed(
         }
         for row in result.fetchall()
     ]
+    return rows, level.label
+
+
+# ── Raw query (always reads from raw_telemetry) ──────────────────────
 
 
 async def query_raw(
@@ -171,6 +248,9 @@ async def query_raw(
         }
         for row in result.fetchall()
     ]
+
+
+# ── Snapshot query (always reads from raw_telemetry) ──────────────────
 
 
 async def query_snapshot(

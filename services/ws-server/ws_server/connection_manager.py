@@ -189,7 +189,7 @@ class _ChannelRelay:
 class ConnectionManager:
     """Top-level manager: tracks all connections and channel relays."""
 
-    def __init__(self, redis_client: redis.Redis, max_connections: int = 100) -> None:
+    def __init__(self, redis_client: redis.Redis, max_connections: int = 500) -> None:
         self._redis = redis_client
         self._max_connections = max_connections
         self._relays: dict[str, _ChannelRelay] = {}

@@ -45,7 +45,6 @@ class GatewaySettings(BaseSettings):
 
     # --- Gateway-specific ---
     cors_origins: list[str] = ["http://localhost:3000"]
-    ws_max_connections: int = 100
 
 
 @lru_cache
