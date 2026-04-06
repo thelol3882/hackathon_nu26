@@ -34,6 +34,7 @@ must agree.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -51,7 +52,39 @@ _EARTH_RADIUS_M = 6_371_000.0
 # Kazakhstan PBF; ``__post_init__`` reads them at module-import time
 # so the simulator and api-gateway pick up real KTZ geometry without
 # any runtime download.
-_GEOJSON_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "data" / "routes"
+#
+# Resolution is forgiving: we look in several candidate locations and
+# use the first one that exists. The "natural" repo layout finds the
+# files via the module's filesystem path, but inside Docker images
+# the ``shared`` package is installed as a wheel under .venv/, which
+# breaks that walk; we then fall back to the repo-style location
+# rooted at /app, the current working directory, or an explicit
+# ``KTZ_ROUTES_DIR`` env var. The first hit wins.
+def _find_geojson_dir() -> Path:
+    import os
+
+    candidates: list[Path] = []
+    env = os.environ.get("KTZ_ROUTES_DIR")
+    if env:
+        candidates.append(Path(env))
+    here = Path(__file__).resolve()
+    # Repo install: .../shared/shared/route_geometry.py → repo/shared/data/routes
+    candidates.append(here.parent.parent.parent / "shared" / "data" / "routes")
+    # Wheel install: .venv/lib/.../shared/route_geometry.py → image's /app/shared/data/routes
+    candidates.append(Path("/app/shared/data/routes"))
+    # CWD-relative fallback for ad-hoc scripts.
+    candidates.append(Path.cwd() / "shared" / "data" / "routes")
+
+    for c in candidates:
+        if c.is_dir():
+            return c
+    # Last-resort fallback — return the first candidate so the
+    # downstream `is_file()` check returns False cleanly without
+    # blowing up on import.
+    return candidates[0]
+
+
+_GEOJSON_DIR = _find_geojson_dir()
 
 
 # -- Geometry primitives --------------------------------------------------
@@ -83,10 +116,19 @@ def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _seeded_rng(name: str) -> random.Random:
     """Per-route RNG so the polyline is deterministic across processes.
 
-    Note: this is purely cosmetic randomness for chart geometry, not
-    a cryptographic context, hence the noqa.
+    Python's built-in ``hash()`` is randomised per interpreter process
+    (PYTHONHASHSEED defaults to random), which means two services
+    importing this module would each generate slightly *different*
+    synthetic polylines for the same route name — and the operator
+    would create a locomotive in service A only to have service B
+    reject the chosen station because it lives at a different km.
+
+    Use a stable digest (md5 first 4 bytes) so every process agrees.
+    Cryptographic strength irrelevant here; we just need stability.
     """
-    return random.Random(hash(name) & 0xFFFF_FFFF)  # noqa: S311
+    digest = hashlib.md5(name.encode("utf-8"), usedforsecurity=False).digest()
+    seed = int.from_bytes(digest[:4], "big")
+    return random.Random(seed)  # noqa: S311
 
 
 def generate_polyline(
