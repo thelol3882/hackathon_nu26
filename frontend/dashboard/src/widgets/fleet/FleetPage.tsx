@@ -155,8 +155,7 @@ export function FleetPage() {
                                     <Table.Td>
                                         <Text size="sm">{loco.route_name}</Text>
                                         <Text size="xs" c="dimmed">
-                                            {loco.start_km.toFixed(0)} →{' '}
-                                            {loco.end_km.toFixed(0)} км
+                                            {loco.start_km.toFixed(0)} → {loco.end_km.toFixed(0)} км
                                         </Text>
                                     </Table.Td>
                                     <Table.Td>

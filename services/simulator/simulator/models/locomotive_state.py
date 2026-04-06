@@ -74,8 +74,8 @@ class LocomotiveScenario(StrEnum):
 class OnArrival(StrEnum):
     """What the locomotive does when it reaches ``end_distance_m``."""
 
-    LOOP = "loop"      # reverse direction, shuttle back to start, repeat
-    STOP = "stop"      # stay at the destination in DEPOT
+    LOOP = "loop"  # reverse direction, shuttle back to start, repeat
+    STOP = "stop"  # stay at the destination in DEPOT
     REMOVE = "remove"  # delete from the simulator (signalled via flag)
 
 
@@ -288,10 +288,7 @@ def _apply_scenario(state: LocomotiveState) -> None:
         # Linear IGBT temperature ramp over ~20 minutes; clamps at
         # the fault threshold so the chart doesn't keep climbing.
         progress = min(1.0, state.scenario_tick / _DEGRADATION_DURATION_TICKS)
-        state.igbt_override = (
-            _DEGRADATION_START_TEMP
-            + (_DEGRADATION_END_TEMP - _DEGRADATION_START_TEMP) * progress
-        )
+        state.igbt_override = _DEGRADATION_START_TEMP + (_DEGRADATION_END_TEMP - _DEGRADATION_START_TEMP) * progress
         state.brake_override = None
         return
 
@@ -299,9 +296,7 @@ def _apply_scenario(state: LocomotiveState) -> None:
         # Brake pipe drops over the first 10 ticks then stays put.
         if state.scenario_tick <= _EMERGENCY_DURATION_TICKS:
             progress = state.scenario_tick / _EMERGENCY_DURATION_TICKS
-            state.brake_override = (
-                _BRAKE_NORMAL + (_BRAKE_FAULT - _BRAKE_NORMAL) * progress
-            )
+            state.brake_override = _BRAKE_NORMAL + (_BRAKE_FAULT - _BRAKE_NORMAL) * progress
         else:
             state.brake_override = _BRAKE_FAULT
         # An emergency snaps the locomotive into EMERGENCY mode and

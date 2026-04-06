@@ -199,9 +199,7 @@ export function CreateLocomotiveModal({ opened, onClose, onCreated }: Props) {
                 <Select
                     label="Маршрут"
                     placeholder={
-                        electrifiedOnly
-                            ? 'Только электрифицированные'
-                            : 'Любой маршрут KTZ'
+                        electrifiedOnly ? 'Только электрифицированные' : 'Любой маршрут KTZ'
                     }
                     data={filteredRoutes.map((r) => ({
                         value: r.name,

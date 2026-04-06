@@ -67,10 +67,12 @@ export function SimulationControlPanel({ locomotiveId }: Props) {
     // also benefits from a slow refresh so the visible distance / km
     // stays accurate without leaning on a separate WS for runtime
     // metadata.
-    const { data: live, isLoading, isFetching, refetch } = useGetSimulatedLocomotiveQuery(
-        locomotiveId,
-        { pollingInterval: 5000 },
-    );
+    const {
+        data: live,
+        isLoading,
+        isFetching,
+        refetch,
+    } = useGetSimulatedLocomotiveQuery(locomotiveId, { pollingInterval: 5000 });
     const { data: routes = [] } = useGetRoutesQuery();
     const [patch, { isLoading: saving }] = useUpdateSimulatedLocomotiveMutation();
 

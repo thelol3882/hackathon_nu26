@@ -308,10 +308,7 @@ async def list_routes() -> list[RouteSummaryDTO]:
             name=r.name,
             electrified=r.electrified,
             length_km=round(r.length_m / 1000.0, 1),
-            stations=[
-                StationDTO(name=s.name, km_from_start=round(s.km_from_start, 1))
-                for s in r.stations
-            ],
+            stations=[StationDTO(name=s.name, km_from_start=round(s.km_from_start, 1)) for s in r.stations],
         )
         for r in ROUTES
     ]
