@@ -264,12 +264,7 @@ class RailwayHandler(osmium.SimpleHandler):
             return
         # Pick best name in priority order — Russian first because
         # KTZ documentation primarily uses it, then Kazakh, then English.
-        name = (
-            n.tags.get("name:ru")
-            or n.tags.get("name")
-            or n.tags.get("name:kk")
-            or n.tags.get("name:en")
-        )
+        name = n.tags.get("name:ru") or n.tags.get("name") or n.tags.get("name:kk") or n.tags.get("name:en")
         if not name:
             return
         # Some nodes in PBFs lack coordinates (deleted history,
@@ -341,11 +336,7 @@ def build_graph(rails: list[RailWay]) -> tuple[nx.MultiGraph, dict[int, tuple[fl
         # Indices that should become graph vertices: every endpoint
         # of the way, plus every interior node referenced by another
         # way (refcount >= 2).
-        split_idx = [
-            i
-            for i, nid in enumerate(w.node_ids)
-            if i == 0 or i == n - 1 or refcount.get(nid, 0) >= 2
-        ]
+        split_idx = [i for i, nid in enumerate(w.node_ids) if i == 0 or i == n - 1 or refcount.get(nid, 0) >= 2]
         for i, j in pairwise(split_idx):
             sub_geom = w.nodes[i : j + 1]
             sub_ids = w.node_ids[i : j + 1]
@@ -449,9 +440,7 @@ def simplify(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
 # ---------------------------------------------------------------------------
 
 
-def attach_stations(
-    polyline: list[tuple[float, float]], stations: list[StationNode]
-) -> list[dict[str, Any]]:
+def attach_stations(polyline: list[tuple[float, float]], stations: list[StationNode]) -> list[dict[str, Any]]:
     """Find stations close to the polyline, project them onto it, and
     return a list of {name, lat, lon, km_from_start} sorted by km."""
     if not polyline or not stations:
@@ -569,9 +558,7 @@ def main() -> int:
     # Restrict the start/end search to the largest connected component
     # so we never anchor a route to a stranded industrial spur that
     # has no path to the rest of the network.
-    biggest_component: set[int] = (
-        max(nx.connected_components(g), key=len) if g.number_of_nodes() else set()
-    )
+    biggest_component: set[int] = max(nx.connected_components(g), key=len) if g.number_of_nodes() else set()
     print(
         f"[graph] {g.number_of_nodes()} vertices, "
         f"{g.number_of_edges()} edges in {time.monotonic() - t0:.1f}s "

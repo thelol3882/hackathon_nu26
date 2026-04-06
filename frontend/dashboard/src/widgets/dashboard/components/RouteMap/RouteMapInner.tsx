@@ -21,17 +21,18 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, CircleMarker, useMap } from 'react-leaflet';
+import {
+    MapContainer,
+    TileLayer,
+    Marker,
+    Polyline,
+    Popup,
+    CircleMarker,
+    useMap,
+} from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import {
-    useMantineColorScheme,
-    Group,
-    Text,
-    ActionIcon,
-    Tooltip,
-    Badge,
-} from '@mantine/core';
+import { useMantineColorScheme, Group, Text, ActionIcon, Tooltip, Badge } from '@mantine/core';
 import { IconFocus2, IconRoute } from '@tabler/icons-react';
 import classes from './RouteMap.module.css';
 import { useGetRoutesQuery } from '@/features/routes';

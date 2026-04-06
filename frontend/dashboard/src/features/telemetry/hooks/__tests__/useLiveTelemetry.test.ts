@@ -73,9 +73,7 @@ describe('useLiveTelemetry', () => {
         const { result } = renderHook(() => useLiveTelemetry('loco-1'), { wrapper });
 
         act(() => {
-            store.dispatch(
-                gpsUpdated({ latitude: 51.1, longitude: 71.4, bearing_deg: 332 }),
-            );
+            store.dispatch(gpsUpdated({ latitude: 51.1, longitude: 71.4, bearing_deg: 332 }));
         });
 
         expect(result.current.position).toEqual({

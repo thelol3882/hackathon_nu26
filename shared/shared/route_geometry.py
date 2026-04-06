@@ -188,19 +188,11 @@ def position_at_distance(
     if not points:
         return 0.0, 0.0, 0.0
     if distance_m <= 0:
-        b = (
-            bearing_deg(points[0][0], points[0][1], points[1][0], points[1][1])
-            if len(points) > 1
-            else 0.0
-        )
+        b = bearing_deg(points[0][0], points[0][1], points[1][0], points[1][1]) if len(points) > 1 else 0.0
         return points[0][0], points[0][1], b
     total = cum[-1]
     if distance_m >= total:
-        b = (
-            bearing_deg(points[-2][0], points[-2][1], points[-1][0], points[-1][1])
-            if len(points) > 1
-            else 0.0
-        )
+        b = bearing_deg(points[-2][0], points[-2][1], points[-1][0], points[-1][1]) if len(points) > 1 else 0.0
         return points[-1][0], points[-1][1], b
 
     # Linear scan is fine — polylines have ~16 points. Replace with
@@ -379,9 +371,7 @@ class Route:
         self.cum_distances_m = cumulative_distances(self.waypoints)
         self.length_m = self.cum_distances_m[-1] if self.cum_distances_m else 0.0
         if not self.stations:
-            self.stations = generate_stations(
-                self.name, self.waypoints, self.cum_distances_m
-            )
+            self.stations = generate_stations(self.name, self.waypoints, self.cum_distances_m)
 
     def position_at(self, distance_m: float) -> tuple[float, float, float]:
         """Convenience: ``(lat, lon, bearing)`` at distance along route."""
