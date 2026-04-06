@@ -36,6 +36,7 @@ def _make_consumer(model_class=None, worker_count: int = 1, rows_per_flush: int 
     if model_class is None:
         # Fake model with a fake __table__.columns for the adapter.
         from db_writer.models.telemetry_entity import TelemetryRecord
+
         model_class = TelemetryRecord
 
     redis_mock = AsyncMock()
@@ -177,9 +178,11 @@ class TestRowAdapter:
         tup = row_to_tuple(row)
         # datetime coerced
         from datetime import datetime
+
         assert isinstance(tup[0], datetime)
         # uuid coerced
         import uuid
+
         assert isinstance(tup[1], uuid.UUID)
         assert tup[3] == "COOLANT_TEMP"
         assert tup[4] == 82.5
@@ -205,6 +208,7 @@ class TestRowAdapter:
         # Find the top_factors position and verify it's a JSON string
         idx = columns.index("top_factors")
         import json
+
         assert isinstance(tup[idx], str)
         assert json.loads(tup[idx]) == [{"sensor": "oil", "impact": 0.1}]
 

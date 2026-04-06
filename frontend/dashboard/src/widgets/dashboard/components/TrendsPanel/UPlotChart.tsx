@@ -45,16 +45,20 @@ export interface UPlotChartProps {
     height?: number;
 }
 
-const FONT_FAMILY =
-    "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const FONT_FAMILY = "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 /** Hex/CSS color → rgba string with given alpha. Cheaper than reading
  *  computed style for every render. Accepts only #rrggbb / #rgb / rgb(...).*/
 function withAlpha(color: string, alpha: number): string {
     if (color.startsWith('#')) {
-        const hex = color.length === 4
-            ? color.slice(1).split('').map((c) => c + c).join('')
-            : color.slice(1);
+        const hex =
+            color.length === 4
+                ? color
+                      .slice(1)
+                      .split('')
+                      .map((c) => c + c)
+                      .join('')
+                : color.slice(1);
         const r = parseInt(hex.slice(0, 2), 16);
         const g = parseInt(hex.slice(2, 4), 16);
         const b = parseInt(hex.slice(4, 6), 16);
@@ -144,7 +148,10 @@ export default function UPlotChart({
     onZoomRef.current = onZoomSelect;
 
     const data: AlignedData = useMemo(
-        () => [Float64Array.from(timestamps), Float64Array.from(values.map((v) => (v == null ? NaN : v)))],
+        () => [
+            Float64Array.from(timestamps),
+            Float64Array.from(values.map((v) => (v == null ? NaN : v))),
+        ],
         [timestamps, values],
     );
 
@@ -163,16 +170,15 @@ export default function UPlotChart({
         const strokeColor = resolveColor(probe, color);
         const fillTop = withAlpha(strokeColor, 0.28);
         const fillBot = withAlpha(strokeColor, 0);
-        const gridColor = resolveColor(probe, 'var(--dashboard-border)') ||
-            'rgba(255,255,255,0.08)';
-        const axisColor = resolveColor(probe, 'var(--dashboard-text-secondary)') ||
-            'rgba(255,255,255,0.55)';
+        const gridColor =
+            resolveColor(probe, 'var(--dashboard-border)') || 'rgba(255,255,255,0.08)';
+        const axisColor =
+            resolveColor(probe, 'var(--dashboard-text-secondary)') || 'rgba(255,255,255,0.55)';
         // Canvas (where uPlot draws cursor.points) does NOT understand CSS
         // variables — passing `var(--…)` to ctx.fillStyle silently falls
         // back to black/transparent and the hover dot disappears against
         // the line. Resolve to a concrete colour string here.
-        const surfaceColor = resolveColor(probe, 'var(--dashboard-surface)') ||
-            '#11141c';
+        const surfaceColor = resolveColor(probe, 'var(--dashboard-surface)') || '#11141c';
         container.removeChild(probe);
 
         // ---------- tooltip plugin ----------
@@ -224,9 +230,7 @@ export default function UPlotChart({
                             return;
                         }
                         const meta = metaRef.current;
-                        titleEl.textContent = dayjs(ts * 1000).format(
-                            'DD.MM.YYYY HH:mm:ss',
-                        );
+                        titleEl.textContent = dayjs(ts * 1000).format('DD.MM.YYYY HH:mm:ss');
                         valueEl.innerHTML = `${escapeHtml(meta.sensorLabel)}: <strong>${(v as number).toFixed(2)}</strong> ${escapeHtml(meta.unit)}`;
                         const min = meta.minValues?.[idx];
                         const max = meta.maxValues?.[idx];
@@ -290,10 +294,7 @@ export default function UPlotChart({
                         // the parent will rerender with a new xMin/xMax.
                         u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
                         if (right - left > 1 && onZoomRef.current) {
-                            onZoomRef.current(
-                                Math.min(left, right),
-                                Math.max(left, right),
-                            );
+                            onZoomRef.current(Math.min(left, right), Math.max(left, right));
                         }
                     },
                 ],
@@ -358,9 +359,7 @@ export default function UPlotChart({
                     size: 60,
                     font: `11px ${FONT_FAMILY}`,
                     values: (_u, splits) =>
-                        splits.map((s) =>
-                            yTickFormatter ? yTickFormatter(s) : `${s}`,
-                        ),
+                        splits.map((s) => (yTickFormatter ? yTickFormatter(s) : `${s}`)),
                 },
             ],
             series: [
@@ -385,9 +384,7 @@ export default function UPlotChart({
                     points: { show: false },
                     paths: uPlot.paths.spline?.(),
                     value: (_u, v) =>
-                        v == null || Number.isNaN(v)
-                            ? '—'
-                            : `${(v as number).toFixed(2)} ${unit}`,
+                        v == null || Number.isNaN(v) ? '—' : `${(v as number).toFixed(2)} ${unit}`,
                 },
             ],
             plugins: [tooltipPlugin, selectPlugin],
@@ -428,12 +425,7 @@ export default function UPlotChart({
         u.setData(data);
     }, [data, xMin, xMax]);
 
-    return (
-        <div
-            ref={containerRef}
-            style={{ position: 'relative', width: '100%', height }}
-        />
-    );
+    return <div ref={containerRef} style={{ position: 'relative', width: '100%', height }} />;
 }
 
 function escapeHtml(s: string): string {

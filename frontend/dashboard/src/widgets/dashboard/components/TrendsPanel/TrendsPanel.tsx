@@ -125,11 +125,7 @@ const EMPTY_SERIES: ChartSeries = {
     maxValues: [],
 };
 
-export default function TrendsPanel({
-    locomotiveId,
-    replayStart,
-    replayEnd,
-}: TrendsPanelProps) {
+export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: TrendsPanelProps) {
     const isReplay = !!(replayStart && replayEnd);
     const [selectedSensor, setSelectedSensor] = useState('speed_actual');
     const [selectedPeriod, setSelectedPeriod] = useState('15m');
@@ -241,10 +237,7 @@ export default function TrendsPanel({
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
 
     const handleResetZoom = useCallback(() => setZoomStack([]), []);
-    const handleZoomBack = useCallback(
-        () => setZoomStack((prev) => prev.slice(0, -1)),
-        [],
-    );
+    const handleZoomBack = useCallback(() => setZoomStack((prev) => prev.slice(0, -1)), []);
     const handlePeriodChange = useCallback((v: string) => {
         setSelectedPeriod(v);
         setZoomStack([]);

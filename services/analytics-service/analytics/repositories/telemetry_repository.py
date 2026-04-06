@@ -390,9 +390,7 @@ async def query_bucketed(
     # Insert explicit None markers between points whose distance exceeds
     # ~3× the bucket so the client renders real outages as gaps but smooths
     # over the natural sensor jitter.
-    rows = _insert_gap_markers(
-        rows, _effective_bucket_seconds(level.source_table, bucket_size)
-    )
+    rows = _insert_gap_markers(rows, _effective_bucket_seconds(level.source_table, bucket_size))
 
     # LTTB downsample to ~chart-width points. Preserves spikes/peaks.
     if max_points and len(rows) > max_points:
