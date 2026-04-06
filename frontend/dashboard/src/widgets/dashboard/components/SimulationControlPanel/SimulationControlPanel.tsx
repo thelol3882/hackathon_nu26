@@ -337,10 +337,11 @@ export function SimulationControlPanel({ locomotiveId }: Props) {
                             <NumberInput
                                 size="xs"
                                 label="Скорость, км/ч"
+                                description="Auto-режим клампит > 110"
                                 value={speed}
                                 onChange={(v) => setSpeed(typeof v === 'number' ? v : 0)}
                                 min={0}
-                                max={140}
+                                max={500}
                                 step={5}
                             />
                         </Group>

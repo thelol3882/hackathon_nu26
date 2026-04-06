@@ -253,10 +253,11 @@ export function CreateLocomotiveModal({ opened, onClose, onCreated }: Props) {
                     />
                     <NumberInput
                         label="Начальная скорость, км/ч"
+                        description="Реалистично 40–110. Auto-режим зажмёт > 110 — отключи его для безумных скоростей"
                         value={initialSpeed}
                         onChange={(v) => setInitialSpeed(typeof v === 'number' ? v : 0)}
                         min={0}
-                        max={140}
+                        max={500}
                         step={5}
                     />
                 </Group>

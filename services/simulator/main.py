@@ -173,7 +173,11 @@ class CreateLocomotiveRequest(BaseModel):
     scenario: LocomotiveScenario = LocomotiveScenario.NORMAL
     on_arrival: OnArrival = OnArrival.LOOP
     auto_mode: bool = False
-    initial_speed_kmh: float = Field(default=0.0, ge=0.0, le=200.0)
+    # Upper bound is intentionally generous — pet project, the operator
+    # can request silly speeds for fun. The auto state machine will
+    # still clamp anything > 110 km/h back to 110 if `auto_mode` is
+    # True, so to actually pin a high speed you must turn auto off.
+    initial_speed_kmh: float = Field(default=0.0, ge=0.0, le=500.0)
 
 
 class UpdateLocomotiveRequest(BaseModel):
@@ -187,7 +191,7 @@ class UpdateLocomotiveRequest(BaseModel):
     scenario: LocomotiveScenario | None = None
     on_arrival: OnArrival | None = None
     auto_mode: bool | None = None
-    speed_kmh: float | None = Field(default=None, ge=0.0, le=200.0)
+    speed_kmh: float | None = Field(default=None, ge=0.0, le=500.0)
 
 
 def _resolve_station_km(route_name: str, station_name: str | None) -> float | None:
