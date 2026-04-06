@@ -50,8 +50,9 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import asyncpg
 import redis.asyncio as aioredis
@@ -130,7 +131,7 @@ def _build_adapter(model_class) -> tuple[tuple[str, ...], Callable[[dict], tuple
     convs = tuple(converters)
 
     def row_to_tuple(row: dict) -> tuple:
-        return tuple(conv(row.get(name)) for name, conv in zip(cols, convs))
+        return tuple(conv(row.get(name)) for name, conv in zip(cols, convs, strict=True))
 
     return cols, row_to_tuple
 
@@ -348,12 +349,14 @@ class StreamConsumer:
                     # Move from staging to target with idempotent conflict
                     # handling. Named column list to be robust to future
                     # schema extensions.
+                    #
+                    # The f-string interpolations below (`self._target_table`,
+                    # `self._columns`, `staging_table`) are all internal
+                    # identifiers built from server-side ORM metadata, not
+                    # request input — so this is not an SQL-injection vector.
                     col_list = ", ".join(f'"{c}"' for c in self._columns)
-                    await conn.execute(
-                        f'INSERT INTO "{self._target_table}" ({col_list}) '
-                        f'SELECT {col_list} FROM "{staging_table}" '
-                        f"ON CONFLICT DO NOTHING"
-                    )
+                    insert_sql = f'INSERT INTO "{self._target_table}" ({col_list}) SELECT {col_list} FROM "{staging_table}" ON CONFLICT DO NOTHING'  # noqa: S608, E501
+                    await conn.execute(insert_sql)
 
         stream_rows_written.labels(table=self._target_table).inc(total)
         logger.info(

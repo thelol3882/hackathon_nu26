@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,12 +90,12 @@ def _raw_bucket_size(span: timedelta) -> str:
     """
     minutes = span.total_seconds() / 60.0
     if minutes <= 2:
-        return "2 seconds"   # up to 60 rows
+        return "2 seconds"  # up to 60 rows
     if minutes <= 5:
-        return "5 seconds"   # 60 rows
+        return "5 seconds"  # 60 rows
     if minutes <= 10:
         return "10 seconds"  # 60 rows
-    return "15 seconds"      # ~60 rows for a 15-min window
+    return "15 seconds"  # ~60 rows for a 15-min window
 
 
 def _validate_bucket_interval(value: str | None) -> str | None:
@@ -106,6 +107,27 @@ def _validate_bucket_interval(value: str | None) -> str | None:
         return v
     logger.warning("Ignoring unsupported bucket_interval=%r", value)
     return None
+
+
+# Fixed CAgg bucket sizes — used by `_effective_bucket_seconds` to figure
+# out the gap-detection threshold without piling up if/elif branches.
+_CAGG_BUCKET_SECONDS: dict[str, float] = {
+    "telemetry_1min": 60.0,
+    "telemetry_15min": 15 * 60.0,
+    "telemetry_1hour": 60 * 60.0,
+}
+
+
+def _effective_bucket_seconds(source_table: str, bucket_size: str | None) -> float:
+    """How wide one bucket is, regardless of which source the row came from.
+
+    For raw_telemetry the size is whatever explicit interval the caller
+    requested (validated against `_ALLOWED_BUCKETS`); for the continuous
+    aggregates it's a known constant. Defaults to 60 s if neither matches.
+    """
+    if source_table == "raw_telemetry" and bucket_size in _ALLOWED_BUCKETS:
+        return _ALLOWED_BUCKETS[bucket_size].total_seconds()
+    return _CAGG_BUCKET_SECONDS.get(source_table, 60.0)
 
 
 # -- LTTB downsampling -----------------------------------------------------
@@ -186,9 +208,7 @@ def _lttb(rows: list[dict], threshold: int) -> list[dict]:
                 max_idx = j
                 break
             x = _ts_to_epoch(rows[j]["bucket"])
-            area = abs(
-                (a_x - avg_x) * (float(v) - a_y) - (a_x - x) * (avg_y - a_y)
-            ) * 0.5
+            area = abs((a_x - avg_x) * (float(v) - a_y) - (a_x - x) * (avg_y - a_y)) * 0.5
             if area > max_area:
                 max_area = area
                 max_idx = j
@@ -221,7 +241,7 @@ def _insert_gap_markers(
         return rows
     threshold = bucket_size_seconds * gap_factor
     out: list[dict] = [rows[0]]
-    for prev, cur in zip(rows, rows[1:], strict=False):
+    for prev, cur in pairwise(rows):
         prev_ts = _ts_to_epoch(prev["bucket"])
         cur_ts = _ts_to_epoch(cur["bucket"])
         if cur_ts - prev_ts > threshold:
@@ -303,9 +323,7 @@ async def query_bucketed(
         # Guard against hitting expired raw chunks: if the window starts
         # before raw retention we can't fulfil the request from raw data,
         # so we silently fall back to the normal CAgg level.
-        within_retention = start is None or (
-            datetime.now(start.tzinfo) - start <= _RAW_RETENTION
-        )
+        within_retention = start is None or (datetime.now(start.tzinfo) - start <= _RAW_RETENTION)
         if within_retention:
             use_raw = True
             bucket_size = requested_bucket
@@ -369,23 +387,12 @@ async def query_bucketed(
         for row in result.fetchall()
     ]
 
-    # Compute the effective bucket size in seconds. Used both by the gap
-    # detector and to compose the resulting data_source label.
-    if level.source_table == "raw_telemetry" and bucket_size is not None:
-        effective_bucket_seconds = _ALLOWED_BUCKETS[bucket_size].total_seconds() if bucket_size in _ALLOWED_BUCKETS else 60.0
-    elif level.source_table == "telemetry_1min":
-        effective_bucket_seconds = 60.0
-    elif level.source_table == "telemetry_15min":
-        effective_bucket_seconds = 15 * 60.0
-    elif level.source_table == "telemetry_1hour":
-        effective_bucket_seconds = 60 * 60.0
-    else:
-        effective_bucket_seconds = 60.0
-
     # Insert explicit None markers between points whose distance exceeds
     # ~3× the bucket so the client renders real outages as gaps but smooths
     # over the natural sensor jitter.
-    rows = _insert_gap_markers(rows, effective_bucket_seconds)
+    rows = _insert_gap_markers(
+        rows, _effective_bucket_seconds(level.source_table, bucket_size)
+    )
 
     # LTTB downsample to ~chart-width points. Preserves spikes/peaks.
     if max_points and len(rows) > max_points:

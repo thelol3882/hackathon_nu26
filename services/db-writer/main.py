@@ -112,8 +112,7 @@ async def main() -> None:
     for stream_name, model, workers, _reader_bs in stream_specs:
         staging = _staging_tables_for(model.__tablename__, settings.consumer_name, workers)
         per_consumer_staging[stream_name] = staging
-        for s in staging:
-            all_staging.append((s, model.__tablename__))
+        all_staging.extend((s, model.__tablename__) for s in staging)
     await _bootstrap_staging(all_staging)
 
     # Create one consumer per stream.
