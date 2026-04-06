@@ -7,6 +7,7 @@ from api_gateway.api.router_config import router as config_router
 from api_gateway.api.router_health import router as health_router
 from api_gateway.api.router_locomotives import router as locomotives_router
 from api_gateway.api.router_reports import router as reports_router
+from api_gateway.api.router_routes import router as routes_router
 from api_gateway.api.router_telemetry import router as telemetry_router
 from api_gateway.api.router_ws_ticket import router as ws_ticket_router
 from api_gateway.core.auth import get_current_user, require_admin
@@ -45,6 +46,7 @@ _auth = [Depends(get_current_user)]
 app.include_router(ws_ticket_router, tags=["websocket"], dependencies=_auth)
 app.include_router(locomotives_router, prefix="/locomotives", tags=["locomotives"], dependencies=_auth)
 app.include_router(telemetry_router, prefix="/telemetry", tags=["telemetry"], dependencies=_auth)
+app.include_router(routes_router, prefix="/routes", tags=["routes"], dependencies=_auth)
 app.include_router(alerts_router, prefix="/alerts", tags=["alerts"], dependencies=_auth)
 app.include_router(reports_router, prefix="/reports", tags=["reports"], dependencies=_auth)
 

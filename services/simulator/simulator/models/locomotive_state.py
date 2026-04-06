@@ -6,6 +6,19 @@ from enum import StrEnum
 from uuid import UUID
 
 from shared.enums import LocomotiveType
+from shared.route_geometry import Route
+
+# Re-export Route so existing imports (`from ...locomotive_state import Route`)
+# keep working without touching every callsite.
+__all__ = [
+    "LOCO_TICK_SECONDS",
+    "MODE_DURATIONS",
+    "LocomotiveMode",
+    "LocomotiveState",
+    "Route",
+    "get_gps",
+    "tick",
+]
 
 
 class LocomotiveMode(StrEnum):
@@ -30,14 +43,14 @@ MODE_DURATIONS: dict[LocomotiveMode, tuple[int, int]] = {
 }
 
 
-@dataclass
-class Route:
-    name: str
-    lat_start: float
-    lon_start: float
-    lat_end: float
-    lon_end: float
-    electrified: bool
+# How many wall-clock seconds one tick represents. The runner's
+# `tick_interval` is what we sleep between calls; with the default of
+# 1.0 s, advancing kinematics by 1 s per tick gives correct real-time
+# speeds. If the operator dials the runner faster (burst mode), the
+# `effective_multiplier` already widens the per-tick wall time too, so
+# distance still works out. Kept as a constant rather than sneaking
+# back into config so it's obvious to readers.
+LOCO_TICK_SECONDS: float = 1.0
 
 
 @dataclass
@@ -46,10 +59,18 @@ class LocomotiveState:
     loco_type: LocomotiveType
     route: Route
     mode: LocomotiveMode = LocomotiveMode.DEPOT
-    route_progress: float = 0.0  # 0.0 → 1.0
     speed: float = 0.0  # km/h
     notch: int = 0  # 0–8, TE33A only
     fuel_level: float = 90.0  # % (TE33A only)
+
+    # Position along the route polyline. Stored in metres so the
+    # kinematics (speed × dt → distance) need no unit acrobatics. The
+    # cached lat/lon/bearing are written by `_update_gps` each tick so
+    # `get_gps` is a free lookup.
+    distance_m: float = 0.0
+    lat: float = 0.0
+    lon: float = 0.0
+    bearing_deg: float = 0.0
 
     # Thermal state (EMA-smoothed internally)
     coolant_temp: float = 72.0
@@ -65,13 +86,28 @@ class LocomotiveState:
     igbt_override: float | None = None
     brake_override: float | None = None
 
-    # Direction on route (True = forward, False = returning)
+    # Direction on route (True = start→end, False = end→start)
     forward: bool = field(default_factory=lambda: random.choice([True, False]))
 
     def __post_init__(self) -> None:
         if self.mode_duration == 0:
             lo, hi = MODE_DURATIONS[self.mode]
             self.mode_duration = random.randint(lo, hi)
+        # Snap to the polyline immediately so brand-new locomotives
+        # don't report (0, 0) for one frame before the first tick.
+        self.lat, self.lon, self.bearing_deg = self.route.position_at(self.distance_m)
+
+    @property
+    def route_progress(self) -> float:
+        """Backward-compat alias: 0..1 normalised position along the route.
+
+        Some places (e.g. ``runner.sample_fleet``) still expose this as
+        a metric, so we keep it as a derived read-only property instead
+        of a stored field. Setters / writers gone — use ``distance_m``.
+        """
+        if self.route.length_m <= 0:
+            return 0.0
+        return max(0.0, min(1.0, self.distance_m / self.route.length_m))
 
 
 def _transition(state: LocomotiveState) -> None:
@@ -142,32 +178,49 @@ def _enter_mode(state: LocomotiveState, mode: LocomotiveMode) -> None:
     state.mode_duration = random.randint(lo, hi)
 
 
-def _update_gps(state: LocomotiveState) -> None:
-    """Advance GPS position along route based on speed."""
-    if state.speed <= 0:
-        return
-    # Approximate: 1 km/h ≈ progress of 0.001 per tick on ~1000 km route
-    delta = state.speed * 0.000001
-    if state.forward:
-        state.route_progress = min(1.0, state.route_progress + delta)
-        if state.route_progress >= 1.0:
-            state.forward = False
-    else:
-        state.route_progress = max(0.0, state.route_progress - delta)
-        if state.route_progress <= 0.0:
-            state.forward = True
+def _update_gps(state: LocomotiveState, dt_seconds: float = LOCO_TICK_SECONDS) -> None:
+    """Advance position along the polyline by speed × dt.
+
+    The kinematics are honest now: speed (km/h) → m/s → distance in
+    metres for ``dt_seconds`` of wall clock time. So a locomotive
+    cruising at 80 km/h takes ~12 hours of simulation time to cross a
+    1000 km route, instead of the previous ~5 minutes. When the train
+    reaches an endpoint we flip ``forward`` and start unwinding back
+    along the same polyline.
+
+    Caches the new (lat, lon, bearing) on the state so the per-tick
+    telemetry envelope can read them without recomputing the polyline
+    walk.
+    """
+    if state.speed > 0:
+        speed_ms = state.speed * 1000.0 / 3600.0
+        delta_m = speed_ms * dt_seconds
+        if state.forward:
+            state.distance_m += delta_m
+            if state.distance_m >= state.route.length_m:
+                state.distance_m = state.route.length_m
+                state.forward = False
+        else:
+            state.distance_m -= delta_m
+            if state.distance_m <= 0:
+                state.distance_m = 0.0
+                state.forward = True
+
+    # Always refresh the cached pose, even when stopped — the route
+    # geometry may have been swapped (tests, scenario reload) and we
+    # don't want stale lat/lon to leak through.
+    state.lat, state.lon, state.bearing_deg = state.route.position_at(state.distance_m)
 
 
-def tick(state: LocomotiveState) -> None:
-    """Advance one simulation tick (1 second at normal rate)."""
+def tick(state: LocomotiveState, dt_seconds: float = LOCO_TICK_SECONDS) -> None:
+    """Advance one simulation tick (default: 1 second of wall clock)."""
     _transition(state)
-    _update_gps(state)
+    _update_gps(state, dt_seconds)
 
 
 def get_gps(state: LocomotiveState) -> tuple[float, float]:
-    """Interpolate current GPS position along the route."""
-    r = state.route
-    p = state.route_progress
-    lat = r.lat_start + (r.lat_end - r.lat_start) * p
-    lon = r.lon_start + (r.lon_end - r.lon_start) * p
-    return lat, lon
+    """Return the cached (lat, lon) for the current tick.
+
+    Always cheap — the actual polyline walk happens in ``_update_gps``.
+    """
+    return state.lat, state.lon

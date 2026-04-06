@@ -13,16 +13,22 @@ const RouteMapInner = dynamic(() => import('./RouteMapInner'), {
 });
 
 interface RouteMapProps {
-    position: { latitude: number; longitude: number } | null;
+    position: {
+        latitude: number;
+        longitude: number;
+        bearing_deg: number | null;
+    } | null;
+    routeName: string | null;
+    speedKmh: number | null;
 }
 
-export function RouteMap({ position }: RouteMapProps) {
+export function RouteMap({ position, routeName, speedKmh }: RouteMapProps) {
     return (
         <Card style={{ borderTop: '2px solid var(--mantine-color-ktzCyan-5)' }}>
             <Text className="panel-label" mb="sm">
                 МАРШРУТ
             </Text>
-            <RouteMapInner position={position} />
+            <RouteMapInner position={position} routeName={routeName} speedKmh={speedKmh} />
         </Card>
     );
 }

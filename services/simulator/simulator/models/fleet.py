@@ -7,31 +7,22 @@ import httpx
 
 from shared.enums import LocomotiveType
 from shared.observability import get_logger
+from shared.route_geometry import ROUTES
 from shared.utils import generate_id
 from simulator.models.locomotive_state import (
     LocomotiveMode,
     LocomotiveState,
-    Route,
 )
 
 logger = get_logger(__name__)
 
-# Real Kazakhstan railway routes
-ROUTES: list[Route] = [
-    Route("Almaty-Astana", 43.26, 76.95, 51.16, 71.47, electrified=True),
-    Route("Astana-Petropavlovsk", 51.16, 71.47, 54.86, 69.14, electrified=False),
-    Route("Astana-Ekibastuz", 51.16, 71.47, 51.72, 75.32, electrified=False),
-    Route("Almaty-Shymkent", 43.26, 76.95, 42.34, 69.59, electrified=True),
-    Route("Shymkent-Turkestan", 42.34, 69.59, 43.29, 68.27, electrified=False),
-    Route("Ekibastuz-Pavlodar", 51.72, 75.32, 52.28, 76.97, electrified=False),
-    Route("Aktobe-Atyrau", 50.28, 57.20, 47.12, 51.88, electrified=False),
-    Route("Aktobe-Kostanay", 50.28, 57.20, 53.21, 63.62, electrified=False),
-    Route("Almaty-Balkhash", 43.26, 76.95, 46.84, 74.98, electrified=False),
-    Route("Astana-Kokshetau", 51.16, 71.47, 53.28, 69.39, electrified=False),
-]
+# Routes are owned by the shared `route_geometry` module so the
+# simulator and api-gateway agree on the same polyline + station data
+# without one importing the other. ROUTES is re-exported here for
+# legacy callers.
+__all__ = ["ROUTES", "generate_fleet"]
 
 _ELECTRIFIED_ROUTES = [r for r in ROUTES if r.electrified]
-_NON_ELECTRIFIED_ROUTES = [r for r in ROUTES if not r.electrified]
 
 _INITIAL_MODES = [
     LocomotiveMode.DEPOT,
@@ -120,13 +111,17 @@ def generate_fleet(n: int = 1700, gateway_url: str | None = None) -> list[Locomo
             speed = random.uniform(10.0, 40.0)
             notch = random.randint(0, 2) if loco_type == LocomotiveType.TE33A else 0
 
+        # Random initial position along the polyline so the fleet is
+        # already spread out at boot, instead of every locomotive
+        # starting at the route origin and bunching up visually.
+        initial_distance = random.uniform(0.0, route.length_m)
         locos.append(
             LocomotiveState(
                 id=loco_id,
                 loco_type=loco_type,
                 route=route,
                 mode=mode,
-                route_progress=random.random(),
+                distance_m=initial_distance,
                 speed=speed,
                 notch=notch,
                 fuel_level=random.uniform(30.0, 95.0),

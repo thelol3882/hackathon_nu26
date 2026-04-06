@@ -257,7 +257,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     // Single WS connection — dispatches telemetry/health/alerts into Redux slices
     const { connectionStatus } = useWsDispatch(locomotiveId);
     // Hooks below only read from Redux — no own WS subscriptions
-    const { sensors, position } = useLiveTelemetry(locomotiveId);
+    const { sensors, position, routeName } = useLiveTelemetry(locomotiveId);
     const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
     const getSensor = (type: SensorType) => sensors.get(type);
@@ -299,6 +299,7 @@ function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 clearAlerts={clearAlerts}
                 locomotiveId={locomotiveId}
                 position={position}
+                routeName={routeName}
                 isReplay={false}
             />
         </>
@@ -351,7 +352,15 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const position = useMemo(() => {
         if (!snapshot) return null;
         const withGps = snapshot.find((s) => s.latitude != null && s.longitude != null);
-        return withGps ? { latitude: withGps.latitude!, longitude: withGps.longitude! } : null;
+        return withGps
+            ? {
+                  latitude: withGps.latitude!,
+                  longitude: withGps.longitude!,
+                  // Replay snapshots don't carry bearing — the marker
+                  // popup will just show "—" for course in this mode.
+                  bearing_deg: null,
+              }
+            : null;
     }, [snapshot]);
 
     const isLoading = snapFetching || healthFetching;
@@ -408,6 +417,10 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 clearAlerts={() => {}}
                 locomotiveId={locomotiveId}
                 position={position}
+                // Replay snapshots don't carry the active route name —
+                // the map will fall back to "no route" until we add a
+                // separate locomotive metadata lookup.
+                routeName={null}
                 isReplay={true}
                 replayStart={replay.start ? dayjs(replay.start).toISOString() : undefined}
                 replayEnd={replay.end ? dayjs(replay.end).toISOString() : undefined}
@@ -424,7 +437,12 @@ interface DashboardGridProps {
     alerts: import('@/features/alerts/types').AlertEvent[];
     clearAlerts: () => void;
     locomotiveId: string;
-    position: { latitude: number; longitude: number } | null;
+    position: {
+        latitude: number;
+        longitude: number;
+        bearing_deg: number | null;
+    } | null;
+    routeName: string | null;
     isReplay?: boolean;
     replayStart?: string;
     replayEnd?: string;
@@ -439,6 +457,7 @@ function DashboardGrid({
     clearAlerts,
     locomotiveId,
     position,
+    routeName,
     isReplay,
     replayStart,
     replayEnd,
@@ -493,7 +512,11 @@ function DashboardGrid({
                 />
             </Box>
             <Box className={styles.map}>
-                <RouteMap position={position} />
+                <RouteMap
+                    position={position}
+                    routeName={routeName}
+                    speedKmh={getSensor('speed_actual' as SensorType)?.value ?? null}
+                />
             </Box>
         </Box>
     );

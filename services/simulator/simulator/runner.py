@@ -175,8 +175,13 @@ class SimulationRunner:
                 locomotive_type=loco.loco_type,
                 timestamp=now,
                 sample_rate_hz=1.0 * self.effective_multiplier,
-                gps=GPSCoordinate(latitude=lat, longitude=lon),
+                gps=GPSCoordinate(
+                    latitude=lat,
+                    longitude=lon,
+                    bearing_deg=loco.bearing_deg,
+                ),
                 sensors=sensors,
+                route_name=loco.route.name,
             )
             readings.append(reading.model_dump(mode="json"))
 

@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import { useWebSocket } from './hooks';
 import { useAppDispatch } from '@/store/hooks';
-import { sensorUpdated, gpsUpdated, telemetryReset } from '@/store/slices/telemetrySlice';
+import {
+    sensorUpdated,
+    gpsUpdated,
+    routeNameUpdated,
+    telemetryReset,
+} from '@/store/slices/telemetrySlice';
 import { healthUpdated, healthReset } from '@/store/slices/healthSlice';
 import { alertReceived, alertsReset } from '@/store/slices/alertsSlice';
 
@@ -33,8 +38,13 @@ export function useWsDispatch(locomotiveId: string | null) {
                         locomotive_id: string;
                         locomotive_type: string;
                         timestamp: string;
-                        gps: { latitude: number; longitude: number } | null;
+                        gps: {
+                            latitude: number;
+                            longitude: number;
+                            bearing_deg?: number | null;
+                        } | null;
                         sensors: Array<{ sensor_type: string; value: number; unit: string }>;
+                        route_name?: string | null;
                     };
                     const time = new Date(reading.timestamp).getTime();
                     for (const sensor of reading.sensors) {
@@ -50,6 +60,9 @@ export function useWsDispatch(locomotiveId: string | null) {
                     }
                     if (reading.gps) {
                         dispatch(gpsUpdated(reading.gps));
+                    }
+                    if (reading.route_name !== undefined) {
+                        dispatch(routeNameUpdated(reading.route_name ?? null));
                     }
                     break;
                 }

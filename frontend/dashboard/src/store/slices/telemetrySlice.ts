@@ -10,8 +10,13 @@ interface SensorData {
 
 interface TelemetryState {
     sensors: Record<string, SensorData>;
-    gps: { latitude: number; longitude: number } | null;
+    gps: {
+        latitude: number;
+        longitude: number;
+        bearing_deg: number | null;
+    } | null;
     locomotiveType: string | null;
+    routeName: string | null;
     lastUpdated: number | null;
 }
 
@@ -19,6 +24,7 @@ const initialState: TelemetryState = {
     sensors: {},
     gps: null,
     locomotiveType: null,
+    routeName: null,
     lastUpdated: null,
 };
 
@@ -57,8 +63,22 @@ const telemetrySlice = createSlice({
                 state.locomotiveType = locomotiveType;
             }
         },
-        gpsUpdated(state, action: PayloadAction<{ latitude: number; longitude: number }>) {
-            state.gps = action.payload;
+        gpsUpdated(
+            state,
+            action: PayloadAction<{
+                latitude: number;
+                longitude: number;
+                bearing_deg?: number | null;
+            }>,
+        ) {
+            state.gps = {
+                latitude: action.payload.latitude,
+                longitude: action.payload.longitude,
+                bearing_deg: action.payload.bearing_deg ?? null,
+            };
+        },
+        routeNameUpdated(state, action: PayloadAction<string | null>) {
+            state.routeName = action.payload;
         },
         telemetryReset() {
             return initialState;
@@ -66,5 +86,6 @@ const telemetrySlice = createSlice({
     },
 });
 
-export const { sensorUpdated, gpsUpdated, telemetryReset } = telemetrySlice.actions;
+export const { sensorUpdated, gpsUpdated, routeNameUpdated, telemetryReset } =
+    telemetrySlice.actions;
 export const telemetryReducer = telemetrySlice.reducer;
