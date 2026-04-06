@@ -167,6 +167,12 @@ export default function UPlotChart({
             'rgba(255,255,255,0.08)';
         const axisColor = resolveColor(probe, 'var(--dashboard-text-secondary)') ||
             'rgba(255,255,255,0.55)';
+        // Canvas (where uPlot draws cursor.points) does NOT understand CSS
+        // variables — passing `var(--…)` to ctx.fillStyle silently falls
+        // back to black/transparent and the hover dot disappears against
+        // the line. Resolve to a concrete colour string here.
+        const surfaceColor = resolveColor(probe, 'var(--dashboard-surface)') ||
+            '#11141c';
         container.removeChild(probe);
 
         // ---------- tooltip plugin ----------
@@ -184,7 +190,9 @@ export default function UPlotChart({
             'box-shadow:0 4px 12px rgba(0,0,0,0.18)',
             'z-index:10',
             'white-space:nowrap',
-            'transform:translate(-50%, calc(-100% - 12px))',
+            // No CSS transform — we manually compute and clamp the
+            // tooltip's left/top below so it never escapes the chart
+            // container at the edges.
         ].join(';');
         const titleEl = document.createElement('div');
         titleEl.style.cssText =
@@ -228,11 +236,40 @@ export default function UPlotChart({
                         } else {
                             rangeEl.style.display = 'none';
                         }
-                        const left = u.valToPos(ts, 'x');
-                        const top = u.valToPos(v as number, 'y');
-                        tooltip.style.left = `${left}px`;
-                        tooltip.style.top = `${top}px`;
+                        // Make the tooltip visible BEFORE measuring its
+                        // size, otherwise offsetWidth/Height come back as 0.
                         tooltip.style.display = 'block';
+                        const anchorX = u.valToPos(ts, 'x');
+                        const anchorY = u.valToPos(v as number, 'y');
+                        const tw = tooltip.offsetWidth;
+                        const th = tooltip.offsetHeight;
+                        const containerW = container.clientWidth;
+                        const containerH = container.clientHeight;
+
+                        // Horizontal: try to centre the tooltip on the
+                        // anchor; clamp into the container with a 4 px
+                        // safety margin so the border isn't clipped.
+                        const PAD = 4;
+                        let leftPx = anchorX - tw / 2;
+                        if (leftPx < PAD) leftPx = PAD;
+                        if (leftPx + tw > containerW - PAD) {
+                            leftPx = containerW - tw - PAD;
+                        }
+
+                        // Vertical: prefer 12 px above the data point.
+                        // If that would clip the top of the chart, flip
+                        // it 12 px below the point instead.
+                        const GAP = 12;
+                        let topPx = anchorY - th - GAP;
+                        if (topPx < PAD) {
+                            topPx = anchorY + GAP;
+                        }
+                        if (topPx + th > containerH - PAD) {
+                            topPx = containerH - th - PAD;
+                        }
+
+                        tooltip.style.left = `${leftPx}px`;
+                        tooltip.style.top = `${topPx}px`;
                     },
                 ],
             },
@@ -273,13 +310,14 @@ export default function UPlotChart({
                 y: false,
                 drag: { x: true, y: false, setScale: false },
                 points: {
-                    // The hover marker that snaps to the nearest data point.
-                    // Bigger and ringed for visibility, like the DO charts.
+                    // Snap-to-data hover marker. Resolved to concrete
+                    // colours (canvas can't read CSS vars). Larger and
+                    // ringed so it stands out against the line.
                     show: true,
-                    size: 9,
+                    size: 11,
                     width: 2,
                     stroke: strokeColor,
-                    fill: 'var(--dashboard-surface)',
+                    fill: surfaceColor,
                 },
             },
             select: { show: true, left: 0, top: 0, width: 0, height: 0 },

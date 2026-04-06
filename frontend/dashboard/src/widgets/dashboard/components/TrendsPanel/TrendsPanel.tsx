@@ -68,14 +68,14 @@ const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({
 }));
 
 const periodOptions = [
-    { label: '5 minutes', value: '5m' },
-    { label: '15 minutes', value: '15m' },
-    { label: '30 minutes', value: '30m' },
-    { label: '1 hour', value: '1h' },
-    { label: '3 hours', value: '3h' },
-    { label: '6 hours', value: '6h' },
-    { label: '12 hours', value: '12h' },
-    { label: '24 hours', value: '24h' },
+    { label: '5 минут', value: '5m' },
+    { label: '15 минут', value: '15m' },
+    { label: '30 минут', value: '30m' },
+    { label: '1 час', value: '1h' },
+    { label: '3 часа', value: '3h' },
+    { label: '6 часов', value: '6h' },
+    { label: '12 часов', value: '12h' },
+    { label: '24 часа', value: '24h' },
 ];
 
 const periodConfig: Record<string, { getStart: () => string; refreshMs: number }> = {
@@ -358,7 +358,7 @@ export default function TrendsPanel({
             {!isReplay && (
                 <Select
                     size="xs"
-                    label="Select period"
+                    label="Период"
                     value={selectedPeriod}
                     onChange={(v) => v && handlePeriodChange(v)}
                     data={periodOptions}
