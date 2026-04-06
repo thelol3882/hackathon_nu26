@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     Card,
     Text,
@@ -92,42 +92,60 @@ function toEpoch(bucket: string | Date): number {
     return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
+/** Size of one aggregation bucket in milliseconds. */
+function bucketMs(b: BucketInterval): number {
+    switch (b) {
+        case '1 minute':
+            return 60_000;
+        case '5 minutes':
+            return 5 * 60_000;
+        case '10 minutes':
+            return 10 * 60_000;
+        case '15 minutes':
+            return 15 * 60_000;
+        case '30 minutes':
+            return 30 * 60_000;
+        case '1 hour':
+            return 60 * 60_000;
+        default:
+            return 60_000;
+    }
+}
+
 /**
- * Build explicit X-axis ticks from actual data points, de-duplicated by their
- * formatted label. This avoids the "15:30 15:30 15:30" repetition that happens
- * when Recharts spreads N ticks across a tiny time domain (e.g. just after
- * backend startup, when there are only a handful of buckets in the same minute).
+ * Build explicit X-axis ticks spanning the FULL time window (not just the data
+ * extent). This makes the chart behave like Digital Ocean's metrics: the right
+ * edge always anchors to "now" (or window end), the left edge to window start,
+ * and missing data simply leaves an empty area instead of compressing the axis.
+ *
+ * Ticks are de-duplicated by formatted label so we never render
+ * "15:30 15:30 15:30" when the window happens to be very short.
  *
  * Format precision auto-adapts: HH:mm:ss for windows under 10 minutes,
  * HH:mm otherwise; days are added on midnight crossings.
  */
 function buildXAxis(
-    data: Array<{ ts: number }>,
-    windowDurationMs: number,
+    startMs: number,
+    endMs: number,
 ): { ticks: number[]; formatter: (ts: number, index: number) => string } {
-    const useSeconds = windowDurationMs < 10 * 60_000;
+    const windowDurationMs = endMs - startMs;
+    const useSeconds = windowDurationMs > 0 && windowDurationMs < 10 * 60_000;
     const baseFmt = useSeconds ? 'HH:mm:ss' : 'HH:mm';
 
-    if (data.length === 0) {
+    if (windowDurationMs <= 0) {
         return { ticks: [], formatter: (ts) => dayjs(ts).format(baseFmt) };
     }
 
-    const targetCount = Math.min(8, data.length);
+    const targetCount = 8;
+    const step = windowDurationMs / (targetCount - 1);
     const picked: number[] = [];
     const seen = new Set<string>();
-
-    if (targetCount === 1) {
-        picked.push(data[0].ts);
-    } else {
-        const step = (data.length - 1) / (targetCount - 1);
-        for (let i = 0; i < targetCount; i++) {
-            const idx = Math.round(i * step);
-            const ts = data[idx].ts;
-            const label = dayjs(ts).format(baseFmt);
-            if (!seen.has(label)) {
-                seen.add(label);
-                picked.push(ts);
-            }
+    for (let i = 0; i < targetCount; i++) {
+        const ts = Math.round(startMs + i * step);
+        const label = dayjs(ts).format(baseFmt);
+        if (!seen.has(label)) {
+            seen.add(label);
+            picked.push(ts);
         }
     }
 
@@ -208,6 +226,16 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const cfg = periodConfig[selectedPeriod];
     const isZoomed = zoomStack.length > 0;
 
+    // Tick used to slide the live window so the right edge always anchors to
+    // "now" (Digital Ocean-style), instead of being frozen at mount time.
+    // Disabled while replaying or zoomed (those windows are absolute).
+    const [nowTick, setNowTick] = useState(() => Date.now());
+    useEffect(() => {
+        if (isReplay || isZoomed) return;
+        const id = setInterval(() => setNowTick(Date.now()), cfg.refreshMs);
+        return () => clearInterval(id);
+    }, [isReplay, isZoomed, cfg.refreshMs]);
+
     const currentWindow = useMemo(() => {
         if (isZoomed) {
             const top = zoomStack[zoomStack.length - 1];
@@ -218,11 +246,13 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         }
         return { start: cfg.getStart(), end: new Date().toISOString() };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isReplay, replayStart, replayEnd, isZoomed, zoomStack, selectedPeriod]);
+    }, [isReplay, replayStart, replayEnd, isZoomed, zoomStack, selectedPeriod, nowTick]);
 
-    const windowDurationMs =
-        new Date(currentWindow.end).getTime() - new Date(currentWindow.start).getTime();
+    const startMs = new Date(currentWindow.start).getTime();
+    const endMs = new Date(currentWindow.end).getTime();
+    const windowDurationMs = endMs - startMs;
     const bucket = autoBucket(windowDurationMs);
+    const stepMs = bucketMs(bucket);
 
     const queryParams = useMemo(
         () => ({
@@ -241,18 +271,55 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
 
+    /**
+     * Build a fully-populated, evenly-spaced series spanning [startMs, endMs].
+     * Real backend buckets are placed at their timestamps; missing slots are
+     * filled with `null` so the line chart shows an explicit gap (no point) for
+     * intervals when the backend was offline / had no telemetry, instead of
+     * connecting across the dead zone or compressing the axis.
+     */
     const chartData = useMemo(() => {
-        if (!data?.length) return [];
-        return data
-            .map((d) => ({
-                ts: toEpoch(d.bucket),
+        if (windowDurationMs <= 0 || stepMs <= 0) return [];
+
+        type Point = {
+            ts: number;
+            avg_value: number | null;
+            min_value: number | null;
+            max_value: number | null;
+            unit: string;
+        };
+
+        const byBucket = new Map<number, Point>();
+        (data ?? []).forEach((d) => {
+            // Snap each backend bucket to the local grid so map lookups work
+            // even if there are sub-millisecond differences.
+            const ts = Math.round(toEpoch(d.bucket) / stepMs) * stepMs;
+            byBucket.set(ts, {
+                ts,
                 avg_value: d.avg_value,
                 min_value: d.min_value,
                 max_value: d.max_value,
-                unit: d.unit,
-            }))
-            .filter((d) => d.avg_value != null);
-    }, [data]);
+                unit: d.unit ?? '',
+            });
+        });
+
+        const firstBucket = Math.ceil(startMs / stepMs) * stepMs;
+        const lastBucket = Math.floor(endMs / stepMs) * stepMs;
+        const result: Point[] = [];
+        for (let t = firstBucket; t <= lastBucket; t += stepMs) {
+            const existing = byBucket.get(t);
+            result.push(
+                existing ?? {
+                    ts: t,
+                    avg_value: null,
+                    min_value: null,
+                    max_value: null,
+                    unit: '',
+                },
+            );
+        }
+        return result;
+    }, [data, startMs, endMs, stepMs, windowDurationMs]);
 
     const unit = data?.find((d) => d.unit)?.unit ?? '';
     const sensorLabel = sensorLabels[selectedSensor] ?? selectedSensor;
@@ -265,8 +332,13 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     }, [chartData]);
 
     const { ticks: xTicks, formatter: tickFormatter } = useMemo(
-        () => buildXAxis(chartData, windowDurationMs),
-        [chartData, windowDurationMs],
+        () => buildXAxis(startMs, endMs),
+        [startMs, endMs],
+    );
+
+    const hasAnyValue = useMemo(
+        () => chartData.some((d) => d.avg_value != null),
+        [chartData],
     );
 
     const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
@@ -428,15 +500,29 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                 <Center h={280}>
                     <Text c="dimmed">Выберите локомотив</Text>
                 </Center>
-            ) : isFetching && chartData.length === 0 ? (
+            ) : isFetching && data === undefined ? (
                 <Center h={280}>
                     <Loader size="sm" />
                 </Center>
-            ) : chartData.length === 0 ? (
-                <Center h={280}>
-                    <Text c="dimmed">Нет данных за выбранный период</Text>
-                </Center>
             ) : (
+                <div style={{ position: 'relative', width: '100%', height: 300 }}>
+                    {!hasAnyValue && (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                pointerEvents: 'none',
+                                zIndex: 1,
+                            }}
+                        >
+                            <Text c="dimmed" size="sm">
+                                Нет данных за выбранный период
+                            </Text>
+                        </div>
+                    )}
                 <ResponsiveContainer width="100%" height={300}>
                     <AreaChart
                         data={chartData}
@@ -465,7 +551,8 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             dataKey="ts"
                             type="number"
                             scale="time"
-                            domain={['dataMin', 'dataMax']}
+                            domain={[startMs, endMs]}
+                            allowDataOverflow
                             ticks={xTicks}
                             tickFormatter={tickFormatter}
                             tick={{ fontSize: 11 }}
@@ -473,7 +560,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                         <YAxis
                             tick={{ fontSize: 11 }}
                             width={65}
-                            domain={['auto', 'auto']}
+                            domain={hasAnyValue ? ['auto', 'auto'] : [0, 1]}
                             tickFormatter={(v: number) => `${v}${unit ? ` ${unit}` : ''}`}
                         />
                         <Tooltip
@@ -495,7 +582,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             strokeWidth={2}
                             dot={false}
                             isAnimationActive={false}
-                            connectNulls
+                            connectNulls={false}
                         />
                         {dragStart != null && dragEnd != null && (
                             <ReferenceArea
@@ -509,6 +596,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                         )}
                     </AreaChart>
                 </ResponsiveContainer>
+                </div>
             )}
         </Card>
     );
