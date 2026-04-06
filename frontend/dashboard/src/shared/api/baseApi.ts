@@ -33,6 +33,7 @@ export const baseApi = createApi({
         'Threshold',
         'Weight',
         'User',
+        'SimulatorLoco',
     ],
     endpoints: () => ({}),
 });

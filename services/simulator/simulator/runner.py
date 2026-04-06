@@ -1,53 +1,64 @@
-"""Simulation runner — orchestrates fleet ticks, batching, and HTTP delivery."""
+"""Simulation runner — orchestrates per-locomotive ticks and telemetry delivery.
+
+The runner used to manage a single global "scenario" knob applied to a
+flat list of 1700 locomotives. After the rewrite, it manages an
+operator-built dict of locomotives, each carrying its own scenario,
+mode and route sub-segment. There is no fleet-wide scenario any more.
+
+Operators interact through ``services/simulator/main.py`` which calls
+``add_locomotive`` / ``update_locomotive`` / ``remove_locomotive`` on
+this runner instance.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import random
 import time
 from collections import deque
+from collections.abc import Iterable
 from datetime import UTC, datetime
+from uuid import UUID
 
 from shared.enums import LocomotiveType
 from shared.observability import get_logger
+from shared.route_geometry import Route, get_route
 from shared.schemas.telemetry import GPSCoordinate, SensorPayload, TelemetryReading
 from simulator.core.client import close_client, post_batch
 from simulator.core.config import settings
 from simulator.generators.kz8a import generate_kz8a
 from simulator.generators.te33a import generate_te33a
-from simulator.models.fleet import generate_fleet
 from simulator.models.locomotive_state import (
+    LocomotiveMode,
+    LocomotiveScenario,
     LocomotiveState,
+    OnArrival,
     get_gps,
     tick,
 )
-from simulator.scenarios.degradation import apply_degradation
-from simulator.scenarios.degradation import reset as reset_degradation
-from simulator.scenarios.driving import apply_driving
-from simulator.scenarios.emergency import apply_emergency
-from simulator.scenarios.emergency import reset as reset_emergency
-from simulator.scenarios.highload import apply_highload
-from simulator.scenarios.highspeed import apply_highspeed
-from simulator.scenarios.normal import apply_normal
 
 logger = get_logger(__name__)
-
-SCENARIO_HANDLERS = {
-    "normal": apply_normal,
-    "driving": apply_driving,
-    "highspeed": apply_highspeed,
-    "highload": apply_highload,
-    "degradation": apply_degradation,
-    "emergency": apply_emergency,
-}
 
 BUFFER_MAX = 10_000
 
 
+class LocomotiveNotFoundError(KeyError):
+    """Raised when an operator references a UUID that isn't in the fleet."""
+
+
 class SimulationRunner:
+    """Owns the live fleet and the tick loop.
+
+    Mutating methods (``add_locomotive``, ``update_locomotive``,
+    ``remove_locomotive``) are safe to call from HTTP handlers running
+    on the same event loop as ``run()`` — Python's GIL plus
+    asyncio's cooperative scheduling means a tick is atomic w.r.t.
+    HTTP requests. No locks needed for a pet project at this scale.
+    """
+
     def __init__(self) -> None:
-        self.fleet: list[LocomotiveState] = []
-        self.scenario: str = settings.scenario
+        # UUID-keyed for O(1) lookup. Order is preserved (insertion
+        # order) so list-style iteration in the tick loop is stable.
+        self.fleet: dict[UUID, LocomotiveState] = {}
         self.tick_count: int = 0
         self.events_sent: int = 0
         self.errors: int = 0
@@ -58,28 +69,174 @@ class SimulationRunner:
         self._last_log_time: float = 0.0
         self._events_since_log: int = 0
 
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
     def init_fleet(self) -> None:
-        random.seed(settings.seed)
-        self.fleet = generate_fleet(settings.fleet_size, gateway_url=settings.gateway_url)
-        logger.info("Fleet initialized: %d locomotives", len(self.fleet))
+        """Boot empty. Operators add locomotives via the HTTP API.
 
-    def resize_fleet(self, n: int) -> None:
-        random.seed(settings.seed)
-        self.fleet = generate_fleet(n, gateway_url=settings.gateway_url)
-        logger.info("Fleet resized to %d locomotives", n)
+        We deliberately do *not* call the legacy ``generate_fleet``
+        helper here — it built a load-test fleet of 1700 random
+        locomotives, which is the wrong shape for the new game-like
+        model. The dashboard creates the fleet by hand instead.
+        """
+        self.fleet = {}
+        logger.info("Simulator booted with empty fleet (operator-managed)")
 
-    def switch_scenario(self, name: str) -> None:
-        if name not in SCENARIO_HANDLERS:
-            raise ValueError(f"Unknown scenario: {name}")
-        self.scenario = name
-        self.tick_count = 0
-        # Reset scenario state
-        reset_degradation()
-        reset_emergency()
-        for loco in self.fleet:
-            loco.igbt_override = None
-            loco.brake_override = None
-        logger.info("Scenario switched to: %s", name)
+    def stop(self) -> None:
+        self.running = False
+
+    # ------------------------------------------------------------------
+    # CRUD — operator-driven
+    # ------------------------------------------------------------------
+
+    def add_locomotive(
+        self,
+        *,
+        loco_id: UUID,
+        loco_type: LocomotiveType,
+        route_name: str,
+        name: str = "",
+        start_km: float = 0.0,
+        end_km: float | None = None,
+        mode: LocomotiveMode = LocomotiveMode.DEPOT,
+        scenario: LocomotiveScenario = LocomotiveScenario.NORMAL,
+        on_arrival: OnArrival = OnArrival.LOOP,
+        auto_mode: bool = False,
+        initial_speed_kmh: float = 0.0,
+    ) -> LocomotiveState:
+        """Materialise a new ``LocomotiveState`` and register it.
+
+        Position bounds are passed in as kilometres-from-start because
+        that's what the dashboard knows about (it picks station km
+        from /routes), but stored internally in metres for the
+        kinematics. Looking the route up by name keeps the request
+        body small and stable across container restarts.
+        """
+        route = get_route(route_name)
+        if route is None:
+            raise ValueError(f"Unknown route: {route_name!r}")
+        end_km_resolved = route.length_m / 1000.0 if end_km is None else end_km
+        # Normalise + clamp into the route. The state's __post_init__
+        # also clamps as a safety net but doing it here too gives the
+        # caller a clean validated value back.
+        start_m = max(0.0, min(start_km, route.length_m / 1000.0)) * 1000.0
+        end_m = max(start_m / 1000.0, min(end_km_resolved, route.length_m / 1000.0)) * 1000.0
+
+        if loco_id in self.fleet:
+            raise ValueError(f"Locomotive {loco_id} already in simulator")
+
+        state = LocomotiveState(
+            id=loco_id,
+            loco_type=loco_type,
+            route=route,
+            name=name,
+            mode=mode,
+            scenario=scenario,
+            auto_mode=auto_mode,
+            speed=initial_speed_kmh,
+            distance_m=start_m,
+            start_distance_m=start_m,
+            end_distance_m=end_m,
+            on_arrival=on_arrival,
+            forward=True,
+        )
+        self.fleet[loco_id] = state
+        logger.info(
+            "Added locomotive",
+            id=str(loco_id),
+            type=loco_type.value,
+            route=route_name,
+            mode=mode.value,
+            scenario=scenario.value,
+        )
+        return state
+
+    def update_locomotive(
+        self,
+        loco_id: UUID,
+        *,
+        route_name: str | None = None,
+        start_km: float | None = None,
+        end_km: float | None = None,
+        mode: LocomotiveMode | None = None,
+        scenario: LocomotiveScenario | None = None,
+        on_arrival: OnArrival | None = None,
+        auto_mode: bool | None = None,
+        speed_kmh: float | None = None,
+        name: str | None = None,
+    ) -> LocomotiveState:
+        """Apply a partial update to an existing locomotive.
+
+        Any field left as ``None`` is preserved. Changing the route
+        rebuilds the position bounds (the locomotive is snapped to the
+        new route's start). Changing scenario resets the scenario
+        tick counter so the degradation/emergency ramp starts fresh.
+        """
+        state = self.fleet.get(loco_id)
+        if state is None:
+            raise LocomotiveNotFoundError(loco_id)
+
+        if route_name is not None:
+            new_route = get_route(route_name)
+            if new_route is None:
+                raise ValueError(f"Unknown route: {route_name!r}")
+            state.route = new_route
+            state.start_distance_m = 0.0
+            state.end_distance_m = new_route.length_m
+            state.distance_m = 0.0
+
+        if start_km is not None:
+            state.start_distance_m = max(0.0, min(start_km * 1000.0, state.route.length_m))
+        if end_km is not None:
+            state.end_distance_m = max(state.start_distance_m, min(end_km * 1000.0, state.route.length_m))
+        # Re-clamp position into the (possibly new) sub-segment.
+        state.distance_m = max(state.start_distance_m, min(state.distance_m, state.end_distance_m))
+
+        if mode is not None:
+            state.mode = mode
+            state.mode_ticks = 0
+        if scenario is not None and scenario != state.scenario:
+            state.scenario = scenario
+            state.scenario_tick = 0
+            # Re-arming a normal scenario clears any leftover overrides
+            # immediately rather than waiting for the next tick.
+            if scenario == LocomotiveScenario.NORMAL:
+                state.igbt_override = None
+                state.brake_override = None
+        if on_arrival is not None:
+            state.on_arrival = on_arrival
+        if auto_mode is not None:
+            state.auto_mode = auto_mode
+        if speed_kmh is not None:
+            state.speed = max(0.0, speed_kmh)
+        if name is not None:
+            state.name = name
+
+        # Refresh cached pose so the next telemetry frame already
+        # reflects the operator's edits without waiting for a tick.
+        state.lat, state.lon, state.bearing_deg = state.route.position_at(state.distance_m)
+        return state
+
+    def remove_locomotive(self, loco_id: UUID) -> None:
+        if loco_id not in self.fleet:
+            raise LocomotiveNotFoundError(loco_id)
+        del self.fleet[loco_id]
+        logger.info("Removed locomotive", id=str(loco_id))
+
+    def get_locomotive(self, loco_id: UUID) -> LocomotiveState:
+        state = self.fleet.get(loco_id)
+        if state is None:
+            raise LocomotiveNotFoundError(loco_id)
+        return state
+
+    def list_locomotives(self) -> Iterable[LocomotiveState]:
+        return self.fleet.values()
+
+    # ------------------------------------------------------------------
+    # Burst multiplier (kept from the old simulator for load-testing)
+    # ------------------------------------------------------------------
 
     def set_burst(self, multiplier: float, duration: float) -> None:
         self._burst_multiplier = multiplier
@@ -92,11 +249,14 @@ class SimulationRunner:
             return self._burst_multiplier
         return settings.burst_multiplier
 
+    # ------------------------------------------------------------------
+    # Status / introspection
+    # ------------------------------------------------------------------
+
     def get_metrics(self) -> dict:
         return {
             "tick_count": self.tick_count,
             "fleet_size": len(self.fleet),
-            "scenario": self.scenario,
             "events_sent": self.events_sent,
             "errors": self.errors,
             "buffer_size": len(self.buffer),
@@ -104,29 +264,14 @@ class SimulationRunner:
             "running": self.running,
         }
 
-    def sample_fleet(self, n: int = 5) -> list[dict]:
-        sample = random.sample(self.fleet, min(n, len(self.fleet)))
-        return [
-            {
-                "id": str(s.id),
-                "type": s.loco_type.value,
-                "mode": s.mode.value,
-                "speed": round(s.speed, 1),
-                "route": s.route.name,
-                "progress": round(s.route_progress, 4),
-            }
-            for s in sample
-        ]
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
 
     async def run(self) -> None:
         self.running = True
         self._last_log_time = time.monotonic()
-        logger.info(
-            "Runner started: scenario=%s, fleet=%d, tick=%.2fs",
-            self.scenario,
-            len(self.fleet),
-            settings.tick_interval,
-        )
+        logger.info("Runner started: tick=%.2fs", settings.tick_interval)
 
         try:
             while self.running:
@@ -139,8 +284,9 @@ class SimulationRunner:
                     elapsed = now - self._last_log_time
                     rate = self._events_since_log / elapsed if elapsed > 0 else 0
                     logger.info(
-                        "[SIMULATOR] tick=%d | events_sent=%d | errors=%d | buffer=%d | events/s=%.0f",
+                        "[SIMULATOR] tick=%d | fleet=%d | events_sent=%d | errors=%d | buffer=%d | events/s=%.0f",
                         self.tick_count,
+                        len(self.fleet),
                         self.events_sent,
                         self.errors,
                         len(self.buffer),
@@ -159,13 +305,16 @@ class SimulationRunner:
             self.running = False
 
     async def _do_tick(self) -> None:
-        handler = SCENARIO_HANDLERS.get(self.scenario, apply_normal)
-        handler(self.fleet, self.tick_count)
+        if not self.fleet:
+            return  # nothing to simulate yet — operator hasn't created any
 
         readings: list[dict] = []
         now = datetime.now(UTC)
 
-        for loco in self.fleet:
+        # Snapshot first because tick() may set `arrived` and we want
+        # to drop those at the end of the loop without mutating the
+        # dict mid-iteration.
+        for loco in list(self.fleet.values()):
             tick(loco)
             sensors = _generate_sensors(loco)
             lat, lon = get_gps(loco)
@@ -185,9 +334,18 @@ class SimulationRunner:
             )
             readings.append(reading.model_dump(mode="json"))
 
+        # Drop locomotives that finished a one-shot REMOVE trip.
+        for lid, loco in list(self.fleet.items()):
+            if loco.arrived and loco.on_arrival == OnArrival.REMOVE:
+                logger.info("Locomotive %s arrived → removing", lid)
+                del self.fleet[lid]
+
+        if not readings:
+            return
+
         batch_size = settings.batch_size
         if self.effective_multiplier > 1:
-            batch_size = 200  # larger batches for highload
+            batch_size = 200
 
         batches = [readings[i : i + batch_size] for i in range(0, len(readings), batch_size)]
         results = await asyncio.gather(*[post_batch(b) for b in batches], return_exceptions=True)
@@ -204,7 +362,6 @@ class SimulationRunner:
             await self._flush_buffer(batch_size)
 
     async def _flush_buffer(self, batch_size: int) -> None:
-        """Try to send buffered readings."""
         retries = min(3, len(self.buffer) // batch_size + 1)
         for _ in range(retries):
             if not self.buffer:
@@ -219,8 +376,14 @@ class SimulationRunner:
                     self.buffer.appendleft(r)
                 break
 
-    def stop(self) -> None:
-        self.running = False
+
+# Singleton runner instance
+runner = SimulationRunner()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _generate_sensors(loco: LocomotiveState) -> list[SensorPayload]:
@@ -229,5 +392,9 @@ def _generate_sensors(loco: LocomotiveState) -> list[SensorPayload]:
     return generate_kz8a(loco)
 
 
-# Singleton runner instance
-runner = SimulationRunner()
+__all__ = [
+    "LocomotiveNotFoundError",
+    "Route",  # re-exported for convenience
+    "SimulationRunner",
+    "runner",
+]
