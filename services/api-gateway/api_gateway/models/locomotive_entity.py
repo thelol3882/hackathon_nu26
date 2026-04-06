@@ -17,7 +17,10 @@ class Locomotive(Base):
     model: Mapped[str] = mapped_column(String(200), nullable=False)
     manufacturer: Mapped[str] = mapped_column(String(200), nullable=False)
     year_manufactured: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="ACTIVE")
+    # Lowercase to match the LocomotiveStatus enum in shared.enums —
+    # otherwise LocomotiveRead Pydantic validation fails because
+    # `LocomotiveStatus("ACTIVE")` is not a valid enum member.
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
