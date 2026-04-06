@@ -89,6 +89,28 @@ function niceTickStepSec(windowSec: number): number {
     return 2 * h;
 }
 
+/**
+ * Build explicit X-axis tick positions for the visible window. We snap to
+ * local-TZ multiples of `stepSec` (so labels read 17:35, 17:40, …, not
+ * 17:32, 17:37). Without this uPlot's auto split picker can produce
+ * dozens of identical "17:48" labels for a small window.
+ */
+function buildTimeSplits(xMin: number, xMax: number, stepSec: number): number[] {
+    if (xMax <= xMin || stepSec <= 0) return [];
+    // getTimezoneOffset() returns minutes; positive when local is *behind*
+    // UTC, so for UTC+5 the value is -300.  local = utc - tzShift.
+    const tzShiftSec = new Date(xMin * 1000).getTimezoneOffset() * 60;
+    const firstLocalTick = Math.ceil((xMin - tzShiftSec) / stepSec) * stepSec;
+    const out: number[] = [];
+    for (let local = firstLocalTick; ; local += stepSec) {
+        const utc = local + tzShiftSec;
+        if (utc > xMax) break;
+        if (utc >= xMin) out.push(utc);
+        if (out.length > 64) break; // safety cap
+    }
+    return out;
+}
+
 interface TooltipState {
     el: HTMLDivElement;
     titleEl: HTMLDivElement;
@@ -245,12 +267,19 @@ export default function UPlotChart({
             width: container.clientWidth || 600,
             height,
             cursor: {
+                // Crosshair: vertical line that follows the mouse, no
+                // horizontal — same as DigitalOcean.
+                x: true,
+                y: false,
                 drag: { x: true, y: false, setScale: false },
                 points: {
+                    // The hover marker that snaps to the nearest data point.
+                    // Bigger and ringed for visibility, like the DO charts.
                     show: true,
-                    size: 6,
+                    size: 9,
+                    width: 2,
                     stroke: strokeColor,
-                    fill: strokeColor,
+                    fill: 'var(--dashboard-surface)',
                 },
             },
             select: { show: true, left: 0, top: 0, width: 0, height: 0 },
@@ -265,9 +294,20 @@ export default function UPlotChart({
                     ticks: { show: false },
                     space: 60,
                     font: `11px ${FONT_FAMILY}`,
+                    // Force tick positions onto round local-TZ boundaries.
+                    // Without this uPlot's auto-split sprays sub-minute ticks
+                    // across the window and the HH:mm formatter collapses
+                    // them all to the same label ("17:48 17:48 17:48 …").
+                    splits: (u, _ax, sMin, sMax) => {
+                        const w = sMax - sMin;
+                        return buildTimeSplits(sMin, sMax, niceTickStepSec(w));
+                    },
                     values: (_u, splits) => {
-                        const w = (xMax - xMin);
-                        const useSec = w < 10 * 60;
+                        const w = xMax - xMin;
+                        const stepSec = niceTickStepSec(w);
+                        // Use HH:mm:ss only when the tick step itself is
+                        // sub-minute. Otherwise HH:mm reads cleaner.
+                        const useSec = stepSec < 60;
                         return splits.map((s) =>
                             dayjs(s * 1000).format(useSec ? 'HH:mm:ss' : 'HH:mm'),
                         );
