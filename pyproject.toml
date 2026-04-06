@@ -9,6 +9,14 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
 ]
+# One-shot tools that don't ship with any service. Activate with
+# `uv sync --group osm` before running scripts under tools/.
+osm = [
+    "osmium>=4.0.0",
+    "networkx>=3.3",
+    "shapely>=2.0",
+    "httpx>=0.27",
+]
 
 [tool.uv.workspace]
 members = [
@@ -89,6 +97,7 @@ ignore = [
 "**/health_service.py" = ["S110"]  # best-effort pubsub cleanup
 "services/simulator/**/*.py" = ["S311", "PLR0912"]  # pseudo-random is fine for simulation; state machine is branchy
 "services/simulator/dry_run.py" = ["T201"]  # print is the point of this script
+"tools/**/*.py" = ["T201"]  # one-shot dev CLIs print to stdout intentionally
 "services/report-service/**/report_generator.py" = ["S608"]  # SQL f-strings only inject hardcoded WHERE clauses
 "services/report-service/**/fleet_analytics_service.py" = ["S608"]
 "services/report-service/**/router_analytics.py" = ["S608"]

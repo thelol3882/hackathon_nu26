@@ -4,18 +4,12 @@ Future improvements that are nice to have but not blocking the current iteration
 
 ## Map / route geometry
 
-- **Replace synthetic polylines with real OSM railway data.**
-  Today the route polylines in `shared/shared/route_geometry.py` are
-  generated as smoothed random walks between two endpoints. They look
-  hand-drawn but they don't follow real KTZ tracks. Switch to either:
-  - the OpenStreetMap Overpass API (`way[railway=rail]` filter), pulled
-    once and cached as GeoJSON in `shared/data/routes/`, or
-  - GTFS feed if Kazakhstan Temir Zholy publishes one.
-
-- **Replace synthetic stations with real KTZ station list.**
-  Same iteration as the OSM import — once we have real polylines we can
-  also pin real stations to them, with proper Russian/Kazakh names instead
-  of `Разъезд X км` placeholders.
+- **Refresh the OSM dataset periodically.** The committed GeoJSON
+  routes under `shared/data/routes/` were generated against a single
+  snapshot of the Geofabrik Kazakhstan PBF. Re-run
+  `tools/import_osm_railways.py` (after `uv sync --group osm`)
+  every few months to pick up newly mapped tracks and station
+  renames. The script is idempotent and the diff is reviewable.
 
 - **Per-locomotive route in replay mode.**
   `RouteMap` currently passes `routeName={null}` for replay because
@@ -23,11 +17,19 @@ Future improvements that are nice to have but not blocking the current iteration
   endpoint or stash the route on the locomotive record so the replay
   view can render the polyline too.
 
+- **Locomotive icon orientation along bearing.** We already publish
+  `gps.bearing_deg` from the simulator and store it in the telemetry
+  slice — the marker just doesn't rotate yet. A quick `transform:
+  rotate(...)` on the divIcon's inner div would make the train point
+  the right way.
+
 ## Telemetry / charts
 
 - **Incremental tail fetch for TrendsPanel.**
   Today the panel re-fetches the full visible window on every poll.
   DigitalOcean instead pulls only `[lastKnownTs, now]` and appends to
   a local buffer. With server-side LTTB this is non-trivial — see the
-  notes I left in chat — but it would cut traffic by ~99% on long
-  windows. Worth doing if real-world traffic ever becomes a concern.
+  notes in chat about the LTTB-on-tail trap and the recommended
+  "raw bucketed buffer + client-side LTTB" architecture — but it
+  would cut trends traffic by ~99% on long windows. Worth doing if
+  real-world traffic ever becomes a concern.
