@@ -92,14 +92,55 @@ function toEpoch(bucket: string | Date): number {
     return typeof bucket === 'string' ? new Date(bucket).getTime() : bucket.getTime();
 }
 
-/** Show full date only on midnight crossing, otherwise just HH:mm */
-function formatXTick(ts: number, index: number, allTicks: Array<{ value: number }>): string {
-    const d = dayjs(ts);
-    if (index > 0 && allTicks[index - 1]) {
-        const prevDay = dayjs(allTicks[index - 1].value).format('DD');
-        if (prevDay !== d.format('DD')) return d.format('DD MMM');
+/**
+ * Build explicit X-axis ticks from actual data points, de-duplicated by their
+ * formatted label. This avoids the "15:30 15:30 15:30" repetition that happens
+ * when Recharts spreads N ticks across a tiny time domain (e.g. just after
+ * backend startup, when there are only a handful of buckets in the same minute).
+ *
+ * Format precision auto-adapts: HH:mm:ss for windows under 10 minutes,
+ * HH:mm otherwise; days are added on midnight crossings.
+ */
+function buildXAxis(
+    data: Array<{ ts: number }>,
+    windowDurationMs: number,
+): { ticks: number[]; formatter: (ts: number, index: number) => string } {
+    const useSeconds = windowDurationMs < 10 * 60_000;
+    const baseFmt = useSeconds ? 'HH:mm:ss' : 'HH:mm';
+
+    if (data.length === 0) {
+        return { ticks: [], formatter: (ts) => dayjs(ts).format(baseFmt) };
     }
-    return d.format('HH:mm');
+
+    const targetCount = Math.min(8, data.length);
+    const picked: number[] = [];
+    const seen = new Set<string>();
+
+    if (targetCount === 1) {
+        picked.push(data[0].ts);
+    } else {
+        const step = (data.length - 1) / (targetCount - 1);
+        for (let i = 0; i < targetCount; i++) {
+            const idx = Math.round(i * step);
+            const ts = data[idx].ts;
+            const label = dayjs(ts).format(baseFmt);
+            if (!seen.has(label)) {
+                seen.add(label);
+                picked.push(ts);
+            }
+        }
+    }
+
+    const formatter = (ts: number, index: number) => {
+        const d = dayjs(ts);
+        if (index > 0 && picked[index - 1] != null) {
+            const prevDay = dayjs(picked[index - 1]).format('DD');
+            if (prevDay !== d.format('DD')) return d.format('DD MMM');
+        }
+        return d.format(baseFmt);
+    };
+
+    return { ticks: picked, formatter };
 }
 
 function CustomTooltipContent({
@@ -223,10 +264,10 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         return { avg, min: Math.min(...values), max: Math.max(...values) };
     }, [chartData]);
 
-    const tickFormatter = useMemo(() => {
-        const ticks = chartData.map((d) => ({ value: d.ts }));
-        return (ts: number, index: number) => formatXTick(ts, index, ticks);
-    }, [chartData]);
+    const { ticks: xTicks, formatter: tickFormatter } = useMemo(
+        () => buildXAxis(chartData, windowDurationMs),
+        [chartData, windowDurationMs],
+    );
 
     const handleMouseDown = useCallback((e: { activeLabel?: string | number }) => {
         if (e?.activeLabel != null) setDragStart(Number(e.activeLabel));
@@ -425,9 +466,9 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                             type="number"
                             scale="time"
                             domain={['dataMin', 'dataMax']}
+                            ticks={xTicks}
                             tickFormatter={tickFormatter}
                             tick={{ fontSize: 11 }}
-                            tickCount={8}
                         />
                         <YAxis
                             tick={{ fontSize: 11 }}
