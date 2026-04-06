@@ -1,5 +1,26 @@
 services:
   # ---- Infrastructure ----
+
+  # Plain PostgreSQL for CRUD data (auth, locomotives, config) and reports.
+  # Two databases: locomotive_app (API Gateway) and locomotive_reports (Report Service).
+  postgres:
+    image: postgres:17-alpine
+    env_file: .env
+    environment:
+      POSTGRES_USER: locomotive_app
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: locomotive_app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/init-postgres.sh:/docker-entrypoint-initdb.d/init-reports-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U locomotive_app -d locomotive_app"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # TimescaleDB for time-series data (raw telemetry, alerts, health snapshots,
+  # continuous aggregates). Millions of rows with hypertable compression and retention.
   timescaledb:
     image: timescale/timescaledb:latest-pg17
     env_file: .env
@@ -81,6 +102,9 @@ services:
       - processor
       - api-gateway
       - report-service
+      - db-writer
+      - ws-server
+      - analytics-service
 
   grafana:
     image: grafana/grafana:latest
@@ -106,12 +130,69 @@ services:
       dockerfile: services/processor/Dockerfile
     env_file: .env
     depends_on:
-      timescaledb:
-        condition: service_healthy
       redis:
         condition: service_healthy
       jaeger:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  db-writer:
+    build:
+      context: .
+      dockerfile: services/db-writer/Dockerfile
+    env_file: .env
+    environment:
+      - DB_WRITER_CONSUMER_NAME=writer-1
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      processor:
+        condition: service_started
+      analytics-service:
+        condition: service_healthy
+
+  db-writer-2:
+    build:
+      context: .
+      dockerfile: services/db-writer/Dockerfile
+    env_file: .env
+    environment:
+      - DB_WRITER_CONSUMER_NAME=writer-2
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      processor:
+        condition: service_started
+      analytics-service:
+        condition: service_healthy
+
+  # Analytics Service — owns TimescaleDB schema (Alembic migrations),
+  # single reader of TimescaleDB, exposes data via gRPC.
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    env_file: .env
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
   api-gateway:
     build:
@@ -119,7 +200,11 @@ services:
       dockerfile: services/api-gateway/Dockerfile
     env_file: .env
     depends_on:
-      timescaledb:
+      postgres:
+        condition: service_healthy
+      analytics-service:
+        condition: service_started
+      report-service:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -140,12 +225,35 @@ services:
       dockerfile: services/report-service/Dockerfile
     env_file: .env
     depends_on:
-      timescaledb:
+      postgres:
         condition: service_healthy
+      analytics-service:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       jaeger:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  ws-server:
+    build:
+      context: .
+      dockerfile: services/ws-server/Dockerfile
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/metrics')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   simulator:
     build:
@@ -185,9 +293,11 @@ services:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api-gateway
+      - ws-server
       - dashboard
 
 volumes:
+  postgres_data:
   timescaledb_data:
   redis_data:
   rabbitmq_data:

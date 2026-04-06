@@ -2,19 +2,17 @@
 
 import asyncio
 import contextlib
-import logging
 
 from fastapi import FastAPI, HTTPException, Query
 
-from simulator.core.config import settings
+from shared.observability import setup_observability
+from shared.observability.prometheus import setup_prometheus
 from simulator.runner import runner
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
-)
-
 app = FastAPI(title="Locomotive Telemetry Simulator", version="0.1.0")
+
+app.state.shutdown_otel = setup_observability(app, service_name="simulator")
+setup_prometheus(app, service_name="simulator")
 
 _runner_task: asyncio.Task | None = None
 
@@ -33,6 +31,7 @@ async def shutdown() -> None:
         _runner_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await _runner_task
+    app.state.shutdown_otel()
 
 
 @app.get("/health")
@@ -44,8 +43,8 @@ async def health() -> dict:
     }
 
 
-@app.get("/metrics")
-async def metrics() -> dict:
+@app.get("/metrics-stats")
+async def metrics_stats() -> dict:
     return runner.get_metrics()
 
 

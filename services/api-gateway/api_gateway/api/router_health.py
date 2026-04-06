@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from api_gateway.api.dependencies import DbSession, Redis
+from api_gateway.api.dependencies import AppSession, Redis
 
 router = APIRouter()
 
@@ -14,14 +14,14 @@ async def health():
 
 
 @router.get("/ready")
-async def ready(db: DbSession, redis: Redis):
-    """Readiness probe — checks DB and Redis connectivity."""
+async def ready(app_db: AppSession, redis: Redis):
+    """Readiness probe — checks app database and Redis connectivity."""
     checks = {}
     try:
-        await db.execute(text("SELECT 1"))
-        checks["database"] = "ok"
+        await app_db.execute(text("SELECT 1"))
+        checks["app_database"] = "ok"
     except Exception as e:
-        checks["database"] = str(e)
+        checks["app_database"] = str(e)
 
     try:
         await redis.ping()

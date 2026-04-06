@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import random
 import time
 from collections import deque
 from datetime import UTC, datetime
 
 from shared.enums import LocomotiveType
+from shared.observability import get_logger
 from shared.schemas.telemetry import GPSCoordinate, SensorPayload, TelemetryReading
 from simulator.core.client import close_client, post_batch
 from simulator.core.config import settings
@@ -30,7 +30,7 @@ from simulator.scenarios.highload import apply_highload
 from simulator.scenarios.highspeed import apply_highspeed
 from simulator.scenarios.normal import apply_normal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SCENARIO_HANDLERS = {
     "normal": apply_normal,

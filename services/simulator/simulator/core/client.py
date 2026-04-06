@@ -1,11 +1,11 @@
 import asyncio
-import logging
 
 import httpx
 
+from shared.observability import get_logger
 from simulator.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _client: httpx.AsyncClient | None = None
 

@@ -4,7 +4,16 @@ import { encode } from '@msgpack/msgpack';
 type MessageHandler = (data: unknown) => void;
 
 export interface WsManagerOptions {
-    url: string;
+    /** WS path — e.g. /ws/live/LOCO-001 */
+    path: string;
+    /** Full WS base URL — e.g. ws://localhost or wss://example.com */
+    wsBaseUrl: string;
+    /**
+     * Fetches a one-time WebSocket ticket from the API Gateway.
+     * Called on every connect/reconnect because tickets are single-use.
+     * Returns the ticket string, or null if auth failed.
+     */
+    fetchTicket: () => Promise<string | null>;
     onStatusChange?: (status: WsStatus) => void;
     maxReconnectAttempts?: number;
 }
@@ -13,7 +22,9 @@ export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecti
 
 export class WebSocketManager {
     private ws: WebSocket | null = null;
-    private url: string;
+    private path: string;
+    private wsBaseUrl: string;
+    private fetchTicket: () => Promise<string | null>;
     private handlers = new Set<MessageHandler>();
     private status: WsStatus = 'disconnected';
     private onStatusChange?: (status: WsStatus) => void;
@@ -23,16 +34,27 @@ export class WebSocketManager {
     private disposed = false;
 
     constructor(options: WsManagerOptions) {
-        this.url = options.url;
+        this.path = options.path;
+        this.wsBaseUrl = options.wsBaseUrl;
+        this.fetchTicket = options.fetchTicket;
         this.onStatusChange = options.onStatusChange;
         this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     }
 
-    connect() {
+    async connect() {
         if (this.disposed) return;
         this.setStatus('connecting');
 
-        this.ws = new WebSocket(this.url);
+        // Each connection needs a fresh ticket (single-use, GETDEL in Redis).
+        // The fetchTicket callback uses RTK Query which handles JWT injection.
+        const ticket = await this.fetchTicket();
+        if (!ticket) {
+            this.setStatus('disconnected');
+            return;
+        }
+
+        const url = `${this.wsBaseUrl}${this.path}?ticket=${ticket}`;
+        this.ws = new WebSocket(url);
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
@@ -49,19 +71,20 @@ export class WebSocketManager {
                     'type' in data &&
                     (data as Record<string, unknown>).type === 'ping'
                 ) {
-                    // Keep-alive: respond with pong so server doesn't drop the connection
                     this.sendPong();
                     return;
                 }
                 this.handlers.forEach((handler) => handler(data));
             } catch {
-                // Silently drop malformed messages to avoid crashing consumers
+                // Silently drop malformed messages
             }
         };
 
         this.ws.onclose = (event: CloseEvent) => {
             if (this.disposed) return;
             this.setStatus('disconnected');
+            // Don't reconnect on auth failures — ticket or JWT is invalid
+            if (event.code === 4401 || event.code === 4400) return;
             if (!event.wasClean) {
                 this.scheduleReconnect();
             }

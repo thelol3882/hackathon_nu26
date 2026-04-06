@@ -5,6 +5,7 @@ import type {
     RegisterRequest,
     UserResponse,
     UsersListResponse,
+    WsTicketResponse,
 } from '../types';
 
 export const authApi = baseApi.injectEndpoints({
@@ -27,6 +28,9 @@ export const authApi = baseApi.injectEndpoints({
         getUsers: builder.query<UsersListResponse, void>({
             query: () => '/auth/users',
             providesTags: [{ type: 'User', id: 'LIST' }],
+        }),
+        getWsTicket: builder.query<WsTicketResponse, void>({
+            query: () => '/ws/ticket',
         }),
     }),
 });

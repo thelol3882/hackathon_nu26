@@ -1,60 +1,88 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
+from starlette.responses import JSONResponse
 
-from api_gateway.api.dependencies import DbSession
-from api_gateway.services.telemetry_query_service import (
-    TelemetryBucket,
-    TelemetryRaw,
-    TelemetrySnapshot,
-    query_telemetry_bucketed,
-    query_telemetry_raw,
-    query_telemetry_snapshot,
-)
+from api_gateway.api.dependencies import Analytics
 
 router = APIRouter()
 
 
+class TelemetryBucket(BaseModel):
+    bucket: str
+    locomotive_id: str
+    sensor_type: str
+    avg_value: float | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    last_value: float | None = None
+    unit: str
+
+
 @router.get("/", response_model=list[TelemetryBucket])
 async def get_telemetry(
-    db: DbSession,
+    analytics: Analytics,
     locomotive_id: str | None = Query(None),
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
-    bucket_interval: str = Query(
-        "1 minute",
-        description="Aggregation interval: 1 minute, 5 minutes, 15 minutes, 1 hour, 1 day",
-    ),
     offset: int = 0,
-    limit: int = 50,
+    limit: int = 500,
 ):
-    """Query historical telemetry data with time-bucket aggregation."""
-    return await query_telemetry_bucketed(
-        db,
-        locomotive_id=locomotive_id,
-        sensor_type=sensor_type,
-        start=start,
-        end=end,
-        bucket_interval=bucket_interval,
+    """Query historical telemetry. Resolution is selected automatically
+    based on the requested time range."""
+    result = await analytics.get_telemetry_bucketed(
+        locomotive_id=locomotive_id or "",
+        sensor_type=sensor_type or "",
+        start=start.isoformat() if start else "",
+        end=end.isoformat() if end else "",
         offset=offset,
         limit=limit,
     )
+    return JSONResponse(
+        content=result["points"],
+        headers={"X-Data-Source": result["data_source"]},
+    )
+
+
+class TelemetrySnapshot(BaseModel):
+    locomotive_id: str
+    locomotive_type: str = ""
+    sensor_type: str
+    value: float
+    filtered_value: float | None = None
+    unit: str
+    time: str
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 @router.get("/snapshot", response_model=list[TelemetrySnapshot])
 async def get_telemetry_snapshot(
-    db: DbSession,
+    analytics: Analytics,
     locomotive_id: str = Query(..., description="Locomotive UUID"),
     at: datetime = Query(..., description="Point in time (ISO 8601)"),
 ):
     """Get the latest sensor readings at or before the given timestamp."""
-    return await query_telemetry_snapshot(db, locomotive_id=locomotive_id, at=at)
+    return await analytics.get_telemetry_snapshot(locomotive_id, at.isoformat())
+
+
+class TelemetryRaw(BaseModel):
+    time: str
+    locomotive_id: str
+    locomotive_type: str = ""
+    sensor_type: str
+    value: float
+    filtered_value: float | None = None
+    unit: str
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 @router.get("/raw", response_model=list[TelemetryRaw])
 async def get_telemetry_raw(
-    db: DbSession,
+    analytics: Analytics,
     locomotive_id: str | None = Query(None),
     sensor_type: str | None = Query(None),
     start: datetime | None = Query(None),
@@ -63,12 +91,11 @@ async def get_telemetry_raw(
     limit: int = 200,
 ):
     """Query raw telemetry data without aggregation."""
-    return await query_telemetry_raw(
-        db,
-        locomotive_id=locomotive_id,
-        sensor_type=sensor_type,
-        start=start,
-        end=end,
+    return await analytics.get_telemetry_raw(
+        locomotive_id=locomotive_id or "",
+        sensor_type=sensor_type or "",
+        start=start.isoformat() if start else "",
+        end=end.isoformat() if end else "",
         offset=offset,
         limit=limit,
     )

@@ -18,8 +18,8 @@ class TestFlattenReadingHappy:
         rows = flatten_reading(reading)
         assert len(rows) == 1
         row = rows[0]
-        assert row.sensor_type == SensorType.COOLANT_TEMP.value
-        assert row.unit == "C"
+        assert row["sensor_type"] == SensorType.COOLANT_TEMP.value
+        assert row["unit"] == "C"
 
     def test_multiple_sensors(self, make_reading, make_sensor):
         sensors = [
@@ -36,15 +36,15 @@ class TestFlattenReadingHappy:
         sensors = [make_sensor(SensorType.COOLANT_TEMP, 82.0, "C")]
         reading = make_reading(sensors=sensors, gps=gps)
         rows = flatten_reading(reading)
-        assert rows[0].latitude == pytest.approx(51.1)
-        assert rows[0].longitude == pytest.approx(71.4)
+        assert rows[0]["latitude"] == pytest.approx(51.1)
+        assert rows[0]["longitude"] == pytest.approx(71.4)
 
     def test_gps_none_sets_null(self, make_reading, make_sensor):
         sensors = [make_sensor(SensorType.COOLANT_TEMP, 82.0, "C")]
         reading = make_reading(sensors=sensors, gps=None)
         rows = flatten_reading(reading)
-        assert rows[0].latitude is None
-        assert rows[0].longitude is None
+        assert rows[0]["latitude"] is None
+        assert rows[0]["longitude"] is None
 
     def test_hf_first_reading_always_persisted(self, make_reading, make_sensor):
         sensors = [make_sensor(SensorType.CATENARY_VOLTAGE, 25000.0, "V")]
@@ -205,7 +205,7 @@ class TestFlattenReadingKeyBehavior:
         assert sensor2.value != pytest.approx(90.0)
 
     def test_record_raw_and_filtered_values(self, make_reading, make_sensor):
-        """TelemetryRecord.value should be raw, filtered_value should be filtered."""
+        """Dict value should be raw, filtered_value should be filtered."""
         sensor = make_sensor(SensorType.COOLANT_TEMP, 82.0, "C")
         reading = make_reading(sensors=[sensor])
         flatten_reading(reading)
@@ -214,9 +214,9 @@ class TestFlattenReadingKeyBehavior:
         reading2 = make_reading(sensors=[sensor2])
         rows = flatten_reading(reading2)
         row = rows[0]
-        assert row.value == pytest.approx(90.0)  # raw value
-        assert row.filtered_value != pytest.approx(90.0)  # EMA-smoothed
-        assert row.filtered_value == pytest.approx(sensor2.value)  # mutated
+        assert row["value"] == pytest.approx(90.0)  # raw value
+        assert row["filtered_value"] != pytest.approx(90.0)  # EMA-smoothed
+        assert row["filtered_value"] == pytest.approx(sensor2.value)  # mutated
 
     def test_record_fields_populated(self, make_reading, make_sensor):
         gps = GPSCoordinate(latitude=51.1, longitude=71.4)
@@ -224,8 +224,8 @@ class TestFlattenReadingKeyBehavior:
         reading = make_reading(sensors=sensors, gps=gps, sample_rate_hz=1.0)
         rows = flatten_reading(reading)
         row = rows[0]
-        assert row.locomotive_id == TE33A_ID
-        assert row.locomotive_type == LocomotiveType.TE33A.value
-        assert row.sensor_type == SensorType.DIESEL_RPM.value
-        assert row.sample_rate_hz == 1.0
-        assert row.time == reading.timestamp
+        assert row["locomotive_id"] == TE33A_ID
+        assert row["locomotive_type"] == LocomotiveType.TE33A.value
+        assert row["sensor_type"] == SensorType.DIESEL_RPM.value
+        assert row["sample_rate_hz"] == 1.0
+        assert row["time"] == reading.timestamp

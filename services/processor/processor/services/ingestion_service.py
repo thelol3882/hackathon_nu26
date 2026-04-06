@@ -1,5 +1,5 @@
 """
-Ingestion service: flatten a TelemetryReading into ORM rows,
+Ingestion service: flatten a TelemetryReading into plain dicts,
 applying EMA filtering before persistence.
 
 HF readings (sample_rate_hz >= 10) are de-duplicated for DB storage:
@@ -7,7 +7,6 @@ a row is only written when the filtered value changes by more than a noise
 floor, preventing TimescaleDB from being flooded at 50 Hz.
 """
 
-from processor.models.telemetry_entity import TelemetryRecord
 from processor.services.filter_service import ema_filter
 from shared.schemas.telemetry import TelemetryReading
 
@@ -17,10 +16,10 @@ _HF_NOISE_FLOOR = 0.005  # 0.5 %
 _last_persisted: dict[tuple[str, str], float] = {}
 
 
-def flatten_reading(reading: TelemetryReading) -> list[TelemetryRecord]:
+def flatten_reading(reading: TelemetryReading) -> list[dict]:
     """
-    Convert a TelemetryReading into TelemetryRecord ORM rows ready for
-    session.add_all().
+    Convert a TelemetryReading into plain dicts ready for stream publishing
+    and eventual DB insertion.
 
     Side-effect: each SensorPayload.value is replaced with its EMA-filtered
     counterpart so that downstream callers (health_service, alert_evaluator)
@@ -30,7 +29,7 @@ def flatten_reading(reading: TelemetryReading) -> list[TelemetryRecord]:
     """
     loco_id = str(reading.locomotive_id)
     is_hf = reading.sample_rate_hz >= 10.0
-    rows: list[TelemetryRecord] = []
+    rows: list[dict] = []
 
     for sensor in reading.sensors:
         sensor_key = sensor.sensor_type.value
@@ -51,18 +50,18 @@ def flatten_reading(reading: TelemetryReading) -> list[TelemetryRecord]:
             _last_persisted[dedup_key] = filtered
 
         rows.append(
-            TelemetryRecord(
-                time=reading.timestamp,
-                locomotive_id=reading.locomotive_id,
-                locomotive_type=reading.locomotive_type.value,
-                sensor_type=sensor_key,
-                value=raw_value,
-                filtered_value=filtered,
-                unit=sensor.unit,
-                sample_rate_hz=reading.sample_rate_hz,
-                latitude=reading.gps.latitude if reading.gps else None,
-                longitude=reading.gps.longitude if reading.gps else None,
-            )
+            {
+                "time": reading.timestamp,
+                "locomotive_id": reading.locomotive_id,
+                "locomotive_type": reading.locomotive_type.value,
+                "sensor_type": sensor_key,
+                "value": raw_value,
+                "filtered_value": filtered,
+                "unit": sensor.unit,
+                "sample_rate_hz": reading.sample_rate_hz,
+                "latitude": reading.gps.latitude if reading.gps else None,
+                "longitude": reading.gps.longitude if reading.gps else None,
+            }
         )
 
     return rows

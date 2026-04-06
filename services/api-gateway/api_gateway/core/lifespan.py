@@ -1,62 +1,73 @@
-import asyncio
+import pathlib
 from contextlib import asynccontextmanager
 
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 
 from api_gateway.core.config import get_settings
-from api_gateway.core.database import close_db_pool, get_session_factory, init_db_pool
+from api_gateway.core.database import close_app_db, get_app_session_factory, init_app_db
 from api_gateway.core.rabbitmq import close_rabbitmq, init_rabbitmq
-from api_gateway.core.redis_client import close_redis, get_redis, get_redis_raw, init_redis
-from api_gateway.services.alert_service import run_alert_persistence
-from api_gateway.services.connection_manager import ConnectionManager
-from api_gateway.services.health_service import init_health_config, run_health_cache
+from api_gateway.core.redis_client import close_redis, get_redis, init_redis
+from api_gateway.services.health_service import init_health_config
 from api_gateway.services.seed import seed_admin_user, seed_locomotives
+from shared.grpc_client import AnalyticsClient, ReportClient
+from shared.observability import get_logger
+
+_logger = get_logger(__name__)
+
+
+def run_migrations() -> None:
+    """Apply pending Alembic migrations.
+
+    Must be called BEFORE the async event loop starts (e.g. at module
+    level or before uvicorn.run), because alembic env.py internally
+    calls asyncio.run() which cannot nest inside an existing loop.
+    """
+    ini_path = pathlib.Path(__file__).resolve().parents[2] / "alembic.ini"
+    alembic_cfg = AlembicConfig(str(ini_path))
+    alembic_command.upgrade(alembic_cfg, "head")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    await init_db_pool()
+    await init_app_db()  # PostgreSQL for CRUD
     await init_redis()
     await init_rabbitmq()
 
-    redis_client = get_redis()
-    redis_raw = get_redis_raw()
-    session_factory = get_session_factory()
+    # Connect to Analytics Service via gRPC.
+    # All telemetry, alert, and health queries go through this client.
+    analytics = AnalyticsClient(
+        settings.analytics_grpc_target,
+        timeout=settings.analytics_grpc_timeout,
+    )
+    await analytics.connect()
+    app.state.analytics = analytics
 
-    # Seed default data and health config
-    async with session_factory() as session:
+    # Connect to Report Service via gRPC for report queries.
+    report_client = ReportClient(
+        settings.report_grpc_target,
+        timeout=settings.report_grpc_timeout,
+    )
+    await report_client.connect()
+    app.state.report_client = report_client
+
+    redis_client = get_redis()
+    app_session_factory = get_app_session_factory()
+
+    # Seed default data and health config (all in PostgreSQL)
+    async with app_session_factory() as session:
         await seed_admin_user(session)
         await seed_locomotives(session)
         await init_health_config(session, redis_client)
 
-    # WebSocket connection manager (uses raw client for binary-safe pub/sub)
-    manager = ConnectionManager(
-        redis_client=redis_raw,
-        max_connections=settings.ws_max_connections,
-    )
-    await manager.start()
-    app.state.ws_manager = manager
-
-    # Background: persist alerts from Redis to DB (raw client for binary pub/sub)
-    alert_task = asyncio.create_task(
-        run_alert_persistence(redis_raw, session_factory),
-        name="alert-persistence",
-    )
-
-    # Background: cache health index from processor via Redis pub/sub
-    health_task = asyncio.create_task(
-        run_health_cache(redis_raw),
-        name="health-cache",
-    )
-
     yield
 
-    health_task.cancel()
-    alert_task.cancel()
-    await manager.shutdown()
+    await report_client.close()
+    await analytics.close()
     await close_rabbitmq()
     await close_redis()
-    await close_db_pool()
+    await close_app_db()
     app.state.shutdown_otel()

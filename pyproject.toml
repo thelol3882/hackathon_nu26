@@ -15,8 +15,11 @@ members = [
     "shared",
     "services/processor",
     "services/api-gateway",
+    "services/analytics-service",
     "services/report-service",
     "services/simulator",
+    "services/db-writer",
+    "services/ws-server",
 ]
 
 # ── Ruff ─────────────────────────────────────────────────────────────
@@ -74,7 +77,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ARG001", "PLR2004"]
-"**/alembic/**/*.py" = ["F401", "E501"]
+"**/alembic/**/*.py" = ["F401", "E501", "S608"]
+"shared/shared/generated/*.py" = ["E501", "N802", "ARG002"]  # generated protobuf/grpc code
+"shared/shared/generated/*.pyi" = ["A002"]  # generated type stubs may use proto field names like id/min/max
 "**/models/*.py" = ["A003"]  # allow 'id', 'format' field names in ORM models
 "**/ws_telemetry.py" = ["S110"]  # try-except-pass expected for WS disconnect
 "**/connection_manager.py" = ["S110", "SIM105", "PLR0912"]  # try-except-pass for best-effort cleanup, queue backpressure
@@ -87,9 +92,22 @@ ignore = [
 "services/report-service/**/report_generator.py" = ["S608"]  # SQL f-strings only inject hardcoded WHERE clauses
 "services/report-service/**/fleet_analytics_service.py" = ["S608"]
 "services/report-service/**/router_analytics.py" = ["S608"]
+"**/repositories/telemetry_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"**/repositories/alert_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"**/repositories/health_snapshot_repository.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses, not user input
+"services/analytics-service/**/aggregator.py" = ["S110"]  # best-effort pubsub cleanup
+"services/analytics-service/**/servicer.py" = ["S608", "N802", "ARG002"]  # gRPC method names are PascalCase, context is required by gRPC signature
+"services/report-service/**/servicer.py" = ["N802", "ARG002", "PLR0911"]  # gRPC method names are PascalCase, context required, DownloadReport has many exit paths
+"services/analytics-service/**/repositories/*.py" = ["S608"]  # dynamic WHERE built from hardcoded clauses
+"services/analytics-service/main.py" = ["S104"]  # bind to 0.0.0.0 — expected in containers
+"services/db-writer/**/stream_consumer.py" = ["S110"]  # best-effort metric in update_lag
+"services/db-writer/**/database.py" = ["S608"]  # SQL f-strings inject from hardcoded _CONTINUOUS_AGGREGATES list, not user input
+"services/db-writer/main.py" = ["S104"]  # bind to 0.0.0.0 — expected in containers
+"services/ws-server/**/connection_manager.py" = ["S110", "SIM105", "PLR0912"]  # try-except-pass for best-effort cleanup
+"services/ws-server/**/handler.py" = ["S110"]  # try-except-pass for WS disconnect
 
 [tool.ruff.lint.isort]
-known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator"]
+known-first-party = ["shared", "api_gateway", "processor", "report_service", "simulator", "db_writer", "ws_server", "analytics"]
 
 [tool.ruff.format]
 quote-style = "double"

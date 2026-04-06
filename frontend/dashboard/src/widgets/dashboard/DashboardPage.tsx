@@ -6,6 +6,7 @@ import { DateTimePicker } from '@mantine/dates';
 import { IconTrain, IconPlayerPlay, IconBroadcast } from '@tabler/icons-react';
 import { ActionIcon, Tooltip } from '@mantine/core';
 import { useLocomotive } from '@/widgets/layout/LocomotiveContext';
+import { useWsDispatch } from '@/shared/ws/useWsDispatch';
 import { useLiveTelemetry, useGetTelemetrySnapshotQuery } from '@/features/telemetry';
 import { useHealthIndex } from '@/features/health';
 import { healthApi } from '@/features/health/api/healthApi';
@@ -253,7 +254,10 @@ function ReplayControls() {
 
 function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const { locomotiveLabel } = useLocomotive();
-    const { sensors, position, connectionStatus } = useLiveTelemetry(locomotiveId);
+    // Single WS connection — dispatches telemetry/health/alerts into Redux slices
+    const { connectionStatus } = useWsDispatch(locomotiveId);
+    // Hooks below only read from Redux — no own WS subscriptions
+    const { sensors, position } = useLiveTelemetry(locomotiveId);
     const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
     const getSensor = (type: SensorType) => sensors.get(type);

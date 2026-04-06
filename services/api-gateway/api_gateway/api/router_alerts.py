@@ -1,9 +1,8 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from api_gateway.api.dependencies import DbSession
-from api_gateway.services import alert_service
+from api_gateway.api.dependencies import Analytics
 from shared.schemas.alert import AlertEvent
 
 router = APIRouter()
@@ -11,7 +10,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[AlertEvent])
 async def list_alerts(
-    db: DbSession,
+    analytics: Analytics,
     locomotive_id: str | None = Query(None),
     severity: str | None = Query(None),
     acknowledged: bool | None = Query(None),
@@ -21,25 +20,37 @@ async def list_alerts(
     limit: int = 50,
 ):
     """List alerts with optional filters."""
-    return await alert_service.list_alerts(
-        db,
-        locomotive_id=locomotive_id,
-        severity=severity,
+    result = await analytics.list_alerts(
+        locomotive_id=locomotive_id or "",
+        severity=severity or "",
         acknowledged=acknowledged,
-        start=start,
-        end=end,
+        start=start.isoformat() if start else "",
+        end=end.isoformat() if end else "",
         offset=offset,
         limit=limit,
     )
+    return [AlertEvent(**a) for a in result["alerts"]]
 
 
 @router.get("/{alert_id}", response_model=AlertEvent)
-async def get_alert(alert_id: str, db: DbSession):
+async def get_alert(alert_id: str, analytics: Analytics):
     """Get a single alert by ID."""
-    return await alert_service.get_alert(db, alert_id)
+    try:
+        data = await analytics.get_alert(alert_id)
+    except Exception as exc:
+        if "NOT_FOUND" in str(exc):
+            raise HTTPException(status_code=404, detail="Alert not found") from exc
+        raise
+    return AlertEvent(**data)
 
 
 @router.post("/{alert_id}/acknowledge", response_model=AlertEvent)
-async def acknowledge_alert(alert_id: str, db: DbSession):
+async def acknowledge_alert(alert_id: str, analytics: Analytics):
     """Acknowledge an alert."""
-    return await alert_service.acknowledge_alert(db, alert_id)
+    try:
+        data = await analytics.acknowledge_alert(alert_id)
+    except Exception as exc:
+        if "NOT_FOUND" in str(exc):
+            raise HTTPException(status_code=404, detail="Alert not found") from exc
+        raise
+    return AlertEvent(**data)

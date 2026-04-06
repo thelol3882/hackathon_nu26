@@ -450,6 +450,53 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "title": "DB Writer — Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 57 },
+      "datasource": { "type": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "stream_consumer_lag",
+          "legendFormat": "{{ stream }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Fleet Aggregator Size",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 57 },
+      "datasource": { "type": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "green", "value": 500 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "fleet_aggregator_size",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "5s",

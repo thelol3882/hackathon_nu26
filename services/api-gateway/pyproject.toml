@@ -13,6 +13,7 @@ dependencies = [
     "aio-pika>=9.0.0",
     "bcrypt>=4.0.0",
     "PyJWT>=2.8.0",
+    "grpcio>=1.70.0",
     "shared",
 ]
 

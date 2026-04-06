@@ -5,13 +5,11 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-import api_gateway.models.alert_entity
 import api_gateway.models.health_config_entity
 import api_gateway.models.locomotive_entity
-import api_gateway.models.report_entity
 import api_gateway.models.user_entity
 from api_gateway.core.config import get_settings
-from api_gateway.models.base import Base
+from api_gateway.models.base import AppBase
 
 config = context.config
 
@@ -21,10 +19,10 @@ if config.config_file_name is not None:
 settings = get_settings()
 config.set_main_option(
     "sqlalchemy.url",
-    settings.database_url.replace("postgresql://", "postgresql+asyncpg://", 1),
+    settings.app_database_url.replace("postgresql://", "postgresql+asyncpg://", 1),
 )
 
-target_metadata = Base.metadata
+target_metadata = AppBase.metadata
 
 
 def run_migrations_offline() -> None:

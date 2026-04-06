@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 from fastapi import FastAPI, Request, Response
@@ -91,6 +92,54 @@ reports_generated_total = Counter(
     registry=registry,
 )
 
+# ── Stream consumer metrics (DB Writer) ───────────────────────────────
+stream_messages_consumed = Counter(
+    "stream_messages_consumed_total",
+    "Total messages consumed from Redis Streams",
+    ["stream"],
+    registry=registry,
+)
+
+stream_rows_written = Counter(
+    "stream_rows_written_total",
+    "Total rows written to TimescaleDB by DB Writer",
+    ["table"],
+    registry=registry,
+)
+
+stream_write_errors = Counter(
+    "stream_write_errors_total",
+    "Total failed batch writes",
+    ["stream"],
+    registry=registry,
+)
+
+stream_consumer_lag = Gauge(
+    "stream_consumer_lag",
+    "Number of pending (unacknowledged) messages in stream",
+    ["stream"],
+    registry=registry,
+)
+
+# ── Fleet aggregator metrics (Analytics Service) ─────────────────────
+fleet_aggregator_size = Gauge(
+    "fleet_aggregator_size",
+    "Number of locomotives tracked by fleet aggregator",
+    registry=registry,
+)
+
+fleet_summary_published = Counter(
+    "fleet_summary_published_total",
+    "Total fleet summary publishes",
+    registry=registry,
+)
+
+fleet_changes_detected = Counter(
+    "fleet_changes_detected_total",
+    "Total category changes detected across fleet",
+    registry=registry,
+)
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """Collects request count, latency, and in-progress gauge per route."""
@@ -127,8 +176,17 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _env(service_name: str, key: str, default: str) -> str:
+    prefix = service_name.upper().replace("-", "_")
+    return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
+
+
 def setup_prometheus(app: FastAPI, service_name: str) -> None:
     """Add Prometheus middleware and /metrics endpoint to a FastAPI app."""
+    enabled = _env(service_name, "PROMETHEUS_ENABLED", "true").lower() == "true"
+    if not enabled:
+        return
+
     app.add_middleware(PrometheusMiddleware, service_name=service_name)
 
     @app.get("/metrics", include_in_schema=False)

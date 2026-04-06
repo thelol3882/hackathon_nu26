@@ -1,73 +1,65 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import React from 'react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { baseApi } from '@/shared/api/baseApi';
+import { authReducer } from '@/store/authSlice';
+import { telemetryReducer, sensorUpdated, gpsUpdated } from '@/store/slices/telemetrySlice';
+import { healthReducer } from '@/store/slices/healthSlice';
+import { alertsReducer } from '@/store/slices/alertsSlice';
 import { useLiveTelemetry } from '../useLiveTelemetry';
 
-type SubscribeHandler = (data: unknown) => void;
-
-const mockSubscribe = vi.fn<(handler: SubscribeHandler) => () => void>();
-const mockStatus = vi.fn(() => 'disconnected' as string);
-
-vi.mock('@/shared/ws/hooks', () => ({
-    useWebSocket: () => ({
-        get status() {
-            return mockStatus();
+function createTestStore() {
+    return configureStore({
+        reducer: {
+            [baseApi.reducerPath]: baseApi.reducer,
+            auth: authReducer,
+            telemetry: telemetryReducer,
+            health: healthReducer,
+            alerts: alertsReducer,
         },
-        subscribe: mockSubscribe,
-    }),
-}));
+        middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(baseApi.middleware),
+    });
+}
 
-/** Build a wire-format telemetry envelope matching the backend shape. */
-function makeWireTelemetry(
-    sensors: { sensor_type: string; value: number; unit: string }[],
-    gps: { latitude: number; longitude: number } | null = null,
-) {
+function createWrapper(store?: ReturnType<typeof createTestStore>) {
+    const s = store ?? createTestStore();
     return {
-        locomotive_id: 'loco-1',
-        locomotive_type: 'TE33A',
-        timestamp: '2026-04-04T12:00:00Z',
-        gps,
-        sensors,
+        store: s,
+        wrapper: ({ children }: { children: React.ReactNode }) =>
+            // eslint-disable-next-line react/no-children-prop -- React 19 types require children in props
+            React.createElement(Provider, { store: s, children }),
     };
 }
 
 describe('useLiveTelemetry', () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-        mockSubscribe.mockImplementation(() => () => {});
-        mockStatus.mockReturnValue('disconnected');
-    });
-
     afterEach(() => {
-        vi.useRealTimers();
         vi.clearAllMocks();
     });
 
     it('returns empty sensors map when no locomotiveId', () => {
-        const { result } = renderHook(() => useLiveTelemetry(null));
+        const { wrapper } = createWrapper();
+        const { result } = renderHook(() => useLiveTelemetry(null), { wrapper });
 
         expect(result.current.sensors.size).toBe(0);
         expect(result.current.position).toBeNull();
     });
 
-    it('updates sensor map when telemetry message arrives', () => {
-        let capturedHandler: SubscribeHandler | null = null;
-        mockSubscribe.mockImplementation((handler) => {
-            capturedHandler = handler;
-            return () => {};
-        });
-
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
-
-        const wire = makeWireTelemetry([{ sensor_type: 'diesel_rpm', value: 800, unit: 'rpm' }]);
+    it('updates sensor map when Redux state changes', () => {
+        const { store, wrapper } = createWrapper();
+        const { result } = renderHook(() => useLiveTelemetry('loco-1'), { wrapper });
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: wire });
-        });
-
-        expect(result.current.sensors.size).toBe(0);
-
-        act(() => {
-            vi.advanceTimersByTime(250);
+            store.dispatch(
+                sensorUpdated({
+                    sensorType: 'diesel_rpm',
+                    value: 800,
+                    unit: 'rpm',
+                    time: new Date('2026-04-04T12:00:00Z').getTime(),
+                    locomotiveType: 'TE33A',
+                }),
+            );
         });
 
         expect(result.current.sensors.size).toBe(1);
@@ -76,36 +68,14 @@ describe('useLiveTelemetry', () => {
         expect(reading.locomotive_id).toBe('loco-1');
     });
 
-    it('updates position from readings with lat/lng', () => {
-        let capturedHandler: SubscribeHandler | null = null;
-        mockSubscribe.mockImplementation((handler) => {
-            capturedHandler = handler;
-            return () => {};
-        });
-
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
-
-        const wire = makeWireTelemetry([{ sensor_type: 'speed_actual', value: 60, unit: 'km/h' }], {
-            latitude: 51.1,
-            longitude: 71.4,
-        });
+    it('updates position when GPS dispatched to Redux', () => {
+        const { store, wrapper } = createWrapper();
+        const { result } = renderHook(() => useLiveTelemetry('loco-1'), { wrapper });
 
         act(() => {
-            capturedHandler!({ type: 'telemetry', data: wire });
-        });
-
-        act(() => {
-            vi.advanceTimersByTime(250);
+            store.dispatch(gpsUpdated({ latitude: 51.1, longitude: 71.4 }));
         });
 
         expect(result.current.position).toEqual({ latitude: 51.1, longitude: 71.4 });
-    });
-
-    it('connectionStatus reflects WS status', () => {
-        mockStatus.mockReturnValue('connected');
-
-        const { result } = renderHook(() => useLiveTelemetry('loco-1'));
-
-        expect(result.current.connectionStatus).toBe('connected');
     });
 });

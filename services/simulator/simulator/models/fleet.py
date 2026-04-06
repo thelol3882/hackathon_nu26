@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
 import random
 import uuid
 
 import httpx
 
 from shared.enums import LocomotiveType
+from shared.observability import get_logger
 from shared.utils import generate_id
 from simulator.models.locomotive_state import (
     LocomotiveMode,
@@ -14,7 +14,7 @@ from simulator.models.locomotive_state import (
     Route,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Real Kazakhstan railway routes
 ROUTES: list[Route] = [

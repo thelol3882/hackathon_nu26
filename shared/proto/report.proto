@@ -1,0 +1,75 @@
+// report.proto — defines the data structures and RPC methods
+// for querying report data from the Report Service.
+//
+// Report Service owns the generated_reports table in its own
+// PostgreSQL database (locomotive_reports).  API Gateway queries
+// report status/data via these RPCs.  Task submission goes through
+// RabbitMQ (fire-and-forget), not gRPC.
+
+syntax = "proto3";
+
+package locomotive.reports;
+
+
+// ---- Messages ----
+
+message ReportEntry {
+    string report_id       = 1;
+    string locomotive_id   = 2;   // empty for fleet-wide reports
+    string report_type     = 3;
+    string format          = 4;   // json, csv, pdf
+    string status          = 5;   // pending, processing, completed, failed
+    string created_at      = 6;   // ISO 8601
+    bytes  data            = 7;   // JSON-serialized report data (only when status=completed)
+}
+
+// -- GetReport --
+
+message GetReportRequest {
+    string report_id = 1;
+}
+
+message GetReportResponse {
+    ReportEntry report = 1;
+}
+
+// -- ListReports --
+
+message ListReportsRequest {
+    string locomotive_id = 1;   // optional filter (empty = all)
+    string status        = 2;   // optional filter (empty = all)
+    int32  offset        = 3;
+    int32  limit         = 4;
+}
+
+message ListReportsResponse {
+    repeated ReportEntry reports = 1;
+    int32 total                  = 2;
+}
+
+// -- DownloadReport --
+
+message DownloadReportRequest {
+    string report_id = 1;
+}
+
+message DownloadReportResponse {
+    string format       = 1;   // json, csv, pdf
+    bytes  content      = 2;   // formatted file bytes
+    string filename     = 3;   // suggested filename
+    string content_type = 4;   // MIME type
+}
+
+
+// ---- Service ----
+
+service ReportService {
+    // Get a single report by ID (status + data).
+    rpc GetReport (GetReportRequest) returns (GetReportResponse);
+
+    // List reports with optional filters and pagination.
+    rpc ListReports (ListReportsRequest) returns (ListReportsResponse);
+
+    // Download a completed report as formatted file bytes (CSV/JSON/PDF).
+    rpc DownloadReport (DownloadReportRequest) returns (DownloadReportResponse);
+}

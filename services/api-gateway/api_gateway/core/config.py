@@ -14,18 +14,35 @@ class GatewaySettings(BaseSettings):
     app_name: str = "locomotive-api-gateway"
     debug: bool = False
 
-    # --- TimescaleDB / PostgreSQL ---
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_user: str = "telemetry"
-    db_password: str = "changeme"
-    db_name: str = "locomotive_telemetry"
-    db_pool_min: int = 5
-    db_pool_max: int = 20
+    # --- Application database (PostgreSQL) ---
+    # Small CRUD tables: users, locomotives, reports, health config.
+    # API Gateway does NOT connect to TimescaleDB — all telemetry queries
+    # go through the Analytics Service via gRPC.
+    app_db_host: str = "postgres"
+    app_db_port: int = 5432
+    app_db_user: str = "locomotive_app"
+    app_db_password: str = "changeme"
+    app_db_name: str = "locomotive_app"
+    app_db_pool_min: int = 3
+    app_db_pool_max: int = 10
 
     @property
-    def database_url(self) -> str:
-        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+    def app_database_url(self) -> str:
+        return (
+            f"postgresql://{self.app_db_user}:{self.app_db_password}"
+            f"@{self.app_db_host}:{self.app_db_port}/{self.app_db_name}"
+        )
+
+    # --- Analytics Service (gRPC) ---
+    # All telemetry, alert, and health queries go through this service.
+    # It is the single reader of TimescaleDB.
+    analytics_grpc_target: str = "analytics-service:50051"
+    analytics_grpc_timeout: float = 5.0
+
+    # --- Report Service (gRPC) ---
+    # Report status, listing, and downloads go through this service.
+    report_grpc_target: str = "report-service:50052"
+    report_grpc_timeout: float = 10.0
 
     # --- Redis ---
     redis_host: str = "localhost"
@@ -45,7 +62,6 @@ class GatewaySettings(BaseSettings):
 
     # --- Gateway-specific ---
     cors_origins: list[str] = ["http://localhost:3000"]
-    ws_max_connections: int = 100
 
 
 @lru_cache
