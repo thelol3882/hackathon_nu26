@@ -20,8 +20,8 @@ class DbWriterSettings(BaseSettings):
     db_user: str = "telemetry"
     db_password: str = "changeme"
     db_name: str = "locomotive_telemetry"
-    db_pool_min: int = 5
-    db_pool_max: int = 30  # writer needs more connections for bulk inserts
+    db_pool_min: int = 10
+    db_pool_max: int = 40  # writer needs more connections for bulk inserts
 
     @property
     def database_url(self) -> str:
@@ -38,7 +38,21 @@ class DbWriterSettings(BaseSettings):
 
     # --- Worker ---
     consumer_name: str = "writer-1"  # unique per replica
-    flush_interval: float = 0.5  # seconds between flushes
+
+    # Worker pool size per stream. Telemetry is the hot path and scales out
+    # to multiple parallel COPY workers; alerts/health are low volume.
+    writer_workers_telemetry: int = 3
+    writer_workers_alerts: int = 1
+    writer_workers_health: int = 1
+
+    # Max rows the writer flushes in a single COPY → INSERT SELECT transaction.
+    # Keeps per-flush latency bounded so XACK cadence stays high and the
+    # Redis Stream backlog cannot grow without bound.
+    rows_per_flush: int = 5000
+
+    # Bounded reader→worker queue. Provides backpressure on the reader when
+    # workers fall behind. Sized to hold a few batches per worker.
+    queue_maxsize: int = 4
 
     # --- Retention ---
     retention_telemetry_hours: int = 72

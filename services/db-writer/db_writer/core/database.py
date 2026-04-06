@@ -1,45 +1,53 @@
 """Database pool for DB Writer.
 
-This service is a write-only pipe — it receives dicts from Redis Streams
-and does INSERT.  Schema management (tables, hypertables, continuous
-aggregates, retention/compression policies) is owned by Analytics Service
-and applied via Alembic migrations.
+The writer service does one thing: INSERT. It talks to TimescaleDB via a
+raw asyncpg connection pool (no SQLAlchemy ORM) because the hot path uses
+``Connection.copy_records_to_table`` which is not exposed by SQLAlchemy.
+
+Schema management (tables, hypertables, continuous aggregates,
+retention/compression policies) is owned by Analytics Service and applied
+via Alembic migrations. The writer only creates its own per-replica
+UNLOGGED staging tables at startup (see main.py).
 """
 
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+import asyncpg
 
 from db_writer.core.config import get_settings
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
-_engine = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
+_pool: asyncpg.Pool | None = None
 
 
 async def init_db_pool() -> None:
-    global _engine, _session_factory
+    """Initialize the asyncpg connection pool."""
+    global _pool
     settings = get_settings()
-    url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    _engine = create_async_engine(
-        url,
-        pool_size=settings.db_pool_max,
-        pool_pre_ping=True,
+    _pool = await asyncpg.create_pool(
+        dsn=settings.database_url,
+        min_size=settings.db_pool_min,
+        max_size=settings.db_pool_max,
+        command_timeout=60,
     )
-    _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
-    logger.info("DB pool initialized", pool_size=settings.db_pool_max)
+    logger.info(
+        "asyncpg pool initialized",
+        min_size=settings.db_pool_min,
+        max_size=settings.db_pool_max,
+    )
 
 
 async def close_db_pool() -> None:
-    global _engine, _session_factory
-    if _engine:
-        await _engine.dispose()
-        _engine = None
-        _session_factory = None
-        logger.info("DB pool closed")
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+        logger.info("asyncpg pool closed")
 
 
-def get_session_factory() -> async_sessionmaker[AsyncSession] | None:
-    return _session_factory
+def get_pool() -> asyncpg.Pool:
+    if _pool is None:
+        raise RuntimeError("DB pool not initialized — call init_db_pool() first")
+    return _pool

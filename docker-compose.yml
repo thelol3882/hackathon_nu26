@@ -24,6 +24,14 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg17
     env_file: .env
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "work_mem=16MB"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
     healthcheck:
@@ -34,6 +42,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Hard memory cap as a safety belt: if a runaway producer or a bad
+    # MAXLEN setting tries to blow up the stream, XADD fails with OOM
+    # instead of eating the whole host. noeviction is mandatory for
+    # streams — eviction policies like allkeys-lru would silently drop
+    # entries mid-consumer-read and break at-least-once delivery.
+    command: ["redis-server", "--maxmemory", "4gb", "--maxmemory-policy", "noeviction", "--appendonly", "no", "--save", ""]
     volumes:
       - redis_data:/data
     healthcheck:

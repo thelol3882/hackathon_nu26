@@ -1,0 +1,7 @@
+# Always use LF for shell scripts and container entrypoints,
+# regardless of the OS the repo is cloned on. Without this,
+# Windows clones convert to CRLF and break /bin/bash shebangs
+# inside Linux containers (e.g. postgres docker-entrypoint-initdb.d).
+*.sh           text eol=lf
+Dockerfile     text eol=lf
+*.Dockerfile   text eol=lf

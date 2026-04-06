@@ -1,6 +1,6 @@
 """Tests for db_writer.services.stream_consumer."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,127 +26,238 @@ class TestPayloadCodec:
         assert decoded["rows"] == []
 
 
-# ── StreamConsumer._process_entries ───────────────────────────────────
+# ── Test fixtures / helpers ───────────────────────────────────────────
 
 
-class TestProcessEntries:
-    @pytest.fixture
-    def consumer(self):
-        from db_writer.services.stream_consumer import StreamConsumer
+def _make_consumer(model_class=None, worker_count: int = 1, rows_per_flush: int = 5000):
+    """Build a StreamConsumer wired to fully-mocked Redis and pg pool."""
+    from db_writer.services.stream_consumer import StreamConsumer
 
-        redis_mock = AsyncMock()
-        session_factory = MagicMock()
-        model_class = MagicMock()
-        model_class.__tablename__ = "raw_telemetry"
-        return StreamConsumer(
-            redis_client=redis_mock,
-            session_factory=session_factory,
-            stream="stream:telemetry",
-            consumer_name="test-writer",
-            model_class=model_class,
-        )
+    if model_class is None:
+        # Fake model with a fake __table__.columns for the adapter.
+        from db_writer.models.telemetry_entity import TelemetryRecord
+        model_class = TelemetryRecord
 
+    redis_mock = AsyncMock()
+    pg_pool = AsyncMock()
+
+    return StreamConsumer(
+        redis_client=redis_mock,
+        pg_pool=pg_pool,
+        stream="stream:telemetry",
+        consumer_name="test-writer",
+        model_class=model_class,
+        staging_tables=[f"raw_telemetry_staging_test_{i}" for i in range(worker_count)],
+        reader_batch_size=50,
+        rows_per_flush=rows_per_flush,
+        queue_maxsize=2,
+    )
+
+
+# ── StreamConsumer._enqueue_entries ───────────────────────────────────
+
+
+class TestEnqueueEntries:
     @pytest.mark.asyncio
-    async def test_decodes_and_accumulates_rows(self, consumer):
-        rows = [{"sensor_type": "COOLANT_TEMP", "value": 82.0}]
+    async def test_decodes_and_enqueues_rows(self):
+        consumer = _make_consumer()
+        rows = [
+            {
+                "time": "2026-01-01T00:00:00+00:00",
+                "locomotive_id": "11111111-1111-1111-1111-111111111111",
+                "locomotive_type": "DIESEL",
+                "sensor_type": "COOLANT_TEMP",
+                "value": 82.0,
+                "filtered_value": 82.0,
+                "unit": "C",
+                "sample_rate_hz": 1.0,
+                "latitude": None,
+                "longitude": None,
+            }
+        ]
         payload = wire_encode({"rows": rows})
         entries = [(b"1-0", {b"d": payload})]
 
-        with patch.object(consumer, "_bulk_insert", new_callable=AsyncMock) as mock_insert:
-            await consumer._process_entries(entries)
-            mock_insert.assert_called_once()
-            inserted_rows = mock_insert.call_args[0][0]
-            assert len(inserted_rows) == 1
-            assert inserted_rows[0]["sensor_type"] == "COOLANT_TEMP"
+        await consumer._enqueue_entries(entries)
 
-        # Verify XACK was called
-        consumer._redis.xack.assert_called_once()
+        # Queue should have exactly one batch
+        assert consumer._queue.qsize() == 1
+        msg_ids, enqueued_rows = await consumer._queue.get()
+        assert msg_ids == [b"1-0"]
+        assert len(enqueued_rows) == 1
+        assert enqueued_rows[0]["sensor_type"] == "COOLANT_TEMP"
 
-    @pytest.mark.asyncio
-    async def test_acks_malformed_message(self, consumer):
-        """Messages without 'd' field should still be acknowledged."""
-        entries = [(b"1-0", {b"other": b"data"})]
-
-        with patch.object(consumer, "_bulk_insert", new_callable=AsyncMock) as mock_insert:
-            await consumer._process_entries(entries)
-            mock_insert.assert_not_called()
-
-        consumer._redis.xack.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_no_ack_on_empty(self, consumer):
-        """No entries means no XACK call."""
-        await consumer._process_entries([])
+        # No XACK yet — the worker is responsible for that
         consumer._redis.xack.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_multiple_messages_merged(self, consumer):
-        """Multiple stream messages should merge rows before insert."""
-        rows1 = [{"sensor_type": "A", "value": 1.0}]
-        rows2 = [{"sensor_type": "B", "value": 2.0}, {"sensor_type": "C", "value": 3.0}]
+    async def test_acks_malformed_message_directly(self):
+        """Poison pills are ACK'd without going through the queue."""
+        consumer = _make_consumer()
+        entries = [(b"1-0", {b"other": b"data"})]
+
+        await consumer._enqueue_entries(entries)
+
+        # Queue should be empty
+        assert consumer._queue.empty()
+        # The poison pill should have been ack'd immediately
+        consumer._redis.xack.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_empty_entries_noop(self):
+        consumer = _make_consumer()
+        await consumer._enqueue_entries([])
+        assert consumer._queue.empty()
+        consumer._redis.xack.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_multiple_messages_merged(self):
+        """Rows from multiple stream messages are flattened into one batch."""
+        consumer = _make_consumer()
+        base = {
+            "time": "2026-01-01T00:00:00+00:00",
+            "locomotive_id": "11111111-1111-1111-1111-111111111111",
+            "locomotive_type": "DIESEL",
+            "value": 1.0,
+            "filtered_value": 1.0,
+            "unit": "U",
+            "sample_rate_hz": 1.0,
+            "latitude": None,
+            "longitude": None,
+        }
+        rows1 = [{**base, "sensor_type": "A"}]
+        rows2 = [{**base, "sensor_type": "B"}, {**base, "sensor_type": "C"}]
         entries = [
             (b"1-0", {b"d": wire_encode({"rows": rows1})}),
             (b"2-0", {b"d": wire_encode({"rows": rows2})}),
         ]
 
-        with patch.object(consumer, "_bulk_insert", new_callable=AsyncMock) as mock_insert:
-            await consumer._process_entries(entries)
-            inserted_rows = mock_insert.call_args[0][0]
-            assert len(inserted_rows) == 3
+        await consumer._enqueue_entries(entries)
 
-    @pytest.mark.asyncio
-    async def test_no_ack_on_insert_failure(self, consumer):
-        """If bulk_insert raises, messages should NOT be acknowledged."""
-        rows = [{"sensor_type": "COOLANT_TEMP", "value": 82.0}]
-        payload = wire_encode({"rows": rows})
-        entries = [(b"1-0", {b"d": payload})]
-
-        with (
-            patch.object(consumer, "_bulk_insert", new_callable=AsyncMock, side_effect=Exception("DB error")),
-            pytest.raises(Exception, match="DB error"),
-        ):
-            await consumer._process_entries(entries)
-
-        consumer._redis.xack.assert_not_called()
+        msg_ids, enqueued_rows = await consumer._queue.get()
+        assert msg_ids == [b"1-0", b"2-0"]
+        assert len(enqueued_rows) == 3
 
 
-# ── Bulk insert chunking ─────────────────────────────────────────────
+# ── Row adapter ───────────────────────────────────────────────────────
 
 
-class TestBulkInsertChunking:
-    @pytest.mark.asyncio
-    async def test_chunks_large_batch(self):
-        """Rows exceeding _INSERT_CHUNK should be split into multiple INSERTs."""
-        from db_writer.services.stream_consumer import _INSERT_CHUNK, StreamConsumer
+class TestRowAdapter:
+    def test_telemetry_adapter_produces_tuple_in_column_order(self):
+        from db_writer.models.telemetry_entity import TelemetryRecord
+        from db_writer.services.stream_consumer import _get_adapter
 
-        redis_mock = AsyncMock()
-        model_class = MagicMock()
-        model_class.__tablename__ = "raw_telemetry"
-
-        mock_session = AsyncMock()
-        mock_session_ctx = AsyncMock()
-        mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
-        session_factory = MagicMock(return_value=mock_session_ctx)
-
-        consumer = StreamConsumer(
-            redis_client=redis_mock,
-            session_factory=session_factory,
-            stream="stream:telemetry",
-            consumer_name="test-writer",
-            model_class=model_class,
+        columns, row_to_tuple = _get_adapter(TelemetryRecord)
+        # Physical column order comes from the ORM table definition
+        assert columns == (
+            "time",
+            "locomotive_id",
+            "locomotive_type",
+            "sensor_type",
+            "value",
+            "filtered_value",
+            "unit",
+            "sample_rate_hz",
+            "latitude",
+            "longitude",
         )
 
-        # Create rows that exceed one chunk
-        rows = [{"time": f"2026-01-01T{i:05d}", "value": float(i)} for i in range(_INSERT_CHUNK + 500)]
+        row = {
+            "time": "2026-01-01T00:00:00+00:00",
+            "locomotive_id": "11111111-1111-1111-1111-111111111111",
+            "locomotive_type": "DIESEL",
+            "sensor_type": "COOLANT_TEMP",
+            "value": 82.5,
+            "filtered_value": 82.3,
+            "unit": "C",
+            "sample_rate_hz": 1.0,
+            "latitude": 55.7,
+            "longitude": 37.6,
+        }
+        tup = row_to_tuple(row)
+        # datetime coerced
+        from datetime import datetime
+        assert isinstance(tup[0], datetime)
+        # uuid coerced
+        import uuid
+        assert isinstance(tup[1], uuid.UUID)
+        assert tup[3] == "COOLANT_TEMP"
+        assert tup[4] == 82.5
 
-        with patch("db_writer.services.stream_consumer.pg_insert") as mock_pg_insert:
-            mock_stmt = MagicMock()
-            mock_stmt.on_conflict_do_nothing.return_value = mock_stmt
-            mock_pg_insert.return_value.values.return_value = mock_stmt
+    def test_health_adapter_serializes_jsonb(self):
+        from db_writer.models.health_entity import HealthSnapshotRecord
+        from db_writer.services.stream_consumer import _get_adapter
 
-            await consumer._bulk_insert(rows)
+        columns, row_to_tuple = _get_adapter(HealthSnapshotRecord)
+        assert "top_factors" in columns
 
-            # Should be 2 execute calls (one full chunk + one remainder)
-            assert mock_session.execute.call_count == 2
-            mock_session.commit.assert_called_once()
+        row = {
+            "id": "22222222-2222-2222-2222-222222222222",
+            "locomotive_id": "11111111-1111-1111-1111-111111111111",
+            "locomotive_type": "DIESEL",
+            "score": 95.0,
+            "category": "healthy",
+            "top_factors": [{"sensor": "oil", "impact": 0.1}],
+            "damage_penalty": 0.0,
+            "calculated_at": "2026-01-01T00:00:00+00:00",
+        }
+        tup = row_to_tuple(row)
+        # Find the top_factors position and verify it's a JSON string
+        idx = columns.index("top_factors")
+        import json
+        assert isinstance(tup[idx], str)
+        assert json.loads(tup[idx]) == [{"sensor": "oil", "impact": 0.1}]
+
+
+# ── Worker write path chunking ────────────────────────────────────────
+
+
+class TestWorkerBatchChunking:
+    @pytest.mark.asyncio
+    async def test_large_batch_split_into_multiple_flushes(self):
+        """A batch bigger than rows_per_flush is split into multiple
+        (TRUNCATE, COPY, INSERT SELECT) transactions.
+        """
+        from db_writer.services.stream_consumer import StreamConsumer  # noqa: F401
+
+        # Build a consumer with small rows_per_flush so we can easily
+        # assert multiple chunks.
+        consumer = _make_consumer(rows_per_flush=100)
+
+        # Mock asyncpg connection + transaction chain.
+        mock_conn = AsyncMock()
+        mock_tx = AsyncMock()
+        mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+        mock_tx.__aexit__ = AsyncMock(return_value=False)
+        mock_conn.transaction = MagicMock(return_value=mock_tx)
+        mock_conn.execute = AsyncMock()
+        mock_conn.copy_records_to_table = AsyncMock()
+
+        acquire_ctx = AsyncMock()
+        acquire_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+        consumer._pool.acquire = MagicMock(return_value=acquire_ctx)
+
+        # 250 rows → 3 flushes with chunk size 100 (100 + 100 + 50)
+        rows = [
+            {
+                "time": "2026-01-01T00:00:00+00:00",
+                "locomotive_id": "11111111-1111-1111-1111-111111111111",
+                "locomotive_type": "DIESEL",
+                "sensor_type": f"S{i}",
+                "value": float(i),
+                "filtered_value": float(i),
+                "unit": "U",
+                "sample_rate_hz": 1.0,
+                "latitude": None,
+                "longitude": None,
+            }
+            for i in range(250)
+        ]
+
+        await consumer._write_batch("raw_telemetry_staging_test_0", rows)
+
+        # 3 chunks → 3 transaction blocks → 3 COPY calls
+        assert mock_conn.copy_records_to_table.call_count == 3
+        # TRUNCATE + INSERT SELECT per chunk = 2 execute calls × 3 chunks
+        assert mock_conn.execute.call_count == 6

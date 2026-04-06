@@ -3,10 +3,19 @@
 Historical queries auto-select the optimal data source (raw table or
 continuous aggregate) based on the requested time range:
 
-    < 15 min   -> raw_telemetry   (every second, max ~900 points)
-    15m - 2h   -> telemetry_1min  (one per minute, max ~120 points)
-    2h  - 24h  -> telemetry_15min (one per 15 min, max ~96 points)
-    24h+       -> telemetry_1hour (one per hour)
+    < 15 min   -> raw_telemetry  + live time_bucket  (~60 points)
+    15m - 2h   -> telemetry_1min   (real-time CAgg; ~15-120 points)
+    2h  - 24h  -> telemetry_15min  (real-time CAgg; ~8-96 points)
+    24h+       -> telemetry_1hour  (real-time CAgg; 24+ points)
+
+The continuous aggregates have ``materialized_only = false`` set via
+migration ``a1f7c9d4e2b0``, so SELECT merges materialized rows with
+live raw data up to ``now()``. No visible gap at the tail of the chart.
+
+For the raw case we still do an explicit ``time_bucket`` so the client
+receives a bounded number of points with honest min/max/avg stats, and
+so ``LIMIT`` never truncates the tail of the window (which would happen
+if we returned one row per second with ``ORDER BY time ASC``).
 """
 
 from __future__ import annotations
@@ -33,7 +42,7 @@ class _AggregateLevel:
 
 
 _LEVELS = [
-    (timedelta(minutes=15), _AggregateLevel("raw_telemetry", "time", "raw (1s)")),
+    (timedelta(minutes=15), _AggregateLevel("raw_telemetry", "time", "raw (bucketed)")),
     (timedelta(hours=2), _AggregateLevel("telemetry_1min", "bucket", "1min aggregate")),
     (timedelta(hours=24), _AggregateLevel("telemetry_15min", "bucket", "15min aggregate")),
     (timedelta(hours=999), _AggregateLevel("telemetry_1hour", "bucket", "1hour aggregate")),
@@ -48,6 +57,21 @@ def pick_level(start: datetime | None, end: datetime | None) -> _AggregateLevel:
         if span <= threshold:
             return level
     return _LEVELS[-1][1]
+
+
+def _raw_bucket_size(span: timedelta) -> str:
+    """Pick a time_bucket size for raw_telemetry queries so that the
+    number of returned rows stays roughly in [30, 120] regardless of
+    window length. Keeps the chart responsive and the LIMIT harmless.
+    """
+    minutes = span.total_seconds() / 60.0
+    if minutes <= 2:
+        return "2 seconds"   # up to 60 rows
+    if minutes <= 5:
+        return "5 seconds"   # 60 rows
+    if minutes <= 10:
+        return "10 seconds"  # 60 rows
+    return "15 seconds"      # ~60 rows for a 15-min window
 
 
 # -- WHERE clause builder -------------------------------------------------
@@ -105,12 +129,23 @@ async def query_bucketed(
     )
 
     if level.source_table == "raw_telemetry":
+        # Bucket raw data live so the client gets honest min/max/avg and
+        # a bounded row count. Bucket size is picked from the window span,
+        # or defaults to 15 s when no range is supplied.
+        span = (end - start) if (start and end) else timedelta(minutes=15)
+        bucket_size = _raw_bucket_size(span)
         query = text(f"""
-            SELECT time AS bucket, CAST(locomotive_id AS text) AS locomotive_id,
-                   sensor_type, value AS avg_value, value AS min_value,
-                   value AS max_value, value AS last_value, unit
+            SELECT time_bucket('{bucket_size}', time) AS bucket,
+                   CAST(locomotive_id AS text) AS locomotive_id,
+                   sensor_type,
+                   avg(value)         AS avg_value,
+                   min(value)         AS min_value,
+                   max(value)         AS max_value,
+                   last(value, time)  AS last_value,
+                   max(unit)          AS unit
             FROM raw_telemetry {where}
-            ORDER BY time ASC OFFSET :off LIMIT :lim
+            GROUP BY bucket, locomotive_id, sensor_type
+            ORDER BY bucket ASC OFFSET :off LIMIT :lim
         """)
     else:
         query = text(f"""

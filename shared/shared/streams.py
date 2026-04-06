@@ -23,9 +23,29 @@ HEALTH_STREAM = "stream:health"
 DB_WRITER_GROUP = "db-writers"
 
 # ── Tuning knobs ──────────────────────────────────────────────────────
-STREAM_BATCH_SIZE = 500  # max messages per XREADGROUP call
+STREAM_BATCH_SIZE = 500  # legacy constant, kept for compatibility
+
+# Reader batch sizes — how many messages the db-writer XREADGROUP pulls per
+# iteration. Smaller values bound the per-iteration row count so the writer
+# can flush and ACK before the next read, which breaks the death-spiral
+# feedback loop on the hot telemetry stream. Alerts/health are low volume
+# and can use a larger read batch safely.
+READER_BATCH_SIZE_TELEMETRY = 50
+READER_BATCH_SIZE_DEFAULT = 200
+
 STREAM_BLOCK_MS = 1000  # block timeout in milliseconds
-STREAM_MAXLEN = 100_000  # approximate cap per stream (~ safety valve)
+
+# Approximate per-stream cap.
+#
+# Each XADD payload is one msgpack-encoded batch that typically holds
+# several hundred rows, so messages are ~200-500 KB each. At 500k MAXLEN
+# Redis would balloon past 100 GB — don't go there.
+#
+# The db-writer consumes in real time (XPENDING ~0 under 10× burst), so
+# this buffer is pure safety margin for brief writer stalls. 10k messages
+# ≈ 4 minutes of baseline traffic or ~1 minute under 10× burst, which is
+# more than enough headroom given the writer's processing rate.
+STREAM_MAXLEN = 10_000
 
 
 async def ensure_consumer_group(
