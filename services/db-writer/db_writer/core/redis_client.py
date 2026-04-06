@@ -1,7 +1,4 @@
-"""Minimal Redis client for the db-writer service.
-
-Only the raw (binary) client is needed — for XREADGROUP / XACK on streams.
-"""
+"""Minimal raw/binary Redis client for XREADGROUP / XACK on streams."""
 
 from __future__ import annotations
 
@@ -22,7 +19,7 @@ async def init_redis() -> None:
         host=settings.redis_host,
         port=settings.redis_port,
         db=settings.redis_db,
-        decode_responses=False,  # binary for msgpack payloads
+        decode_responses=False,
     )
     logger.info("Redis client initialized (raw/binary)")
 

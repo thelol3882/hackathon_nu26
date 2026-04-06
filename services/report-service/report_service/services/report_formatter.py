@@ -14,7 +14,6 @@ from shared.schemas.report import ReportFormat, ReportJobMessage
 
 _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 
-# Font family name used throughout the PDF
 _FONT = "DejaVu"
 
 _CLR_PRIMARY = (3, 136, 230)
@@ -39,7 +38,7 @@ _SEVERITY_COLORS: dict[str, tuple[int, int, int]] = {
     "emergency": (127, 29, 29),
 }
 
-# Localized display names for PDF/JSON output (Russian for KTZ reports)
+# Localized display names for PDF/JSON output (KTZ reports ship in Russian).
 _SENSOR_NAMES: dict[str, str] = {
     "diesel_rpm": "Обороты дизеля",
     "oil_pressure": "Давление масла",
@@ -97,7 +96,7 @@ def format_report(data: dict, fmt: ReportFormat, job: ReportJobMessage) -> dict:
 
 
 def _format_json(data: dict) -> dict:
-    """Clean up JSON output — translate sensor names for readability."""
+    """Enrich JSON output with localized sensor/severity/loco type names."""
     result = dict(data)
     for stat in result.get("sensor_stats", []):
         stat["sensor_name"] = _sensor_ru(stat.get("sensor_type", ""))
@@ -186,7 +185,7 @@ def _format_csv(data: dict) -> dict:
 
 
 def _get_almaty_tz():
-    """Resolve Asia/Almaty; fall back to fixed UTC+5 when tzdata is unavailable."""
+    """Asia/Almaty with fixed UTC+5 fallback when tzdata is unavailable."""
     try:
         return ZoneInfo("Asia/Almaty")
     except ZoneInfoNotFoundError:
@@ -197,7 +196,7 @@ _TZ_ALMATY = _get_almaty_tz()
 
 
 def _to_local(iso_str: str) -> str:
-    """Convert ISO timestamp string to Asia/Almaty local time for display."""
+    """Convert ISO timestamp to Asia/Almaty display string."""
     if not iso_str:
         return ""
     try:
@@ -210,14 +209,13 @@ def _to_local(iso_str: str) -> str:
 
 
 def _fmt(val, decimals: int = 2) -> str:
-    """Round numeric values for display."""
     if isinstance(val, float):
         return f"{val:.{decimals}f}"
     return str(val)
 
 
 def _create_pdf() -> FPDF:
-    """Create a landscape PDF instance with DejaVu Sans (Unicode/Cyrillic support)."""
+    """Landscape PDF with DejaVu Sans for Cyrillic support."""
     pdf = FPDF(orientation="L", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
 
@@ -228,22 +226,18 @@ def _create_pdf() -> FPDF:
 
 
 def _set_color(pdf: FPDF, color: tuple[int, int, int]) -> None:
-    """Set text color."""
     pdf.set_text_color(*color)
 
 
 def _set_draw(pdf: FPDF, color: tuple[int, int, int]) -> None:
-    """Set draw color."""
     pdf.set_draw_color(*color)
 
 
 def _set_fill(pdf: FPDF, color: tuple[int, int, int]) -> None:
-    """Set fill color."""
     pdf.set_fill_color(*color)
 
 
 def _health_color(score) -> tuple[int, int, int]:
-    """Get color based on health score."""
     if not isinstance(score, (int, float)):
         return _CLR_SECONDARY_TEXT
     if score >= 80:
@@ -254,7 +248,7 @@ def _health_color(score) -> tuple[int, int, int]:
 
 
 def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
-    """Generate a beautiful PDF report and return as base64."""
+    """Render the PDF report and return it as base64."""
     pdf = _create_pdf()
     pdf.add_page()
 
@@ -281,7 +275,6 @@ def _format_pdf(data: dict, job: ReportJobMessage) -> dict:
 
 
 def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
-    """Render branded header with KTZ colors."""
     _set_fill(pdf, _CLR_PRIMARY)
     pdf.rect(pdf.l_margin, pdf.get_y(), pdf.w - pdf.l_margin - pdf.r_margin, 28, "F")
 
@@ -337,7 +330,6 @@ def _pdf_cover_header(pdf: FPDF, data: dict) -> None:
 
 
 def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
-    """Render health index as a prominent visual block."""
     _section_header(pdf, "Индекс здоровья", _CLR_PRIMARY)
 
     score = overview.get("calculated_score")
@@ -391,7 +383,6 @@ def _pdf_health_overview(pdf: FPDF, overview: dict) -> None:
 
 
 def _pdf_top_factors(pdf: FPDF, overview: dict) -> None:
-    """Render top contributing factors with visual bars."""
     factors = overview.get("top_factors", [])
     if not factors:
         return
@@ -497,7 +488,6 @@ def _pdf_alerts(pdf: FPDF, alert_summary: dict, alerts: list[dict]) -> None:
 
 
 def _pdf_fleet_stats(pdf: FPDF, fleet_stats: dict) -> None:
-    """Render fleet overview stats with colored category counts."""
     _section_header(pdf, "Состояние парка", _CLR_PRIMARY)
 
     total = fleet_stats.get("total_locomotives", 0)
@@ -548,7 +538,6 @@ def _pdf_fleet_stats(pdf: FPDF, fleet_stats: dict) -> None:
 
 
 def _pdf_worst_locomotives(pdf: FPDF, worst: list[dict]) -> None:
-    """Render table of worst-performing locomotives."""
     _section_header(pdf, "Локомотивы с наихудшими показателями", _CLR_CRITICAL)
 
     cols = [("Локомотив", 80), ("Тип", 55), ("Ср. балл", 30), ("Мин.", 30), ("Макс.", 30)]
@@ -595,7 +584,6 @@ def _pdf_anomalies(pdf: FPDF, anomalies: dict) -> None:
 
 
 def _pdf_footer(pdf: FPDF) -> None:
-    """Add footer to all pages."""
     total_pages = pdf.pages_count
     for i in range(1, total_pages + 1):
         pdf.page = i
@@ -608,7 +596,6 @@ def _pdf_footer(pdf: FPDF) -> None:
 
 
 def _section_header(pdf: FPDF, title: str, color: tuple[int, int, int] = _CLR_PRIMARY) -> None:
-    """Section header with colored left accent bar."""
     if pdf.get_y() > pdf.h - 45:
         pdf.add_page()
 
@@ -628,7 +615,6 @@ def _section_header(pdf: FPDF, title: str, color: tuple[int, int, int] = _CLR_PR
 
 
 def _table_header_colored(pdf: FPDF, cols: list[tuple[str, int]]) -> None:
-    """Table header with dark background."""
     _set_fill(pdf, _CLR_TABLE_HEADER)
     _set_color(pdf, _CLR_WHITE)
     pdf.set_font(_FONT, "B", 8)
@@ -648,7 +634,6 @@ def _table_row_colored(
     accent_col: int | None = None,
     accent_color: tuple[int, int, int] | None = None,
 ) -> None:
-    """Table row with optional striping, bar visualization, and accent coloring."""
     if pdf.get_y() + 6 > pdf.h - pdf.b_margin:
         pdf.add_page()
         _table_header_colored(pdf, cols)

@@ -4,15 +4,11 @@ import { encode } from '@msgpack/msgpack';
 type MessageHandler = (data: unknown) => void;
 
 export interface WsManagerOptions {
-    /** WS path — e.g. /ws/live/LOCO-001 */
+    /** WS path, e.g. /ws/live/LOCO-001 */
     path: string;
-    /** Full WS base URL — e.g. ws://localhost or wss://example.com */
+    /** WS base URL, e.g. ws://localhost or wss://example.com */
     wsBaseUrl: string;
-    /**
-     * Fetches a one-time WebSocket ticket from the API Gateway.
-     * Called on every connect/reconnect because tickets are single-use.
-     * Returns the ticket string, or null if auth failed.
-     */
+    /** Single-use WS ticket fetcher; called on every (re)connect. Returns null on auth failure. */
     fetchTicket: () => Promise<string | null>;
     onStatusChange?: (status: WsStatus) => void;
     maxReconnectAttempts?: number;
@@ -45,8 +41,7 @@ export class WebSocketManager {
         if (this.disposed) return;
         this.setStatus('connecting');
 
-        // Each connection needs a fresh ticket (single-use, GETDEL in Redis).
-        // The fetchTicket callback uses RTK Query which handles JWT injection.
+        // Tickets are single-use (GETDEL in Redis), so fetch a fresh one per connect.
         const ticket = await this.fetchTicket();
         if (!ticket) {
             this.setStatus('disconnected');
@@ -76,14 +71,14 @@ export class WebSocketManager {
                 }
                 this.handlers.forEach((handler) => handler(data));
             } catch {
-                // Silently drop malformed messages
+                // Drop malformed messages silently.
             }
         };
 
         this.ws.onclose = (event: CloseEvent) => {
             if (this.disposed) return;
             this.setStatus('disconnected');
-            // Don't reconnect on auth failures — ticket or JWT is invalid
+            // Codes 4400/4401 mean the ticket or JWT is bad — no point retrying.
             if (event.code === 4401 || event.code === 4400) return;
             if (!event.wasClean) {
                 this.scheduleReconnect();

@@ -1,17 +1,10 @@
-"""WebSocket endpoint with ticket-based authentication.
+"""WebSocket endpoints, authenticated by one-time Redis tickets.
 
-No JWT decoding here.  No database queries.  No user lookups.
-Authentication is delegated to the ticket system:
+Authentication is delegated: API Gateway verifies the JWT, mints a ticket in
+Redis, and this service only runs one GETDEL to validate it.
 
-  1. API Gateway already verified the user's JWT
-  2. API Gateway created a one-time ticket in Redis
-  3. We just check if the ticket exists in Redis (one GETDEL)
-
-Close codes:
-  4400 — Missing ticket parameter
-  4401 — Invalid or expired ticket
-  1013 — Server too busy (connection limit reached)
-  1011 — Server not ready
+Close codes: 4400 missing ticket, 4401 invalid/expired ticket,
+1013 over connection limit, 1011 server not ready.
 """
 
 from __future__ import annotations
@@ -39,22 +32,17 @@ _manager: ConnectionManager | None = None
 
 
 def set_manager(manager: ConnectionManager) -> None:
-    """Called from main.py during startup to inject the manager."""
     global _manager
     _manager = manager
 
 
 @router.websocket("/ws/live/{loco_id}")
 async def ws_live(ws: WebSocket, loco_id: str, ticket: str = Query(default=None)):
-    """Real-time telemetry + alerts + health stream for a specific locomotive.
-
-    Connection requires a valid one-time ticket from GET /api/ws/ticket.
-    """
+    """Real-time telemetry, alerts, and health stream for one locomotive."""
     if _manager is None:
         await ws.close(code=1011, reason="Server not ready")
         return
 
-    # --- Ticket authentication ---
     if ticket is None:
         await ws.close(code=4400, reason="Missing ticket parameter")
         return
@@ -66,11 +54,10 @@ async def ws_live(ws: WebSocket, loco_id: str, ticket: str = Query(default=None)
         await ws.close(code=4401, reason="Invalid or expired ticket")
         return
 
-    # --- Connection accepted ---
     user_id = user_info.get("user_id", "unknown")
 
     if not await _manager.accept(ws):
-        return  # over connection limit, already closed with 1013
+        return  # accept() already closed the socket with 1013
 
     telemetry_channel = f"{TELEMETRY_CHANNEL}:{loco_id}"
     health_channel = f"{HEALTH_CHANNEL}:{loco_id}"
@@ -91,7 +78,7 @@ async def ws_live(ws: WebSocket, loco_id: str, ticket: str = Query(default=None)
                 if isinstance(data, dict) and data.get("type") == "pong":
                     _manager.mark_pong(ws)
             except Exception:
-                pass  # ignore malformed client messages
+                pass
     except Exception:
         pass
     finally:
@@ -101,12 +88,7 @@ async def ws_live(ws: WebSocket, loco_id: str, ticket: str = Query(default=None)
 
 @router.websocket("/ws/fleet")
 async def ws_fleet(ws: WebSocket, ticket: str = Query(default=None)):
-    """Fleet-wide dashboard stream.
-
-    Receives two types of messages:
-      fleet_summary — full fleet stats every ~2 seconds
-      fleet_changes — only locomotives that changed category
-    """
+    """Fleet-wide dashboard stream (fleet_summary + fleet_changes envelopes)."""
     if _manager is None:
         await ws.close(code=1011, reason="Server not ready")
         return

@@ -1,10 +1,4 @@
-"""PostgreSQL connection pool for CRUD operations.
-
-API Gateway connects ONLY to PostgreSQL (auth, fleet registry, reports,
-health config). All telemetry queries go through Analytics Service via gRPC.
-
-Schema is managed via Alembic migrations (alembic upgrade head runs at startup).
-"""
+"""PostgreSQL async session management for CRUD operations."""
 
 from collections.abc import AsyncGenerator
 

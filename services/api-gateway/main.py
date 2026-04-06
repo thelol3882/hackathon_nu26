@@ -59,8 +59,7 @@ app.include_router(config_router, prefix="/config", tags=["config"], dependencie
 if __name__ == "__main__":
     import uvicorn
 
-    # Run migrations BEFORE the async event loop starts.
-    # alembic env.py uses asyncio.run() internally, which can't nest.
+    # Must run before the event loop: alembic env.py calls asyncio.run() internally.
     run_migrations()
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

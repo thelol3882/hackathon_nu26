@@ -1,4 +1,4 @@
-"""Tests for report_service.servicer — gRPC report query handlers."""
+"""Tests for report_service.servicer gRPC handlers."""
 
 from __future__ import annotations
 
@@ -37,11 +37,6 @@ def _mock_context():
     return ctx
 
 
-# ---------------------------------------------------------------------------
-# GetReport
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 @patch("report_service.servicer.report_repository")
 @patch("report_service.servicer.get_db_session")
@@ -62,7 +57,6 @@ async def test_get_report_found(mock_get_session, mock_repo):
 
     assert response.report.report_id == str(entity.id)
     assert response.report.status == ReportStatus.COMPLETED
-    # data should be populated for completed reports
     assert json.loads(response.report.data) == {"summary": "ok"}
 
 
@@ -83,11 +77,6 @@ async def test_get_report_not_found(mock_get_session, mock_repo):
 
     with pytest.raises(Exception, match="aborted"):
         await servicer.GetReport(request, _mock_context())
-
-
-# ---------------------------------------------------------------------------
-# ListReports
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -113,11 +102,6 @@ async def test_list_reports(mock_get_session, mock_repo):
 
     assert len(response.reports) == 2
     assert response.total == 2
-
-
-# ---------------------------------------------------------------------------
-# DownloadReport
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -161,11 +145,6 @@ async def test_download_report_not_completed(mock_get_session, mock_repo):
 
     with pytest.raises(Exception, match="aborted"):
         await servicer.DownloadReport(request, _mock_context())
-
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
 
 
 async def _async_gen(value):

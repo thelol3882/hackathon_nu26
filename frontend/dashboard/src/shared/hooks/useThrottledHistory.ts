@@ -3,23 +3,12 @@ import { store } from '@/store/store';
 
 const EMPTY: Array<{ time: number; value: number }> = [];
 
-/**
- * Reads sensor history from Redux store via ref (no subscription),
- * and copies it into React state at a throttled interval.
- *
- * This limits Recharts SVG re-renders to once per intervalMs
- * instead of on every WS message.
- *
- * Usage:
- *   const chartData = useThrottledHistory('coolant_temp', 1000)
- *   return <LineChart data={chartData} />
- */
+/** Polls sensor history from the store on an interval to throttle chart re-renders. */
 export function useThrottledHistory(
     sensorType: string,
     intervalMs: number = 1000,
 ): Array<{ time: number; value: number }> {
-    // Read initial value synchronously (outside effect) to avoid
-    // the "setState in effect body" lint error.
+    // Read initial value synchronously to avoid "setState in effect body" lint error.
     const initialData = useMemo(() => {
         const state = store.getState();
         const history = state.telemetry.sensors[sensorType]?.history;

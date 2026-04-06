@@ -1,9 +1,4 @@
-"""Health config service — threshold and weight CRUD in PostgreSQL.
-
-Health INDEX computation and queries now live in Analytics Service.
-This module only manages the configuration (thresholds and weights)
-stored in PostgreSQL and cached in Redis.
-"""
+"""Health config service: CRUD for thresholds and weights, cached in Redis."""
 
 from __future__ import annotations
 
@@ -35,9 +30,6 @@ class WeightConfig(BaseModel):
     weight: float
 
 
-# --- Startup ---
-
-
 async def init_health_config(session: AsyncSession, redis_client: redis.Redis) -> None:
     """Seed DB from constants if empty, then cache config to Redis."""
     if await health_repository.seed_thresholds(session):
@@ -59,9 +51,6 @@ async def _cache_config_to_redis(session: AsyncSession, redis_client: redis.Redi
     if mapping_w:
         await redis_client.delete(_REDIS_WEIGHTS_KEY)
         await redis_client.hset(_REDIS_WEIGHTS_KEY, mapping=mapping_w)
-
-
-# --- Config CRUD ---
 
 
 async def list_thresholds(session: AsyncSession) -> list[ThresholdConfig]:

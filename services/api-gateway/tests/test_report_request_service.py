@@ -1,8 +1,4 @@
-"""Tests for api_gateway.services.report_request_service.
-
-After the separation, API Gateway no longer touches the generated_reports
-table.  It publishes tasks to RabbitMQ and queries Report Service via gRPC.
-"""
+"""Tests for api_gateway.services.report_request_service."""
 
 from __future__ import annotations
 
@@ -39,11 +35,6 @@ def _make_report_dict(**overrides):
     return defaults
 
 
-# ---------------------------------------------------------------------------
-# create_report_job — publishes to RabbitMQ, returns job_id
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 @patch("api_gateway.services.report_request_service.publish_report_job", new_callable=AsyncMock)
 async def test_create_report_job_success(mock_publish):
@@ -58,18 +49,12 @@ async def test_create_report_job_success(mock_publish):
 
     result = await create_report_job(request)
 
-    # Let the background publish task run
     await asyncio.sleep(0)
 
     assert isinstance(result, ReportResponse)
     assert result.status == ReportStatus.PENDING
     assert result.data is None
     mock_publish.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
-# get_report — queries via gRPC
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -108,11 +93,6 @@ async def test_get_report_not_found_404():
         await get_report(client, str(uuid.uuid4()))
 
     assert exc_info.value.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# list_reports — queries via gRPC
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

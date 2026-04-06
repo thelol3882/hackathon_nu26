@@ -1,8 +1,4 @@
-"""Endpoint for requesting a one-time WebSocket authentication ticket.
-
-The client calls this with a valid JWT, receives a short-lived ticket,
-and uses it to connect to the separate WS Server.
-"""
+"""Endpoint for requesting one-time WebSocket authentication tickets."""
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -22,12 +18,7 @@ class TicketResponse(BaseModel):
 
 @router.get("/ws/ticket", response_model=TicketResponse)
 async def get_ws_ticket(user: CurrentUser, redis: Redis):
-    """Generate a one-time ticket for WebSocket authentication.
-
-    Requires valid JWT in Authorization header.
-    Returns a ticket that can be used once within 30 seconds
-    to connect to the WebSocket server.
-    """
+    """Generate a short-lived one-time ticket for WebSocket authentication."""
     ticket = await create_ticket(
         redis,
         user_id=str(user.id),

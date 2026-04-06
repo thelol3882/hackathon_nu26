@@ -9,24 +9,17 @@ from report_service.services.fleet_analytics_service import (
     get_utilization_stats,
 )
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 
 def _mock_analytics(**overrides):
-    """Create a mock AnalyticsClient with async methods."""
     client = AsyncMock()
     for k, v in overrides.items():
         setattr(client, k, AsyncMock(return_value=v))
     return client
 
 
-# ── Fleet summary tests ───────────────────────────────────────────────────────
-
-
 class TestGetFleetSummary:
     @pytest.mark.asyncio
     async def test_fleet_summary_success(self):
-        """Multiple locomotives produce correct totals and averages."""
         analytics = _mock_analytics(
             get_fleet_latest_snapshots=[
                 {"locomotive_id": "loco-1", "locomotive_type": "TE33A", "score": 90.0, "category": "Норма"},
@@ -42,7 +35,6 @@ class TestGetFleetSummary:
 
     @pytest.mark.asyncio
     async def test_fleet_summary_empty(self):
-        """No health rows -> total=0, avg=0.0."""
         analytics = _mock_analytics(get_fleet_latest_snapshots=[])
 
         summary = await get_fleet_summary(analytics)
@@ -52,7 +44,6 @@ class TestGetFleetSummary:
 
     @pytest.mark.asyncio
     async def test_fleet_summary_single_loco(self):
-        """Single locomotive returns its score as the average."""
         analytics = _mock_analytics(
             get_fleet_latest_snapshots=[
                 {"locomotive_id": "loco-1", "locomotive_type": "TE33A", "score": 75.0, "category": "Внимание"},
@@ -64,13 +55,9 @@ class TestGetFleetSummary:
         assert summary["avg_health_score"] == 75.0
 
 
-# ── Utilization stats tests ───────────────────────────────────────────────────
-
-
 class TestGetUtilizationStats:
     @pytest.mark.asyncio
     async def test_utilization_stats_success(self):
-        """Mix of active and idle readings produces correct rate."""
         analytics = _mock_analytics(
             get_utilization={"total_readings": 100, "active_readings": 75, "avg_speed": 45.0, "max_speed": 80.0}
         )
@@ -82,7 +69,6 @@ class TestGetUtilizationStats:
 
     @pytest.mark.asyncio
     async def test_utilization_no_data(self):
-        """No readings -> rate=0.0, total=0."""
         analytics = _mock_analytics(
             get_utilization={"total_readings": 0, "active_readings": 0, "avg_speed": 0.0, "max_speed": 0.0}
         )
@@ -94,7 +80,6 @@ class TestGetUtilizationStats:
 
     @pytest.mark.asyncio
     async def test_utilization_all_active(self):
-        """All readings have speed > 0 -> rate = 1.0."""
         analytics = _mock_analytics(
             get_utilization={"total_readings": 200, "active_readings": 200, "avg_speed": 60.0, "max_speed": 90.0}
         )
@@ -104,7 +89,6 @@ class TestGetUtilizationStats:
 
     @pytest.mark.asyncio
     async def test_utilization_with_loco_filter(self):
-        """Passing locomotive_id still works."""
         analytics = _mock_analytics(
             get_utilization={"total_readings": 50, "active_readings": 25, "avg_speed": 30.0, "max_speed": 50.0}
         )

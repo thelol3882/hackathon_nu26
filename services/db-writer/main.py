@@ -1,14 +1,5 @@
-"""
-DB Writer service entry point.
-
-Runs three StreamConsumer instances concurrently (asyncio tasks), one per
-stream: telemetry, alerts, health. Each consumer runs its own reader +
-worker-pool pipeline with COPY-based bulk loads through per-worker
-UNLOGGED staging tables.
-
-No primary HTTP server — this is a pure background worker. A minimal
-FastAPI app runs on a separate port solely for the Prometheus /metrics
-endpoint.
+"""DB Writer entry point: runs per-stream StreamConsumers that bulk-load via
+per-worker UNLOGGED staging tables. A tiny FastAPI app exposes /metrics.
 """
 
 from __future__ import annotations
@@ -39,7 +30,6 @@ from shared.streams import (
 
 logger = get_logger(__name__)
 
-# Minimal FastAPI app for Prometheus /metrics endpoint only
 metrics_app = FastAPI(title="DB Writer Metrics", docs_url=None, redoc_url=None)
 shutdown_otel = setup_observability(metrics_app, service_name="db-writer")
 setup_prometheus(metrics_app, service_name="db-writer")
@@ -51,17 +41,12 @@ def _sanitize(name: str) -> str:
 
 
 def _staging_tables_for(target_table: str, consumer_name: str, worker_count: int) -> list[str]:
-    """Generate per-worker staging table names for a target table."""
     safe = _sanitize(consumer_name)
     return [f"{target_table}_staging_{safe}_{i}" for i in range(worker_count)]
 
 
 async def _bootstrap_staging(all_staging: list[tuple[str, str]]) -> None:
-    """Create UNLOGGED staging tables and TRUNCATE any leftovers.
-
-    Args:
-        all_staging: list of (staging_name, target_name) tuples.
-    """
+    """Create UNLOGGED staging tables and TRUNCATE leftovers from crashes."""
     pool = get_pool()
     async with pool.acquire() as conn:
         for staging, target in all_staging:
@@ -70,7 +55,6 @@ async def _bootstrap_staging(all_staging: list[tuple[str, str]]) -> None:
                 f'(LIKE "{target}" INCLUDING DEFAULTS '
                 f"EXCLUDING CONSTRAINTS EXCLUDING INDEXES EXCLUDING STATISTICS)"
             )
-            # Clear any rows left behind by a crashed transaction.
             await conn.execute(f'TRUNCATE TABLE "{staging}"')
     logger.info("Staging tables ready", count=len(all_staging))
 
@@ -84,7 +68,6 @@ async def main() -> None:
     pg_pool = get_pool()
     redis_client = get_redis_raw()
 
-    # Per-stream worker counts from settings.
     stream_specs = [
         (
             TELEMETRY_STREAM,
@@ -106,7 +89,6 @@ async def main() -> None:
         ),
     ]
 
-    # Compute staging table names and create them before starting consumers.
     all_staging: list[tuple[str, str]] = []
     per_consumer_staging: dict[str, list[str]] = {}
     for stream_name, model, workers, _reader_bs in stream_specs:
@@ -115,7 +97,6 @@ async def main() -> None:
         all_staging.extend((s, model.__tablename__) for s in staging)
     await _bootstrap_staging(all_staging)
 
-    # Create one consumer per stream.
     consumers = [
         StreamConsumer(
             redis_client=redis_client,
@@ -131,7 +112,6 @@ async def main() -> None:
         for stream_name, model, _workers, reader_bs in stream_specs
     ]
 
-    # Start metrics HTTP server in background
     config = uvicorn.Config(
         metrics_app,
         host="0.0.0.0",
@@ -141,11 +121,9 @@ async def main() -> None:
     server = uvicorn.Server(config)
     metrics_task = asyncio.create_task(server.serve(), name="metrics-server")
 
-    # Run all consumers concurrently
     consumer_tasks = [asyncio.create_task(c.start(), name=f"consumer-{c._stream}") for c in consumers]
 
-    # Periodic lag metric update (every 5 seconds — more responsive than 15s
-    # so burst detection in Grafana doesn't lag behind reality)
+    # 5s cadence for lag so burst detection in Grafana doesn't lag behind.
     async def _update_lag_loop():
         while True:
             for c in consumers:
@@ -154,7 +132,6 @@ async def main() -> None:
 
     lag_task = asyncio.create_task(_update_lag_loop(), name="lag-updater")
 
-    # Graceful shutdown on SIGTERM/SIGINT
     stop_event = asyncio.Event()
 
     def _signal_handler():
@@ -168,10 +145,8 @@ async def main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _signal_handler)
 
-    # Wait for either stop signal or consumer exit
     await stop_event.wait()
 
-    # Give consumers time to finish current batch
     for t in consumer_tasks:
         t.cancel()
     await asyncio.gather(*consumer_tasks, metrics_task, lag_task, return_exceptions=True)

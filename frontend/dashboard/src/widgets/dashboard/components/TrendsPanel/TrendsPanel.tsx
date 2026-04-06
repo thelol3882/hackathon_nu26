@@ -1,21 +1,9 @@
 'use client';
 
-/**
- * TrendsPanel — DigitalOcean-style real-time line chart over a single sensor.
- *
- * Architecture:
- *   • The chart itself is rendered by uPlot (canvas) via UPlotChart.tsx, so we
- *     can comfortably push 1000+ points without dropping frames.
- *   • The backend does the heavy lifting via LTTB downsampling: we ask for
- *     `max_points ≈ container width` and it returns a series whose visual
- *     shape matches the raw data (peaks/valleys preserved) but fits the
- *     pixel grid.
- *   • Real outages are encoded server-side as `is_gap` markers (the value
- *     fields are zeroed). uPlot natively breaks the line on null/NaN, so
- *     missing data shows as a gap, not as a fake plateau.
- *   • The visible time window slides forward on a `nowTick` timer so the
- *     right edge always anchors to "now", same as DO's monitoring page.
- */
+// Real-time sensor line chart. Rendering is delegated to UPlotChart (canvas).
+// Backend LTTB downsampling keeps ~max_points per request so the series fits
+// the pixel grid. Gaps are encoded as is_gap/null and uPlot breaks the line.
+// The window slides forward on nowTick so the right edge tracks "now".
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -34,8 +22,7 @@ import { useGetTelemetryQuery } from '@/features/telemetry';
 import type { BucketInterval } from '@/features/telemetry';
 import { dayjs, hoursAgo, minutesAgo } from '@/shared/utils/date';
 
-// uPlot is canvas-only and reaches into `document` on construction, so it
-// must run client-side. `dynamic` keeps it out of the SSR bundle.
+// uPlot touches `document` on construction, so it must be client-only.
 const UPlotChart = dynamic(() => import('./UPlotChart'), { ssr: false });
 
 interface TrendsPanelProps {
@@ -89,12 +76,8 @@ const periodConfig: Record<string, { getStart: () => string; refreshMs: number }
     '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
 
-/**
- * Pick a server-side bucket size proportional to the visible window. These
- * values are the *raw* aggregation grid; the LTTB pass on the backend then
- * compresses them to ~`max_points` while preserving spikes. So a 6h window
- * with 20 s buckets = 1080 raw points → ~chart-width sampled points.
- */
+// Pick a raw bucket size proportional to the window; LTTB then compresses
+// it to ~max_points while preserving spikes.
 function autoBucket(durationMs: number): BucketInterval {
     const min = durationMs / 60_000;
     if (min <= 5) return '2 seconds';
@@ -112,7 +95,7 @@ function toEpochMs(bucket: string | Date): number {
 }
 
 interface ChartSeries {
-    timestamps: number[]; // epoch SECONDS (uPlot convention)
+    timestamps: number[]; // epoch seconds (uPlot convention)
     values: Array<number | null>;
     minValues: Array<number | null>;
     maxValues: Array<number | null>;
@@ -135,9 +118,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const cfg = periodConfig[selectedPeriod];
     const isZoomed = zoomStack.length > 0;
 
-    // Sliding-window tick. The right edge of the chart should always read
-    // "now" (DO-style), so we recompute currentWindow on the same cadence
-    // we poll the API at.
+    // Sliding window: recompute currentWindow at the same cadence as polling.
     const [nowTick, setNowTick] = useState(() => Date.now());
     useEffect(() => {
         if (isReplay || isZoomed) return;
@@ -162,9 +143,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
     const windowDurationMs = endMs - startMs;
     const bucket = autoBucket(windowDurationMs);
 
-    // Container width drives `max_points`: we don't ask for more points
-    // than the chart can actually display. Initially we don't know the
-    // width, so we start with a sensible default and refine on first paint.
+    // Container width drives max_points so we don't request more than we draw.
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [chartWidth, setChartWidth] = useState(900);
     useEffect(() => {
@@ -177,8 +156,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         return () => ro.disconnect();
     }, []);
 
-    // We round max_points to the nearest 100 so width-jitter doesn't
-    // invalidate the RTK Query cache key on every pixel.
+    // Round to nearest 100 so width jitter doesn't invalidate the RTK cache key.
     const maxPoints = Math.max(200, Math.round(chartWidth / 100) * 100);
 
     const queryParams = useMemo(
@@ -199,8 +177,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         pollingInterval: isReplay || isZoomed ? 0 : cfg.refreshMs,
     });
 
-    // Convert the wire format (ISO string buckets, gap markers) into the
-    // parallel arrays uPlot expects. Timestamps are in seconds.
+    // Convert wire format (ISO buckets, gap markers) to uPlot parallel arrays in seconds.
     const series: ChartSeries = useMemo(() => {
         if (!data?.length) return EMPTY_SERIES;
         const ts: number[] = [];
@@ -243,8 +220,7 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         setZoomStack([]);
     }, []);
 
-    // uPlot reports the zoom selection in epoch SECONDS — convert back
-    // to ISO strings for the URL/cache key.
+    // uPlot reports zoom in epoch seconds; convert to ISO for the cache key.
     const handleZoomSelect = useCallback((leftSec: number, rightSec: number) => {
         const left = Math.round(leftSec * 1000);
         const right = Math.round(rightSec * 1000);
@@ -278,7 +254,6 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
 
     const yTickFormatter = useCallback(
         (v: number) => {
-            // Trim trailing zeros for compactness; never show more than 2 dp.
             const rounded = Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1);
             return unit ? `${rounded} ${unit}` : rounded;
         },

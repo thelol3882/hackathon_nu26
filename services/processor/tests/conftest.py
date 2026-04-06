@@ -8,14 +8,13 @@ import pytest
 from shared.enums import LocomotiveType, SensorType
 from shared.schemas.telemetry import GPSCoordinate, SensorPayload, TelemetryReading
 
-# Fixed UUIDs for deterministic tests
 TE33A_ID = UUID("00000000-0000-0000-0000-000000000001")
 KZ8A_ID = UUID("00000000-0000-0000-0000-000000000002")
 
 
 @pytest.fixture(autouse=True)
 def _clear_module_state():
-    """Clear all module-level dicts before AND after each test."""
+    """Clear module-level dicts around each test."""
     import processor.services.filter_service as fs
     import processor.services.health_service as hs
     import processor.services.ingestion_service as ings
@@ -33,8 +32,6 @@ def _clear_module_state():
 
 @pytest.fixture
 def make_sensor():
-    """Factory for SensorPayload objects."""
-
     def _make(
         sensor_type: SensorType,
         value: float,
@@ -47,8 +44,6 @@ def make_sensor():
 
 @pytest.fixture
 def make_reading(make_sensor):
-    """Factory for TelemetryReading objects."""
-
     def _make(
         locomotive_id: UUID = TE33A_ID,
         locomotive_type: LocomotiveType = LocomotiveType.TE33A,

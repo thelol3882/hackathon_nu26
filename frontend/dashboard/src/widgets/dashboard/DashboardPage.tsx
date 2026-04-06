@@ -255,9 +255,8 @@ function ReplayControls() {
 
 function LiveDashboardContent({ locomotiveId }: { locomotiveId: string }) {
     const { locomotiveLabel } = useLocomotive();
-    // Single WS connection — dispatches telemetry/health/alerts into Redux slices
+    // Single WS connection fans out into Redux; hooks below read from there.
     const { connectionStatus } = useWsDispatch(locomotiveId);
-    // Hooks below only read from Redux — no own WS subscriptions
     const { sensors, position, routeName } = useLiveTelemetry(locomotiveId);
     const { health, isLoading: healthLoading } = useHealthIndex(locomotiveId);
     const { alerts, clearAlerts } = useLiveAlerts(locomotiveId);
@@ -357,8 +356,7 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
             ? {
                   latitude: withGps.latitude!,
                   longitude: withGps.longitude!,
-                  // Replay snapshots don't carry bearing — the marker
-                  // popup will just show "—" for course in this mode.
+                  // Replay snapshots don't carry bearing.
                   bearing_deg: null,
               }
             : null;
@@ -418,9 +416,7 @@ function ReplayDashboardContent({ locomotiveId }: { locomotiveId: string }) {
                 clearAlerts={() => {}}
                 locomotiveId={locomotiveId}
                 position={position}
-                // Replay snapshots don't carry the active route name —
-                // the map will fall back to "no route" until we add a
-                // separate locomotive metadata lookup.
+                // Replay snapshots don't carry the active route name.
                 routeName={null}
                 isReplay={true}
                 replayStart={replay.start ? dayjs(replay.start).toISOString() : undefined}

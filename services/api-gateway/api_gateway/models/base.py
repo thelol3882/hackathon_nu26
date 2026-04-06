@@ -1,9 +1,4 @@
-"""
-Declarative base for application tables in PostgreSQL.
-
-API Gateway reads from TimescaleDB using raw SQL (text()), so no ORM
-base is needed for time-series tables. DB Writer owns those models.
-"""
+"""Declarative base for application tables in PostgreSQL."""
 
 from sqlalchemy.orm import DeclarativeBase
 
@@ -12,5 +7,5 @@ class AppBase(DeclarativeBase):
     """Base for application tables in PostgreSQL."""
 
 
-# Backward-compatible alias used by existing entity imports
+# Backward-compatible alias
 Base = AppBase

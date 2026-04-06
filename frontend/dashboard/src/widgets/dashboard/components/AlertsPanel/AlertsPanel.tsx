@@ -168,7 +168,7 @@ export default function AlertsPanel({ alerts, onClear, isReplay }: AlertsPanelPr
         setLocalAcked((prev) => new Set(prev).add(id));
     };
 
-    // Overlay local acknowledgements on top of server-provided alert data
+    // Overlay local acks on top of server data so the UI updates before refetch.
     const mergedAlerts = alerts.map((a) =>
         localAcked.has(a.id) ? { ...a, acknowledged: true } : a,
     );

@@ -1,25 +1,4 @@
-"""gRPC service implementation — the server-side handlers.
-
-HOW THIS FILE WORKS:
-  The generated telemetry_pb2_grpc.AnalyticsServiceServicer is a base class
-  with stub methods that raise "not implemented". We inherit from it and
-  override each method with actual TimescaleDB queries.
-
-  Each method follows the pattern:
-  1. Receive a protobuf request message (auto-deserialized by gRPC framework)
-  2. Get a DB session from the async pool
-  3. Call the appropriate repository function (raw SQL)
-  4. Convert the result rows into protobuf response messages
-  5. Return the response (auto-serialized and sent over HTTP/2)
-
-gRPC ERROR HANDLING:
-  Instead of HTTP status codes (404, 500), gRPC uses its own codes:
-  - OK (0)               — success
-  - NOT_FOUND (5)        — resource doesn't exist
-  - INVALID_ARGUMENT (3) — bad request parameters
-  - INTERNAL (13)        — server error
-  Call context.abort(code, message) to return an error.
-"""
+"""gRPC service implementation — translates requests into repository calls."""
 
 from __future__ import annotations
 
@@ -39,7 +18,6 @@ logger = get_logger(__name__)
 
 
 def _parse_dt(s: str) -> datetime | None:
-    """Parse an ISO 8601 string, returning None for empty strings."""
     if not s:
         return None
     return datetime.fromisoformat(s)
@@ -47,8 +25,6 @@ def _parse_dt(s: str) -> datetime | None:
 
 class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
     """Implements all RPC methods defined in telemetry.proto."""
-
-    # -- Telemetry ---------------------------------------------------------
 
     async def GetTelemetryBucketed(self, request, context):
         factory = get_session_factory()
@@ -110,8 +86,6 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
             )
         return telemetry_pb2.TelemetrySnapshotResponse(points=[_row_to_raw_proto(r) for r in rows])
 
-    # -- Alerts ------------------------------------------------------------
-
     async def ListAlerts(self, request, context):
         factory = get_session_factory()
         async with factory() as session:
@@ -145,10 +119,7 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
             await context.abort(grpc.StatusCode.NOT_FOUND, f"Alert {request.alert_id} not found")
         return _row_to_alert_proto(row)
 
-    # -- Health ------------------------------------------------------------
-
     async def GetCurrentHealth(self, request, context):
-        # Try Redis cache first (populated by background health_cache task)
         redis_raw = get_redis_raw()
         cached = await get_cached_health(redis_raw, request.locomotive_id)
         if cached:
@@ -158,14 +129,12 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
             except Exception:
                 logger.warning("Failed to decode cached health, falling back to DB")
 
-        # Fallback: compute from latest readings
         factory = get_session_factory()
         async with factory() as session:
             rows = await health_repository.get_latest_readings(session, request.locomotive_id)
         if not rows:
             await context.abort(grpc.StatusCode.NOT_FOUND, "No telemetry data for this locomotive")
 
-        # Minimal health computation (same logic as processor)
         return _compute_health_from_readings(request.locomotive_id, rows)
 
     async def GetHealthAt(self, request, context):
@@ -179,8 +148,6 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
         if row is None:
             await context.abort(grpc.StatusCode.NOT_FOUND, "No health data at this time")
         return _row_to_health_proto(row)
-
-    # -- Fleet analytics ---------------------------------------------------
 
     async def GetFleetHealth(self, request, context):
         factory = get_session_factory()
@@ -216,8 +183,6 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
             telemetry_pb2.AlertFrequency(severity=sev, count=cnt) for sev, cnt in data.get("by_severity", {}).items()
         ]
         return telemetry_pb2.AlertFrequencyResponse(frequencies=freqs)
-
-    # -- Report-oriented queries -------------------------------------------
 
     async def GetSensorStats(self, request, context):
         factory = get_session_factory()
@@ -397,9 +362,6 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
         )
 
 
-# -- Protobuf converters (private) ----------------------------------------
-
-
 def _row_to_raw_proto(r: dict):
     return telemetry_pb2.TelemetryRawPoint(
         time=str(r.get("time") or r.get("timestamp", "")),
@@ -456,7 +418,7 @@ def _row_to_health_proto(r: dict):
 
 
 def _dict_to_health_proto(d: dict):
-    """Convert wire-decoded dict (from Redis cache) to protobuf."""
+    """Convert a wire-decoded Redis cache dict to protobuf."""
     factors = [
         telemetry_pb2.HealthFactor(
             sensor_type=f.get("sensor_type", ""),
@@ -481,10 +443,7 @@ def _dict_to_health_proto(d: dict):
 
 
 def _compute_health_from_readings(locomotive_id: str, rows: list[dict]):
-    """Fallback health computation when Redis cache is empty.
-
-    Simplified version of the processor's formula — uses default thresholds.
-    """
+    """Fallback health computation using default thresholds (mirrors processor)."""
     from shared.constants import DEFAULT_THRESHOLDS, HEALTH_WEIGHTS
 
     total_penalty = 0.0
@@ -497,7 +456,6 @@ def _compute_health_from_readings(locomotive_id: str, rows: list[dict]):
         w = HEALTH_WEIGHTS.get(sensor, 0.05)
         value = row["value"]
 
-        # Compute component score
         if lo <= value <= hi:
             mid = (lo + hi) / 2
             span = (hi - lo) / 2

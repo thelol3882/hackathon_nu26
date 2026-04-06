@@ -10,17 +10,12 @@ import {
 import { healthUpdated, healthReset } from '@/store/slices/healthSlice';
 import { alertReceived, alertsReset } from '@/store/slices/alertsSlice';
 
-/**
- * Connects to WS for a locomotive and dispatches envelope data
- * into the three Redux slices (telemetry, health, alerts).
- * Returns the connection status.
- */
+// Fans out WS envelopes into telemetry, health, and alerts slices.
 export function useWsDispatch(locomotiveId: string | null) {
     const path = locomotiveId ? `/ws/live/${locomotiveId}` : null;
     const { status, subscribe } = useWebSocket(path);
     const dispatch = useAppDispatch();
 
-    // Reset all slices when locomotive changes
     useEffect(() => {
         dispatch(telemetryReset());
         dispatch(healthReset());

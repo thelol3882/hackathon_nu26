@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_latest_readings(session: AsyncSession, locomotive_id: str) -> list[dict]:
-    """Latest sensor value per sensor — used for real-time health computation."""
+    """Latest value per sensor for real-time health computation."""
     result = await session.execute(
         text("""
             SELECT DISTINCT ON (sensor_type) sensor_type, value, unit, locomotive_type
@@ -31,7 +31,7 @@ async def get_latest_readings(session: AsyncSession, locomotive_id: str) -> list
 
 
 async def get_snapshot_at(session: AsyncSession, locomotive_id: str, at: datetime) -> dict | None:
-    """Health snapshot at or before a given time — for replay."""
+    """Health snapshot at or before a given time (used for replay)."""
     result = await session.execute(
         text("""
             SELECT score, category, top_factors, damage_penalty, calculated_at, locomotive_type
@@ -52,9 +52,6 @@ async def get_snapshot_at(session: AsyncSession, locomotive_id: str, at: datetim
         "calculated_at": row.calculated_at,
         "locomotive_type": row.locomotive_type,
     }
-
-
-# -- Report-oriented queries -----------------------------------------------
 
 
 async def query_fleet_health(session: AsyncSession, start: datetime, end: datetime) -> dict:

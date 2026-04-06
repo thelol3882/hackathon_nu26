@@ -1,4 +1,4 @@
-"""Prometheus metrics: per-service counters, histograms, and a /metrics endpoint."""
+"""Prometheus metrics: per-service counters, histograms, and /metrics endpoint."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from starlette.routing import Match
 
 
 def _get_path_template(request: Request) -> str:
-    """Resolve the route template (e.g. /telemetry/{loco_id}) instead of the concrete path."""
+    """Return the route template (e.g. /telemetry/{loco_id}) instead of the concrete path."""
     for route in request.app.routes:
         match, _ = route.matches(request.scope)
         if match == Match.FULL:
@@ -28,7 +28,7 @@ def _get_path_template(request: Request) -> str:
 
 registry = CollectorRegistry()
 
-# ── HTTP metrics ────────────────────────────────────────────────────────────
+# HTTP metrics
 http_requests_total = Counter(
     "http_requests_total",
     "Total HTTP requests",
@@ -51,7 +51,7 @@ http_requests_in_progress = Gauge(
     registry=registry,
 )
 
-# ── Business metrics (populated by services) ────────────────────────────────
+# Business metrics (populated by services)
 telemetry_ingested_total = Counter(
     "telemetry_ingested_total",
     "Total telemetry readings ingested",
@@ -92,7 +92,7 @@ reports_generated_total = Counter(
     registry=registry,
 )
 
-# ── Stream consumer metrics (DB Writer) ───────────────────────────────
+# Stream consumer metrics (DB Writer)
 stream_messages_consumed = Counter(
     "stream_messages_consumed_total",
     "Total messages consumed from Redis Streams",
@@ -121,7 +121,7 @@ stream_consumer_lag = Gauge(
     registry=registry,
 )
 
-# ── Fleet aggregator metrics (Analytics Service) ─────────────────────
+# Fleet aggregator metrics (Analytics Service)
 fleet_aggregator_size = Gauge(
     "fleet_aggregator_size",
     "Number of locomotives tracked by fleet aggregator",
@@ -149,7 +149,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         self.service_name = service_name
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Skip the /metrics endpoint itself
         if request.url.path == "/metrics":
             return await call_next(request)
 

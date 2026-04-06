@@ -14,7 +14,7 @@ export const locomotivesApi = baseApi.injectEndpoints({
                 params: { offset, limit, search, model },
             }),
             serializeQueryArgs({ queryArgs }) {
-                // Cache key excludes offset so paginated results merge into a single cache entry
+                // Exclude offset so paginated results merge into one cache entry.
                 const { search, model } = queryArgs ?? {};
                 return { search, model };
             },

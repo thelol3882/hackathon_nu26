@@ -1,38 +1,4 @@
-"""
-Reusable async gRPC client for the Analytics Service.
-
-HOW gRPC CHANNELS WORK:
-  A gRPC channel is like a connection pool. You create it once at startup,
-  and it manages HTTP/2 connections to the server automatically:
-  - Multiplexing: multiple RPC calls share one TCP connection
-  - Reconnection: auto-reconnects if the connection drops
-  - Load balancing: can distribute across multiple server instances
-
-  The Stub is a proxy object that exposes service methods as local functions.
-  Calling stub.GetTelemetryBucketed(request) sends the request over the
-  channel and returns the response — just like a local function call.
-
-USAGE IN OTHER SERVICES:
-  # In lifespan startup:
-  client = AnalyticsClient("analytics-service:50051")
-  await client.connect()
-  app.state.analytics = client
-
-  # In a route handler:
-  result = await client.get_telemetry_bucketed(
-      locomotive_id="...", start="2024-01-01T00:00:00", end="..."
-  )
-
-  # In lifespan shutdown:
-  await client.close()
-
-THIS PATTERN IS REUSABLE:
-  For any new gRPC service, copy this pattern:
-  1. Define .proto file
-  2. Generate code (proto/generate.sh)
-  3. Create a client wrapper like this one
-  4. Add connect/close to lifespan
-"""
+"""Async gRPC clients for Analytics Service and Report Service."""
 
 from __future__ import annotations
 
@@ -45,46 +11,23 @@ logger = get_logger(__name__)
 
 
 class AnalyticsClient:
-    """Async gRPC client for Analytics Service.
-
-    Wraps the generated stub with:
-    - Connection lifecycle management (connect/close)
-    - Conversion from protobuf messages to Python dicts
-
-    WHY WRAP THE STUB:
-      The raw stub returns protobuf objects. Most of our code works with
-      dicts and Pydantic models. This wrapper converts between them,
-      so the rest of the codebase doesn't need to know about protobuf.
-    """
+    """Async gRPC client for Analytics Service; converts protobuf -> dicts."""
 
     def __init__(self, target: str, *, timeout: float = 5.0):
-        """
-        Args:
-            target: gRPC server address, e.g. "analytics-service:50051".
-            timeout: Default timeout per RPC call in seconds.
-        """
         self._target = target
         self._timeout = timeout
         self._channel: grpc.aio.Channel | None = None
         self._stub: telemetry_pb2_grpc.AnalyticsServiceStub | None = None
 
     async def connect(self) -> None:
-        """Create gRPC channel and stub.
-
-        insecure_channel = no TLS. Fine for internal Docker network.
-        For production over public network, use secure_channel with certs.
-        """
+        # insecure_channel: no TLS, fine for internal Docker network.
         self._channel = grpc.aio.insecure_channel(
             self._target,
             options=[
-                # Send keepalive ping every 30s if idle
                 ("grpc.keepalive_time_ms", 30_000),
-                # Wait 10s for keepalive response
                 ("grpc.keepalive_timeout_ms", 10_000),
-                # Allow keepalive even with no active RPCs
                 ("grpc.keepalive_permit_without_calls", True),
-                # Max inbound message: 10 MB (default 4 MB).
-                # Telemetry responses with 1000+ points can exceed 4 MB.
+                # 10 MB (default 4 MB) — telemetry responses with 1000+ points can exceed 4 MB.
                 ("grpc.max_receive_message_length", 10 * 1024 * 1024),
             ],
         )
@@ -92,7 +35,6 @@ class AnalyticsClient:
         logger.info("gRPC client connected", target=self._target)
 
     async def close(self) -> None:
-        """Gracefully close the channel."""
         if self._channel:
             await self._channel.close()
             self._channel = None
@@ -101,15 +43,12 @@ class AnalyticsClient:
 
     @property
     def _s(self) -> telemetry_pb2_grpc.AnalyticsServiceStub:
-        """Return the stub, raising if not connected."""
         if self._stub is None:
             msg = "gRPC client not connected. Call connect() first."
             raise RuntimeError(msg)
         return self._stub
 
-    # ------------------------------------------------------------------
     # Telemetry
-    # ------------------------------------------------------------------
 
     async def get_telemetry_bucketed(
         self,
@@ -123,10 +62,7 @@ class AnalyticsClient:
         bucket_interval: str = "",
         max_points: int = 0,
     ) -> dict:
-        """Query bucketed telemetry with auto-resolution.
-
-        Returns dict: {points: list[dict], data_source: str, total_points: int}
-        """
+        """Query bucketed telemetry with auto-resolution."""
         resp = await self._s.GetTelemetryBucketed(
             telemetry_pb2.TelemetryBucketedRequest(
                 locomotive_id=locomotive_id,
@@ -146,9 +82,8 @@ class AnalyticsClient:
                     "bucket": p.bucket,
                     "locomotive_id": p.locomotive_id,
                     "sensor_type": p.sensor_type,
-                    # `is_gap` carries the True-null intent across the wire,
-                    # since proto3 doubles cannot be nullable. A real reading
-                    # of 0.0 stays 0.0; a missing reading becomes None here.
+                    # is_gap carries the null intent across the wire since
+                    # proto3 doubles can't be nullable (0.0 stays 0.0).
                     "avg_value": None if p.is_gap else p.avg_value,
                     "min_value": None if p.is_gap else p.min_value,
                     "max_value": None if p.is_gap else p.max_value,
@@ -192,9 +127,7 @@ class AnalyticsClient:
         )
         return [_raw_point_to_dict(p) for p in resp.points]
 
-    # ------------------------------------------------------------------
     # Alerts
-    # ------------------------------------------------------------------
 
     async def list_alerts(
         self,
@@ -239,9 +172,7 @@ class AnalyticsClient:
         )
         return _alert_to_dict(resp)
 
-    # ------------------------------------------------------------------
     # Health
-    # ------------------------------------------------------------------
 
     async def get_current_health(self, locomotive_id: str) -> dict:
         resp = await self._s.GetCurrentHealth(
@@ -257,9 +188,7 @@ class AnalyticsClient:
         )
         return _health_to_dict(resp)
 
-    # ------------------------------------------------------------------
     # Fleet analytics
-    # ------------------------------------------------------------------
 
     async def get_fleet_health(
         self,
@@ -303,9 +232,7 @@ class AnalyticsClient:
             for f in resp.frequencies
         ]
 
-    # ------------------------------------------------------------------
     # Report-oriented queries
-    # ------------------------------------------------------------------
 
     async def get_sensor_stats(self, *, locomotive_id: str = "", start: str = "", end: str = "") -> dict:
         resp = await self._s.GetSensorStats(
@@ -428,9 +355,7 @@ class AnalyticsClient:
         }
 
 
-# ------------------------------------------------------------------
-# Protobuf → dict converters (private)
-# ------------------------------------------------------------------
+# Protobuf -> dict converters
 
 
 def _raw_point_to_dict(p: telemetry_pb2.TelemetryRawPoint) -> dict:
@@ -485,16 +410,10 @@ def _health_to_dict(h: telemetry_pb2.HealthSnapshot) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Report Service client
-# ---------------------------------------------------------------------------
-
-
 class ReportClient:
-    """Async gRPC client for Report Service (read-only queries).
+    """Read-only gRPC client for Report Service (status/list/download).
 
-    API Gateway uses this to get report status, list reports, and download
-    completed reports.  Task submission goes through RabbitMQ.
+    Task submission goes through RabbitMQ, not this client.
     """
 
     def __init__(self, target: str, *, timeout: float = 10.0):
@@ -530,7 +449,7 @@ class ReportClient:
         return self._stub
 
     async def get_report(self, report_id: str) -> dict | None:
-        """Get a single report by ID.  Returns None if not found."""
+        """Return a single report or None if not found."""
         try:
             resp = await self._s.GetReport(
                 report_pb2.GetReportRequest(report_id=report_id),
@@ -550,7 +469,7 @@ class ReportClient:
         offset: int = 0,
         limit: int = 20,
     ) -> dict:
-        """List reports with optional filters.  Returns {reports: [...], total: int}."""
+        """List reports with optional filters; returns {reports, total}."""
         resp = await self._s.ListReports(
             report_pb2.ListReportsRequest(
                 locomotive_id=locomotive_id,
@@ -566,11 +485,7 @@ class ReportClient:
         }
 
     async def download_report(self, report_id: str) -> dict:
-        """Download a completed report as formatted bytes.
-
-        Returns {format, content (bytes), filename, content_type}.
-        Raises grpc.aio.AioRpcError on NOT_FOUND or FAILED_PRECONDITION.
-        """
+        """Download a completed report; returns {format, content, filename, content_type}."""
         resp = await self._s.DownloadReport(
             report_pb2.DownloadReportRequest(report_id=report_id),
             timeout=self._timeout,
@@ -584,7 +499,6 @@ class ReportClient:
 
 
 def _report_entry_to_dict(entry: report_pb2.ReportEntry) -> dict:
-    """Convert a protobuf ReportEntry to a Python dict."""
     import json
 
     data = None

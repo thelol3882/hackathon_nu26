@@ -10,11 +10,9 @@ class ReportSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    # --- Application ---
     app_name: str = "locomotive-report-service"
     debug: bool = False
 
-    # --- PostgreSQL (for generated_reports table only) ---
     db_host: str = "postgres"
     db_port: int = 5432
     db_user: str = "locomotive_app"
@@ -27,19 +25,15 @@ class ReportSettings(BaseSettings):
     def database_url(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
-    # --- Analytics Service (gRPC) ---
-    # Telemetry, alert, and health data comes via gRPC.
-    # Report Service no longer connects to TimescaleDB directly.
+    # Telemetry, alerts, and health data are fetched from Analytics Service
+    # via gRPC; Report Service doesn't talk to TimescaleDB directly.
     analytics_grpc_target: str = "analytics-service:50051"
-    analytics_grpc_timeout: float = 30.0  # Reports can be heavy — longer timeout
+    analytics_grpc_timeout: float = 30.0  # generous: heavy reports can take a while
 
-    # --- gRPC server (report queries from API Gateway) ---
     grpc_port: int = 50052
 
-    # --- RabbitMQ ---
     rabbitmq_url: str = "amqp://locomotive:changeme@rabbitmq:5672/"
 
-    # --- Domain ---
     report_retention_days: int = 90
 
 

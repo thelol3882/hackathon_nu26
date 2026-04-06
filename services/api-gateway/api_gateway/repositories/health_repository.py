@@ -1,9 +1,4 @@
-"""Health config repository — PostgreSQL only.
-
-Manages threshold and weight configuration in PostgreSQL.
-Telemetry queries (get_latest_readings, get_snapshot_at) have moved
-to Analytics Service.
-"""
+"""Health config repository (thresholds and weights in PostgreSQL)."""
 
 from __future__ import annotations
 

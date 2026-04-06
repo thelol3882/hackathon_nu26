@@ -12,15 +12,8 @@ function getWsBaseUrl(): string {
 
 const WS_BASE_URL = getWsBaseUrl();
 
-/**
- * Fetches a one-time WS ticket via RTK Query.
- *
- * Uses store.dispatch(initiate()) so the JWT Authorization header
- * is injected automatically by baseApi.prepareHeaders — same as
- * every other API call in the app.
- *
- * Called on every connect/reconnect because tickets are single-use.
- */
+// Tickets are single-use, so called on every connect/reconnect.
+// Uses initiate() to get the JWT header injected by baseApi.prepareHeaders.
 async function fetchTicket(): Promise<string | null> {
     try {
         const result = await store
@@ -32,8 +25,7 @@ async function fetchTicket(): Promise<string | null> {
     }
 }
 
-/** Shared managers keyed by path.  Ref-counted so the socket is
- *  closed only when the last consumer unmounts. */
+// Ref-counted shared managers: socket closes only when the last consumer unmounts.
 const sharedManagers = new Map<string, { manager: WebSocketManager; refCount: number }>();
 
 function acquireManager(path: string, onStatusChange: (s: WsStatus) => void): WebSocketManager {

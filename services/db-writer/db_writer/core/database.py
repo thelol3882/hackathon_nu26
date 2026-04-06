@@ -1,13 +1,6 @@
-"""Database pool for DB Writer.
-
-The writer service does one thing: INSERT. It talks to TimescaleDB via a
-raw asyncpg connection pool (no SQLAlchemy ORM) because the hot path uses
-``Connection.copy_records_to_table`` which is not exposed by SQLAlchemy.
-
-Schema management (tables, hypertables, continuous aggregates,
-retention/compression policies) is owned by Analytics Service and applied
-via Alembic migrations. The writer only creates its own per-replica
-UNLOGGED staging tables at startup (see main.py).
+"""Raw asyncpg pool for DB Writer (uses copy_records_to_table on the hot path).
+Schema is owned by Analytics Service via Alembic; writer only creates its own
+per-replica UNLOGGED staging tables at startup.
 """
 
 from __future__ import annotations

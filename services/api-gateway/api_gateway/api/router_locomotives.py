@@ -48,11 +48,7 @@ async def get_locomotive(locomotive_id: str, db: AppSession):
 
 @router.get("/{locomotive_id}/health", response_model=HealthIndex)
 async def get_locomotive_health(locomotive_id: str, analytics: Analytics):
-    """Get the current health index for a locomotive.
-
-    Queries Analytics Service (gRPC) which reads from Redis cache
-    or falls back to TimescaleDB.
-    """
+    """Get the current health index for a locomotive."""
     try:
         data = await analytics.get_current_health(locomotive_id)
     except Exception as exc:

@@ -18,7 +18,7 @@ def calculate_fuel_rate(
     fuel_level_curr: float,
     elapsed_seconds: float,
 ) -> float:
-    """Calculate fuel consumption rate in %/hour."""
+    """Fuel consumption rate in %/hour."""
     if elapsed_seconds <= 0:
         return 0.0
     delta = fuel_level_prev - fuel_level_curr

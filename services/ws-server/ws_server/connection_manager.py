@@ -1,9 +1,7 @@
-"""Scalable WebSocket connection manager with fan-out and backpressure.
+"""WebSocket connection manager with Redis pub/sub fan-out and backpressure.
 
-One Redis pub/sub subscription per channel is shared across all WebSocket
-clients subscribed to that channel.  Each client gets its own bounded
-asyncio.Queue so a slow consumer never blocks the Redis listener or
-other clients.
+One Redis subscription per channel is shared across its subscribers; each
+client has a bounded asyncio.Queue so slow consumers can't block others.
 """
 
 from __future__ import annotations
@@ -39,22 +37,19 @@ _RECONNECT_MAX = 30.0
 
 @dataclass
 class _ClientSlot:
-    """Per-client state inside a ChannelRelay."""
-
     queue: asyncio.Queue[bytes] = field(default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAX))
     sender_task: asyncio.Task | None = None
-    filter_loco_id: str | None = None  # if set, only forward messages matching this loco
+    filter_loco_id: str | None = None  # if set, only forward messages for this loco
 
 
 @dataclass
 class _WsState:
-    """Per-WebSocket heartbeat state."""
-
-    pong_received: bool = True  # starts True so first ping doesn't immediately kill
+    # Starts True so the first heartbeat doesn't immediately evict the client.
+    pong_received: bool = True
 
 
 class _ChannelRelay:
-    """Manages a single Redis pub/sub channel shared by N WebSocket clients."""
+    """One Redis pub/sub channel, fanned out to N WebSocket clients."""
 
     def __init__(self, channel: str, redis_client: redis.Redis, *, envelope_type: str | None = None) -> None:
         self.channel = channel
@@ -89,7 +84,7 @@ class _ChannelRelay:
                 self._listener_task = asyncio.create_task(self._listener_loop(), name=f"redis-listener-{self.channel}")
 
     async def remove_client(self, ws: WebSocket) -> int:
-        """Remove client, return remaining count."""
+        """Remove a client and return the remaining count."""
         async with self._lock:
             ws_id = id(ws)
             slot = self._clients.pop(ws_id, None)
@@ -115,10 +110,8 @@ class _ChannelRelay:
             self._clients.clear()
             self._ws_map.clear()
 
-    # --- internal loops ---
-
     async def _listener_loop(self) -> None:
-        """Subscribe to Redis and distribute messages to client queues."""
+        """Subscribe to Redis and fan messages out to per-client queues."""
         backoff = _RECONNECT_BASE
         while True:
             pubsub = self._redis.pubsub()
@@ -145,7 +138,7 @@ class _ChannelRelay:
                                 msg_loco = str(parsed_msg.get("locomotive_id", ""))
                                 if msg_loco != slot.filter_loco_id:
                                     continue
-                            # backpressure: drop oldest if full
+                            # Backpressure: drop the oldest frame when the queue is full.
                             if slot.queue.full():
                                 try:
                                     slot.queue.get_nowait()
@@ -175,7 +168,6 @@ class _ChannelRelay:
 
     @staticmethod
     async def _sender_loop(ws: WebSocket, queue: asyncio.Queue[bytes]) -> None:
-        """Read from the client's queue and send over WebSocket."""
         try:
             while True:
                 data = await queue.get()
@@ -187,7 +179,7 @@ class _ChannelRelay:
 
 
 class ConnectionManager:
-    """Top-level manager: tracks all connections and channel relays."""
+    """Tracks all WebSocket connections and their channel relays."""
 
     def __init__(self, redis_client: redis.Redis, max_connections: int = 500) -> None:
         self._redis = redis_client
@@ -207,7 +199,7 @@ class ConnectionManager:
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="ws-heartbeat")
 
     async def accept(self, ws: WebSocket) -> bool:
-        """Accept a WebSocket connection. Returns False if over limit."""
+        """Accept a WebSocket; returns False when over the connection limit."""
         async with self._lock:
             if len(self._connections) >= self._max_connections:
                 logger.warning(
@@ -238,7 +230,7 @@ class ConnectionManager:
         filter_loco_id: str | None = None,
         envelope_type: str | None = None,
     ) -> None:
-        """Subscribe a client to a Redis channel (shared relay)."""
+        """Subscribe a client to a Redis channel via a shared relay."""
         async with self._lock:
             ws_id = id(ws)
             if channel not in self._relays:
@@ -248,14 +240,13 @@ class ConnectionManager:
         await self._relays[channel].add_client(ws, filter_loco_id=filter_loco_id)
 
     def mark_pong(self, ws: WebSocket) -> None:
-        """Mark that a pong was received from this client."""
         ws_id = id(ws)
         state = self._ws_states.get(ws_id)
         if state:
             state.pong_received = True
 
     async def disconnect(self, ws: WebSocket) -> None:
-        """Remove a client from all channels and tracking."""
+        """Remove a client from every channel and close the socket."""
         async with self._lock:
             ws_id = id(ws)
             channels = self._connections.pop(ws_id, set())
@@ -276,7 +267,6 @@ class ConnectionManager:
             active=self.active_connections,
         )
 
-        # best-effort close
         try:
             if ws.client_state == WebSocketState.CONNECTED:
                 await ws.close()
@@ -284,7 +274,7 @@ class ConnectionManager:
             pass
 
     async def shutdown(self) -> None:
-        """Graceful shutdown: close all connections and relays."""
+        """Close all connections and relays."""
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
             self._heartbeat_task = None
@@ -307,7 +297,7 @@ class ConnectionManager:
                 pass
 
     async def _heartbeat_loop(self) -> None:
-        """Periodically ping all connections, remove stale ones that didn't pong."""
+        """Ping all clients; evict any that didn't pong since the last round."""
         while True:
             try:
                 await asyncio.sleep(_HEARTBEAT_INTERVAL)

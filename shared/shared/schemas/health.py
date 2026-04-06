@@ -7,23 +7,23 @@ from shared.enums import SensorType
 
 
 class ComponentHealth(BaseModel):
-    """Used by report-service for historical batch scoring (0.0–1.0)."""
+    """Historical batch score (0.0–1.0) used by report-service."""
 
     sensor_type: SensorType
-    score: float  # 0.0 – 1.0
+    score: float
     latest_value: float
     unit: str
 
 
 class HealthFactor(BaseModel):
-    """Top-N contributing factor in real-time processor HI calculation."""
+    """Top-N contributing factor in real-time HI calculation."""
 
     sensor_type: str
     value: float
     unit: str
-    penalty: float  # raw penalty contribution
+    penalty: float
     contribution_pct: float  # share of total penalty (0–100 %)
-    deviation_pct: float  # how far from nominal toward critical (0–100 %)
+    deviation_pct: float  # distance from nominal toward critical (0–100 %)
 
 
 class HealthIndex(BaseModel):
@@ -31,15 +31,15 @@ class HealthIndex(BaseModel):
 
     locomotive_id: UUID
     locomotive_type: str
-    overall_score: float  # 0–100; 100 = perfect
-    category: str  # "Норма" | "Внимание" | "Критично"
+    overall_score: float  # 100 = perfect
+    category: str  # "Норма" | "Внимание" | "Критично" (Normal | Warning | Critical)
     top_factors: list[HealthFactor]  # up to 5 worst sensors
-    damage_penalty: float  # accumulated aging penalty (Montsinger)
+    damage_penalty: float  # accumulated Montsinger aging penalty
     calculated_at: datetime
 
 
 class HealthSnapshot(BaseModel):
-    """Lightweight snapshot for streaming (no factor detail)."""
+    """Lightweight streaming snapshot (no factor detail)."""
 
     locomotive_id: UUID
     overall_score: float

@@ -1,9 +1,4 @@
-"""Lifespan is a no-op — infrastructure init is handled in main.py.
-
-This module exists only because existing code may import from it.
-The actual startup/shutdown logic lives in main.py which orchestrates
-gRPC + HTTP + RabbitMQ concurrently.
-"""
+"""No-op lifespan shim; real startup/shutdown lives in main.py."""
 
 from contextlib import asynccontextmanager
 

@@ -9,8 +9,6 @@ import pytest
 from report_service.services.report_generator import _summarize_alerts, generate_report_data
 from shared.schemas.report import DateRange, ReportFormat, ReportJobMessage
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 
 def _make_job(locomotive_id: str | None = "00000000-0000-0000-0000-000000000001") -> ReportJobMessage:
     return ReportJobMessage(
@@ -90,7 +88,6 @@ def _build_mock_analytics(
     fleet_alerts=None,
     worst_locos=None,
 ):
-    """Build a mock AnalyticsClient with pre-configured return values."""
     client = AsyncMock()
     client.get_sensor_stats = AsyncMock(return_value={"stats": sensor_stats or [], "locomotive_type": locomotive_type})
     client.get_health_trend = AsyncMock(return_value=health_trend or [])
@@ -103,13 +100,9 @@ def _build_mock_analytics(
     return client
 
 
-# ── Happy-path tests ──────────────────────────────────────────────────────────
-
-
 class TestGenerateReportData:
     @pytest.mark.asyncio
     async def test_generate_complete(self):
-        """Full generation with data in all sections produces expected keys."""
         analytics = _build_mock_analytics(
             sensor_stats=[_make_sensor_stat()],
             health_trend=[_make_health_trend_point()],
@@ -137,7 +130,6 @@ class TestGenerateReportData:
 
     @pytest.mark.asyncio
     async def test_with_locomotive_id(self):
-        """When locomotive_id is set, the result contains it as a string."""
         loco_id = "00000000-0000-0000-0000-000000000001"
         analytics = _build_mock_analytics(latest_health=_make_latest_health())
         result = await generate_report_data(analytics, _make_job(locomotive_id=loco_id))
@@ -145,7 +137,6 @@ class TestGenerateReportData:
 
     @pytest.mark.asyncio
     async def test_without_locomotive_id(self):
-        """When locomotive_id is None, result locomotive_id is None."""
         analytics = _build_mock_analytics(
             fleet_health=[
                 {
@@ -164,7 +155,6 @@ class TestGenerateReportData:
 
     @pytest.mark.asyncio
     async def test_alert_summary_counts_by_severity(self):
-        """Alert summary groups by severity correctly."""
         alerts = [
             _make_alert(severity="warning"),
             _make_alert(severity="warning"),
@@ -182,7 +172,6 @@ class TestGenerateReportData:
 
     @pytest.mark.asyncio
     async def test_no_telemetry(self):
-        """All queries return empty -> sections are empty lists/dicts."""
         analytics = _build_mock_analytics()
         result = await generate_report_data(analytics, _make_job())
         assert result["sensor_stats"] == []
@@ -191,15 +180,11 @@ class TestGenerateReportData:
 
     @pytest.mark.asyncio
     async def test_generated_at_present(self):
-        """generated_at is a recent ISO datetime string."""
         analytics = _build_mock_analytics(latest_health=_make_latest_health())
         before = datetime.now(UTC)
         result = await generate_report_data(analytics, _make_job())
         generated = datetime.fromisoformat(result["generated_at"])
         assert generated >= before
-
-
-# ── _summarize_alerts unit tests ──────────────────────────────────────────────
 
 
 class TestSummarizeAlerts:

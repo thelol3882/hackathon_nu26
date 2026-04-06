@@ -1,31 +1,22 @@
-"""
-Ingestion service: flatten a TelemetryReading into plain dicts,
-applying EMA filtering before persistence.
+"""Flatten a TelemetryReading into rows after EMA filtering.
 
-HF readings (sample_rate_hz >= 10) are de-duplicated for DB storage:
-a row is only written when the filtered value changes by more than a noise
-floor, preventing TimescaleDB from being flooded at 50 Hz.
+High-frequency readings (>=10 Hz) are dedup'd against a noise floor to keep
+TimescaleDB from being flooded at 50 Hz.
 """
 
 from processor.services.filter_service import ema_filter
 from shared.schemas.telemetry import TelemetryReading
 
-# Minimum relative change required to persist a high-frequency reading.
-_HF_NOISE_FLOOR = 0.005  # 0.5 %
+# Minimum relative change required to persist an HF reading.
+_HF_NOISE_FLOOR = 0.005
 
 _last_persisted: dict[tuple[str, str], float] = {}
 
 
 def flatten_reading(reading: TelemetryReading) -> list[dict]:
-    """
-    Convert a TelemetryReading into plain dicts ready for stream publishing
-    and eventual DB insertion.
+    """Flatten reading to rows and mutate sensor.value to the EMA-filtered signal.
 
-    Side-effect: each SensorPayload.value is replaced with its EMA-filtered
-    counterpart so that downstream callers (health_service, alert_evaluator)
-    automatically operate on the clean signal.
-
-    Returns only the rows that should be persisted (HF dedup applied).
+    Returned rows exclude HF readings suppressed by the noise-floor dedup.
     """
     loco_id = str(reading.locomotive_id)
     is_hf = reading.sample_rate_hz >= 10.0
@@ -37,7 +28,7 @@ def flatten_reading(reading: TelemetryReading) -> list[dict]:
         raw_value = sensor.value
         filtered = ema_filter(loco_id, sensor_key, raw_value)
 
-        # Mutate payload so downstream services receive the filtered signal.
+        # Downstream services read the filtered signal through this mutation.
         sensor.value = filtered
 
         if is_hf:
@@ -46,7 +37,7 @@ def flatten_reading(reading: TelemetryReading) -> list[dict]:
             if last is not None:
                 relative_change = abs(filtered - last) / (abs(last) + 1e-9)
                 if relative_change < _HF_NOISE_FLOOR:
-                    continue  # skip DB write — value hasn't moved enough
+                    continue
             _last_persisted[dedup_key] = filtered
 
         rows.append(

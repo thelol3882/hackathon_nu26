@@ -1,48 +1,17 @@
-"""
-DB Writer stream consumer — reads from Redis Streams and bulk-loads into
-TimescaleDB via asyncpg COPY through per-worker UNLOGGED staging tables.
+"""Reader + worker-pool pipeline that bulk-loads a Redis Stream into TimescaleDB.
 
-ARCHITECTURE:
+One reader drains XREADGROUP and pushes decoded batches onto a bounded queue;
+N workers each own one asyncpg connection and COPY into a per-worker UNLOGGED
+staging table before INSERT ... SELECT ON CONFLICT DO NOTHING into the target.
 
-                                       ┌──────────┐
-                                       │ worker 0 │──┐
-  ┌──────────────┐  asyncio.Queue      └──────────┘  │
-  │  reader task │─(batch)──▶ bounded  ┌──────────┐  │─▶ XACK (per batch)
-  │  XREADGROUP  │                     │ worker 1 │──┤
-  └──────────────┘                     └──────────┘  │
-                                       ┌──────────┐  │
-                                       │ worker 2 │──┘
-                                       └──────────┘
+Reliability:
+  - XACK happens only after the write transaction commits; crashes leave
+    messages in the PEL and are recovered via XREADGROUP id='0' on restart.
+  - Each transaction TRUNCATEs its staging table first to drop leftovers.
+  - ON CONFLICT DO NOTHING absorbs at-least-once redelivery.
 
-One ``reader`` coroutine drains XREADGROUP and pushes decoded
-``(message_ids, rows)`` batches into a bounded queue. N ``worker``
-coroutines concurrently COPY-load batches into per-worker staging tables,
-then ``INSERT ... SELECT ... ON CONFLICT DO NOTHING`` into the target, and
-finally XACK the message_ids. Workers own one asyncpg connection each, so
-throughput scales linearly with the worker count (bounded by the pool and
-TimescaleDB write capacity).
-
-RELIABILITY GUARANTEES:
-
-  1. Messages are XACK'd only AFTER the COPY + INSERT SELECT transaction
-     commits. A crash mid-batch leaves messages in the pending entries
-     list (PEL); on restart the reader drains the PEL via XREADGROUP id='0'
-     before switching to new messages.
-
-  2. TRUNCATE at the start of every write transaction clears any leftover
-     rows from a previous crashed transaction on that staging table.
-
-  3. ON CONFLICT DO NOTHING on the target INSERT SELECT makes re-delivery
-     idempotent — the at-least-once semantic of Redis Streams is safely
-     absorbed without duplicating rows.
-
-WHY STAGING TABLES:
-
-  ``copy_records_to_table`` has no ON CONFLICT clause; COPY is all-or-
-  nothing. Staging decouples the fast bulk load (COPY into an unlogged
-  table with no indexes or PK) from the idempotency check (INSERT SELECT
-  into the target). The staging tables are per-(replica, stream, worker)
-  so concurrent workers don't serialize on the TRUNCATE lock.
+Staging tables exist because copy_records_to_table has no ON CONFLICT; they're
+per (replica, stream, worker) so workers don't serialize on the TRUNCATE lock.
 """
 
 from __future__ import annotations
@@ -72,26 +41,14 @@ from shared.wire import decode as wire_decode
 logger = get_logger(__name__)
 
 
-# ── Row adapter cache ────────────────────────────────────────────────
-#
-# For each ORM model we compute (once, at first use):
-#   * column_names:  tuple of column names in the target's physical order
-#   * row_to_tuple:  callable(dict) -> tuple that produces a row in the
-#                    same order, applying conversions:
-#                      - str → datetime for timestamp columns
-#                      - str → uuid.UUID for UUID columns
-#                      - dict/list → json str for JSONB columns
-#
-# asyncpg's ``copy_records_to_table`` expects a sequence of tuples (not
-# dicts) and handles native Python datetime/UUID/etc. The JSONB conversion
-# is required because asyncpg's default JSONB codec is "text" — it expects
-# a pre-serialized JSON string.
-
+# Per-model cache: (column_names, dict->tuple converter). Tuples are required
+# by asyncpg.copy_records_to_table; JSONB must be pre-serialized to a string
+# because asyncpg's default JSONB codec is text.
 _ADAPTER_CACHE: dict[type, tuple[tuple[str, ...], Callable[[dict], tuple]]] = {}
 
 
 def _build_adapter(model_class) -> tuple[tuple[str, ...], Callable[[dict], tuple]]:
-    """Inspect the ORM model once and produce (columns, row_to_tuple)."""
+    """Inspect ORM model once, return (columns, row_to_tuple)."""
     columns: list[str] = []
     converters: list[Callable[[Any], Any]] = []
 
@@ -144,13 +101,8 @@ def _get_adapter(model_class) -> tuple[tuple[str, ...], Callable[[dict], tuple]]
     return cached
 
 
-# ── Stream consumer ──────────────────────────────────────────────────
-
-
 class StreamConsumer:
-    """Consumes messages from one Redis Stream and writes to TimescaleDB
-    using a reader + worker-pool pipeline with COPY-based bulk loads.
-    """
+    """Consumes one Redis Stream and bulk-writes to TimescaleDB via COPY+staging."""
 
     def __init__(
         self,
@@ -181,8 +133,6 @@ class StreamConsumer:
         self._running = True
         self._worker_count = len(self._staging_tables)
 
-    # ── Entry point ─────────────────────────────────────────────────
-
     async def start(self) -> None:
         """Run the reader and N worker coroutines concurrently."""
         await ensure_consumer_group(self._redis, self._stream, DB_WRITER_GROUP)
@@ -204,7 +154,6 @@ class StreamConsumer:
         except asyncio.CancelledError:
             pass
         finally:
-            # Signal workers to drain and exit
             for _ in workers:
                 await self._queue.put(None)
             await asyncio.gather(*workers, return_exceptions=True)
@@ -212,11 +161,8 @@ class StreamConsumer:
     def stop(self) -> None:
         self._running = False
 
-    # ── Reader ──────────────────────────────────────────────────────
-
     async def _reader_loop(self) -> None:
         """Drain pending-on-restart, then pump new messages into the queue."""
-        # First: recover anything delivered-but-unacked from a prior crash.
         await self._drain_pending()
 
         while self._running:
@@ -254,11 +200,7 @@ class StreamConsumer:
             await self._enqueue_entries(entries)
 
     async def _enqueue_entries(self, entries: list) -> None:
-        """Decode a batch of stream entries and enqueue for workers.
-
-        Malformed messages are ACK'd directly (no queue) to prevent a poison
-        pill from blocking the pipeline.
-        """
+        """Decode and enqueue a batch; malformed messages are ACKed to avoid poison pills."""
         all_rows: list[dict] = []
         message_ids: list[bytes] = []
         poison_ids: list[bytes] = []
@@ -288,12 +230,8 @@ class StreamConsumer:
         if not message_ids:
             return
 
-        # Hand the decoded batch to a worker. If the queue is full, this
-        # applies backpressure on the reader — exactly what we want when
-        # workers can't keep up: pending grows in Redis, not in process RAM.
+        # A full queue backpressures the reader so pending grows in Redis, not RAM.
         await self._queue.put((message_ids, all_rows))
-
-    # ── Worker ──────────────────────────────────────────────────────
 
     async def _worker_loop(self, staging_table: str) -> None:
         """Dequeue batches and write them through a COPY staging pipeline."""
@@ -316,19 +254,12 @@ class StreamConsumer:
                     staging=staging_table,
                     rows=len(rows),
                 )
-                # Do NOT ack — rows stay in PEL and will be picked up by
-                # _drain_pending on next restart.
+                # Skip XACK: rows stay in PEL and will be replayed by _drain_pending.
             finally:
                 self._queue.task_done()
 
     async def _write_batch(self, staging_table: str, rows: list[dict]) -> None:
-        """Write a batch of rows in one or more flush transactions.
-
-        Big batches are split into ``rows_per_flush`` chunks so that each
-        individual transaction stays short and doesn't hold locks for too
-        long. All sub-flushes must succeed before the caller ACKs.
-        """
-        # Convert once to tuples in column order (applies coercion).
+        """Write rows in rows_per_flush chunks; all chunks must commit before ACK."""
         records = [self._row_to_tuple(r) for r in rows]
 
         total = len(records)
@@ -338,22 +269,14 @@ class StreamConsumer:
             for start in range(0, total, chunk_size):
                 chunk = records[start : start + chunk_size]
                 async with conn.transaction():
-                    # Clear leftovers from a prior crashed transaction.
                     await conn.execute(f'TRUNCATE TABLE "{staging_table}"')
-                    # Fast bulk load — no per-row parameter encoding.
                     await conn.copy_records_to_table(
                         staging_table,
                         records=chunk,
                         columns=self._columns,
                     )
-                    # Move from staging to target with idempotent conflict
-                    # handling. Named column list to be robust to future
-                    # schema extensions.
-                    #
-                    # The f-string interpolations below (`self._target_table`,
-                    # `self._columns`, `staging_table`) are all internal
-                    # identifiers built from server-side ORM metadata, not
-                    # request input — so this is not an SQL-injection vector.
+                    # Target/staging/column names come from ORM metadata,
+                    # not request input, so interpolation is safe here.
                     col_list = ", ".join(f'"{c}"' for c in self._columns)
                     insert_sql = f'INSERT INTO "{self._target_table}" ({col_list}) SELECT {col_list} FROM "{staging_table}" ON CONFLICT DO NOTHING'  # noqa: S608, E501
                     await conn.execute(insert_sql)
@@ -365,8 +288,6 @@ class StreamConsumer:
             staging=staging_table,
             rows=total,
         )
-
-    # ── Metrics ─────────────────────────────────────────────────────
 
     async def update_lag(self) -> None:
         """Query stream pending count and update the Prometheus gauge."""
@@ -380,4 +301,5 @@ class StreamConsumer:
                 pending_count = 0
             stream_consumer_lag.labels(stream=self._stream).set(pending_count)
         except Exception:
-            pass  # best-effort metric
+            # Best-effort metric.
+            pass

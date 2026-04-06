@@ -1,11 +1,6 @@
-"""Background task: cache health indices from Redis pub/sub.
+"""Cache latest HealthIndex per locomotive from health:live:* pub/sub.
 
-The processor publishes real-time HealthIndex snapshots to Redis pub/sub
-channels like health:live:{locomotive_id}. This task subscribes and caches
-the latest value per locomotive in Redis with a short TTL.
-
-When GetCurrentHealth is called, the servicer checks this cache first
-before falling back to a TimescaleDB query.
+GetCurrentHealth checks this short-TTL cache before falling back to TimescaleDB.
 """
 
 from __future__ import annotations
@@ -20,7 +15,7 @@ from shared.observability import get_logger
 logger = get_logger(__name__)
 
 _HEALTH_CACHE_PREFIX = "health:cache"
-_HEALTH_CACHE_TTL = 60  # seconds
+_HEALTH_CACHE_TTL = 60
 
 
 async def get_cached_health(redis_raw: aioredis.Redis, loco_id: str) -> bytes | None:
@@ -28,7 +23,7 @@ async def get_cached_health(redis_raw: aioredis.Redis, loco_id: str) -> bytes | 
 
 
 async def run_health_cache(redis_raw: aioredis.Redis) -> None:
-    """Subscribe to health:live:* and cache latest HealthIndex per locomotive."""
+    """Subscribe to health:live:* and cache the latest HealthIndex per locomotive."""
     backoff = 1.0
     while True:
         pubsub = redis_raw.pubsub()

@@ -9,7 +9,6 @@ from shared.grpc_client import AnalyticsClient
 
 Settings = Annotated[ReportSettings, Depends(get_settings)]
 
-# PostgreSQL — for generated_reports table
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 
@@ -17,5 +16,4 @@ def _get_analytics(request: Request) -> AnalyticsClient:
     return request.app.state.analytics
 
 
-# gRPC client — telemetry, alerts, health queries via Analytics Service
 Analytics = Annotated[AnalyticsClient, Depends(_get_analytics)]

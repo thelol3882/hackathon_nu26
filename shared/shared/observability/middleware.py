@@ -1,4 +1,4 @@
-"""Request context middleware — enriches every log with HTTP metadata."""
+"""Request context middleware: enriches every log with HTTP metadata."""
 
 import time
 
@@ -12,12 +12,8 @@ from shared.utils import generate_id
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Binds request metadata to structlog context for every log line.
-
-    Fields bound:
-        request_id, client_ip, user_agent, http_method, http_path, service
-    Also logs an access summary after each request (unless access_log_enabled=False).
-    """
+    """Binds request_id/client_ip/user_agent/method/path/service to structlog
+    context and logs an access summary per request."""
 
     def __init__(self, app, service_name: str = "unknown", access_log_enabled: bool = True) -> None:
         super().__init__(app)
@@ -31,7 +27,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
         request_id = request.headers.get("X-Request-ID", str(generate_id()))
 
-        # Extract client IP (respect reverse proxy headers)
+        # Respect reverse-proxy forwarded IP
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             client_ip = forwarded.split(",")[0].strip()

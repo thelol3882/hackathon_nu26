@@ -1,8 +1,6 @@
-"""gRPC servicer for report queries.
+"""gRPC servicer for report queries (status/list/download).
 
-API Gateway calls these RPCs to get report status, list reports, and
-download completed reports.  Task submission goes through RabbitMQ,
-not gRPC.
+Job submission goes through RabbitMQ, not gRPC.
 """
 
 from __future__ import annotations
@@ -24,7 +22,6 @@ logger = get_logger(__name__)
 
 
 def _entity_to_proto(entity, *, include_data: bool = False) -> report_pb2.ReportEntry:
-    """Convert a Report ORM entity to a protobuf ReportEntry."""
     data = b""
     if include_data and entity.status == ReportStatus.COMPLETED and entity.data:
         data = json.dumps(entity.data, default=str).encode("utf-8")
@@ -46,11 +43,11 @@ class ReportServicer(report_pb2_grpc.ReportServiceServicer):
             entity = await report_repository.find_by_id(session, request.report_id)
             if entity is None:
                 await context.abort(grpc.StatusCode.NOT_FOUND, f"Report {request.report_id} not found")
-                return None  # unreachable, but satisfies type checker
+                return None
             return report_pb2.GetReportResponse(
                 report=_entity_to_proto(entity, include_data=True),
             )
-        return None  # explicit return for async generator exhaustion
+        return None
 
     async def ListReports(self, request, context):
         async for session in get_db_session():

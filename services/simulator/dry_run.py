@@ -1,8 +1,6 @@
-"""Dry-run: spin up a few locomotives by hand and print their telemetry.
+"""Dry-run: hand-roll a couple of locomotives and print their telemetry.
 
-Useful for inspecting sensor outputs without bringing up the whole
-docker stack. Mirrors what the operator would do via the dashboard,
-just from a Python script.
+Lets you inspect sensor output without booting the docker stack.
 """
 
 import json
@@ -30,13 +28,12 @@ SEED = 42
 def main() -> None:
     random.seed(SEED)
 
-    # Hand-built tiny fleet — one of each type, two scenarios so the
-    # generators get exercised.
+    # One of each loco type, two scenarios to exercise both generators.
     fleet: list[LocomotiveState] = [
         LocomotiveState(
             id=uuid.uuid4(),
             loco_type=LocomotiveType.TE33A,
-            route=ROUTES[0],  # Almaty-Astana
+            route=ROUTES[0],
             name="TE33A demo",
             mode=LocomotiveMode.CRUISING,
             scenario=LocomotiveScenario.NORMAL,
@@ -46,7 +43,7 @@ def main() -> None:
         LocomotiveState(
             id=uuid.uuid4(),
             loco_type=LocomotiveType.KZ8A,
-            route=ROUTES[3],  # Almaty-Shymkent
+            route=ROUTES[3],
             name="KZ8A demo",
             mode=LocomotiveMode.CRUISING,
             scenario=LocomotiveScenario.DEGRADATION,

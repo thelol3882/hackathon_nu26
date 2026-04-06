@@ -1,17 +1,4 @@
-"""HTTP proxy to the internal simulator service.
-
-The simulator runs on the private docker network and exposes its
-locomotive CRUD endpoints without authentication. We surface them to
-the dashboard through this gateway router so that:
-
-  * the browser only ever talks to the gateway (one origin, one auth);
-  * the simulator's flat HTTP shape doesn't leak into client code;
-  * future hardening (rate limits, RBAC) can be added in one place.
-
-The proxy is intentionally thin — it forwards JSON bodies and status
-codes verbatim. Per the user's instruction this is a pet-project
-internal tool, so no admin role gate, just plain authenticated user.
-"""
+"""Thin HTTP proxy to the internal simulator service."""
 
 from typing import Any
 from uuid import UUID
@@ -26,8 +13,6 @@ settings = get_settings()
 
 
 def _client() -> httpx.AsyncClient:
-    """One client per request — simpler than a shared pool for the
-    handful of operator clicks the dashboard makes per minute."""
     return httpx.AsyncClient(
         base_url=settings.simulator_http_url,
         timeout=settings.simulator_http_timeout,
@@ -35,8 +20,7 @@ def _client() -> httpx.AsyncClient:
 
 
 async def _forward(method: str, path: str, **kwargs: Any) -> Any:
-    """Forward an HTTP call to the simulator and re-raise its errors
-    as FastAPI HTTPExceptions with the same status code + body."""
+    """Forward to the simulator, re-raising errors as HTTPException."""
     try:
         async with _client() as c:
             r = await c.request(method, path, **kwargs)
@@ -51,9 +35,6 @@ async def _forward(method: str, path: str, **kwargs: Any) -> Any:
     if r.status_code == 204 or not r.content:
         return None
     return r.json()
-
-
-# ---- Read-only ------------------------------------------------------------
 
 
 @router.get("/locomotives")
@@ -77,18 +58,9 @@ async def simulator_metrics() -> dict:
     return await _forward("GET", "/metrics-stats")
 
 
-# ---- Mutating -------------------------------------------------------------
-
-
 @router.post("/locomotives", status_code=201)
 async def create_locomotive(req: Request) -> dict:
-    """Materialise a new locomotive in the simulator.
-
-    Pass-through body — schema lives in the simulator
-    (``CreateLocomotiveRequest``). The dashboard usually calls this
-    *after* creating the catalogue record via ``POST /locomotives``,
-    using the same UUID for both.
-    """
+    """Materialise a new locomotive in the simulator (body passed through)."""
     body = await req.json()
     return await _forward("POST", "/locomotives", json=body)
 

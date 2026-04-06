@@ -1,24 +1,8 @@
 'use client';
 
-/**
- * Live locomotive map.
- *
- * Three things make this look "alive" instead of robotic:
- *
- * 1) Smooth marker animation. WS telemetry arrives at ~1 Hz, but we
- *    don't snap the marker to each new GPS — we tween it to the new
- *    position over the WS interval via `requestAnimationFrame`. The
- *    eye reads continuous motion instead of step jumps.
- *
- * 2) Synthetic route polyline + stations as context. Pulled once from
- *    the gateway's /routes endpoint (data is generated server-side by
- *    `shared/route_geometry.py`). The active route is rendered as a
- *    semi-transparent line so the dispatcher can see *where* the
- *    locomotive is going, not just where it is right now.
- *
- * 3) Rich popup. Speed, route name, bearing — context the operator
- *    actually needs, not just decimal coordinates.
- */
+// Live locomotive map. The marker tweens between GPS samples via rAF
+// (samples arrive ~1Hz) so motion looks continuous. The active route
+// polyline and stations are loaded once from /routes.
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
@@ -53,10 +37,7 @@ const KZ_CENTER: [number, number] = [48.0, 67.0];
 const KZ_ZOOM = 6;
 const POSITION_ZOOM = 8;
 const MAX_TRAIL_POINTS = 200;
-// How long the marker takes to slide to a new GPS sample. Should be
-// roughly equal to the WS publish interval (~1 s) so the icon arrives
-// at the new position right as the next sample lands. A little less
-// feels snappier; a little more feels laggy.
+// Roughly matches WS publish interval (~1s); slightly less for snappier feel.
 const MARKER_TWEEN_MS = 950;
 
 const DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -124,15 +105,7 @@ function MapUpdater({
     return null;
 }
 
-/**
- * Tween helper: every time the upstream `target` GPS changes we run a
- * `requestAnimationFrame` loop that linearly interpolates the displayed
- * position from where we were to where we want to be over `MARKER_TWEEN_MS`
- * milliseconds. Returns the *currently displayed* coordinates as React
- * state, so callers can pass them straight to a Leaflet <Marker>.
- *
- * On first sample we snap immediately (no tween from `null`).
- */
+// rAF tween between GPS samples. Snaps on the first fix, linearly interpolates after.
 function useSmoothPosition(
     target: { latitude: number; longitude: number } | null,
 ): [number, number] | null {
@@ -147,17 +120,15 @@ function useSmoothPosition(
         const next: [number, number] = [target.latitude, target.longitude];
 
         if (!displayed) {
-            // First fix: place the marker without animation.
+            // First fix: snap without animation.
             fromRef.current = next;
             toRef.current = next;
             setDisplayed(next);
             return;
         }
 
-        // New target: animate from where we currently *are* (could be
-        // mid-tween) to the new spot. We snapshot fromRef from the
-        // displayed value, not from the previous toRef, so interrupting
-        // a tween doesn't teleport.
+        // Snapshot fromRef from the currently displayed value (not the previous
+        // target) so interrupting a tween mid-animation doesn't teleport.
         fromRef.current = displayed;
         toRef.current = next;
         startRef.current = performance.now();
@@ -180,8 +151,7 @@ function useSmoothPosition(
         return () => {
             if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
         };
-        // We deliberately don't depend on `displayed` here — that would
-        // restart the tween on every animation frame.
+        // Deliberately excluding `displayed` — it would restart the tween every frame.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [target?.latitude, target?.longitude]);
 
@@ -205,24 +175,17 @@ export default function RouteMapInner({ position, routeName, speedKmh }: RouteMa
     const [trail, setTrail] = useState<[number, number][]>([]);
     const prevPosKey = useRef<string | null>(null);
 
-    // Tweened display position. The marker reads from this, the trail
-    // and follow-camera read from the raw `position` so they update at
-    // sample boundaries (smoother for the eye than 60 Hz pans).
+    // Marker reads the tween; trail and follow-camera read raw `position`
+    // so they update on sample boundaries instead of every rAF tick.
     const displayPos = useSmoothPosition(position);
 
-    // Pull the static route catalogue once. Cached forever (see
-    // `routesApi.ts`), shared across the whole dashboard session.
     const { data: routes } = useGetRoutesQuery();
     const activeRoute = useMemo(
         () => routes?.find((r) => r.name === routeName) ?? null,
         [routes, routeName],
     );
 
-    // Append the latest GPS sample to the breadcrumb trail. We also
-    // detect a route change here (rather than in a separate effect)
-    // and clear the trail in the same updater — fewer effects, no
-    // cascading-setState lint warning, and the reset happens
-    // atomically with the next append.
+    // Append GPS to trail and atomically reset on route change (one effect, no cascading setState).
     const prevRouteRef = useRef<string | null>(routeName);
     useEffect(() => {
         if (!position) return;
@@ -319,7 +282,6 @@ export default function RouteMapInner({ position, routeName, speedKmh }: RouteMa
                     onUserDrag={handleUserDrag}
                 />
 
-                {/* Planned route polyline (under the trail and marker) */}
                 {showTrail && activeRoute && activeRoute.waypoints.length > 1 && (
                     <Polyline
                         positions={activeRoute.waypoints}
@@ -332,7 +294,6 @@ export default function RouteMapInner({ position, routeName, speedKmh }: RouteMa
                     />
                 )}
 
-                {/* Station markers along the active route */}
                 {showTrail &&
                     activeRoute?.stations.map((s) => (
                         <CircleMarker
@@ -356,7 +317,6 @@ export default function RouteMapInner({ position, routeName, speedKmh }: RouteMa
                         </CircleMarker>
                     ))}
 
-                {/* Trail of recent positions */}
                 {showTrail && trail.length > 1 && (
                     <Polyline
                         positions={trail}
@@ -369,7 +329,6 @@ export default function RouteMapInner({ position, routeName, speedKmh }: RouteMa
                     />
                 )}
 
-                {/* The locomotive itself, on the tweened position */}
                 {displayPos && (
                     <Marker position={displayPos} icon={trainIcon}>
                         <Popup>

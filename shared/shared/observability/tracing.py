@@ -17,8 +17,7 @@ def _env(service_name: str, key: str, default: str) -> str:
 
 
 def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
-    # Sample only a fraction of traces to keep Jaeger memory usage low.
-    # Default 5% — override via OTEL_TRACE_SAMPLE_RATE (0.0–1.0).
+    # Default 5% sampling to cap Jaeger memory; override via OTEL_TRACE_SAMPLE_RATE.
     sample_rate = float(_env(service_name, "OTEL_TRACE_SAMPLE_RATE", "0.05"))
     sampler = TraceIdRatioBased(sample_rate)
 
@@ -26,7 +25,7 @@ def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
     provider = TracerProvider(resource=resource, sampler=sampler)
 
     exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-    # Limit batch size and queue to cap memory usage under high throughput.
+    # Bounded queue/batch to cap memory under high throughput.
     processor = BatchSpanProcessor(
         exporter,
         max_queue_size=2048,
@@ -37,8 +36,8 @@ def setup_tracing(service_name: str, otlp_endpoint: str) -> Callable[[], None]:
 
     trace.set_tracer_provider(provider)
 
-    # Optional instrumentors — only activate if the library is installed.
-    # Services like ws-server don't have asyncpg or grpc dependencies.
+    # Optional instrumentors — skip if the library isn't installed
+    # (e.g. ws-server has no asyncpg/grpc deps).
     try:
         from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 

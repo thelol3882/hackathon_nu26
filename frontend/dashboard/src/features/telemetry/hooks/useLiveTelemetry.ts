@@ -8,10 +8,7 @@ interface Position {
     bearing_deg: number | null;
 }
 
-/**
- * Reads live telemetry from Redux store.
- * WS connection is managed separately by useWsDispatch in the parent.
- */
+// Reads live telemetry from Redux; WS lifetime is owned by useWsDispatch in the parent.
 export function useLiveTelemetry(locomotiveId: string | null) {
     const sensorsRecord = useAppSelector((state) => state.telemetry.sensors);
     const gps = useAppSelector((state) => state.telemetry.gps);
@@ -19,7 +16,7 @@ export function useLiveTelemetry(locomotiveId: string | null) {
     const routeName = useAppSelector((state) => state.telemetry.routeName);
     const lastUpdated = useAppSelector((state) => state.telemetry.lastUpdated);
 
-    // Build a Map for backward compat with existing components
+    // Map kept for backward compat with existing components.
     const sensors = useMemo(() => {
         const map = new Map<string, TelemetryReading>();
         for (const [sensorType, data] of Object.entries(sensorsRecord)) {

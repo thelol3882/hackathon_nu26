@@ -5,15 +5,8 @@ import type {
     UpdateSimulatedLocomotiveBody,
 } from '../types';
 
-/**
- * RTK Query endpoints for the operator-driven simulator.
- *
- * `simulatorApi` is intentionally a separate slice from `locomotivesApi`
- * because the catalogue (which physical locos exist) and the simulator
- * (which of them are currently being simulated, with what parameters)
- * are two different concerns. The dashboard creates locos in both —
- * catalogue first to get a UUID, then simulator with that UUID.
- */
+// Kept separate from locomotivesApi: the catalogue and the simulator are distinct concerns.
+// Creation flow: catalogue first (to get a UUID), then simulator with that UUID.
 export const simulatorApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
         getSimulatedLocomotives: builder.query<SimulatedLocomotive[], void>({

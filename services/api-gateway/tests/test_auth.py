@@ -10,10 +10,6 @@ import jwt as pyjwt
 import pytest
 from fastapi import HTTPException
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _FAKE_SECRET = "test-secret-key-for-testing-32bytes!"
 _FAKE_EXPIRY = 60
 
@@ -25,11 +21,6 @@ class _FakeSettings:
 
 def _patch():
     return patch("api_gateway.core.config.get_settings", return_value=_FakeSettings())
-
-
-# ---------------------------------------------------------------------------
-# hash_password
-# ---------------------------------------------------------------------------
 
 
 class TestHashPassword:
@@ -55,11 +46,6 @@ class TestHashPassword:
             assert hashed.startswith("$2b$")
 
 
-# ---------------------------------------------------------------------------
-# verify_password
-# ---------------------------------------------------------------------------
-
-
 class TestVerifyPassword:
     def test_verify_correct_password(self):
         with _patch():
@@ -74,11 +60,6 @@ class TestVerifyPassword:
 
             hashed = hash_password("correct")
             assert verify_password("wrong", hashed) is False
-
-
-# ---------------------------------------------------------------------------
-# create_access_token / _decode_token
-# ---------------------------------------------------------------------------
 
 
 class TestJWT:

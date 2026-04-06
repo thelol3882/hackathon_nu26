@@ -6,9 +6,5 @@ from uuid_utils import uuid7
 
 
 def generate_id() -> uuid.UUID:
-    """Generate a UUIDv7 (time-sortable).
-
-    Better than UUIDv4 for PostgreSQL B-tree indexes:
-    monotonically increasing, no random page splits.
-    """
+    """Generate a UUIDv7 (time-sortable; friendly to Postgres B-tree indexes)."""
     return uuid.UUID(bytes=uuid7().bytes)

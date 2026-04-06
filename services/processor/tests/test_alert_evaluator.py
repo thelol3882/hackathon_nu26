@@ -11,7 +11,7 @@ from shared.schemas.telemetry import SensorPayload
 
 from .conftest import KZ8A_ID, TE33A_ID
 
-# generate_id() returns uuid_utils.UUID which pydantic rejects; patch to stdlib UUID
+# Pydantic rejects uuid_utils.UUID from generate_id(); patch to stdlib.
 _FAKE_UUID = uuid.UUID("00000000-0000-0000-0000-ffffffffffff")
 
 
@@ -22,7 +22,7 @@ def _mock_generate_id():
 
 
 def _te33a_nominal_sensors() -> list[SensorPayload]:
-    """Return a full set of TE33A sensors at nominal values."""
+    """Full set of TE33A sensors at nominal values."""
     return [
         SensorPayload(sensor_type=SensorType.DIESEL_RPM, value=700.0, unit="rpm"),
         SensorPayload(sensor_type=SensorType.OIL_PRESSURE, value=3.5, unit="bar"),
@@ -35,9 +35,6 @@ def _te33a_nominal_sensors() -> list[SensorPayload]:
         SensorPayload(sensor_type=SensorType.WHEEL_SLIP_RATIO, value=0.0, unit=""),
         SensorPayload(sensor_type=SensorType.SPEED_ACTUAL, value=60.0, unit="km/h"),
     ]
-
-
-# ── Happy path ──────────────────────────────────────────────────────────────
 
 
 class TestEvaluateAlertsHappy:
@@ -90,15 +87,12 @@ class TestEvaluateAlertsHappy:
         sensors = _te33a_nominal_sensors()
         for s in sensors:
             if s.sensor_type == SensorType.CRANKCASE_PRESSURE:
-                s.value = 55.0  # way above critical
+                s.value = 55.0
         reading = make_reading(sensors=sensors)
         alerts = evaluate_alerts(reading)
         crankcase_alerts = [a for a in alerts if a.sensor_type == SensorType.CRANKCASE_PRESSURE.value]
         assert len(crankcase_alerts) == 1
         assert crankcase_alerts[0].severity == AlertSeverity.EMERGENCY
-
-
-# ── AESS masking ────────────────────────────────────────────────────────────
 
 
 class TestAESSMasking:
@@ -137,7 +131,6 @@ class TestAESSMasking:
 
     def test_aess_only_te33a_not_kz8a(self, make_reading):
         """AESS masking only applies to TE33A, not KZ8A."""
-        # KZ8A doesn't have diesel_rpm in specs, but verify AESS logic isn't triggered
         sensors = [
             SensorPayload(sensor_type=SensorType.CATENARY_VOLTAGE, value=25000.0, unit="V"),
             SensorPayload(sensor_type=SensorType.BRAKE_PIPE_PRESSURE, value=4.0, unit="kgf/cm2"),
@@ -150,7 +143,6 @@ class TestAESSMasking:
             sensors=sensors,
         )
         alerts = evaluate_alerts(reading)
-        # Brake pipe should still alert (4.0 < 4.9 threshold)
         sensor_types = {a.sensor_type for a in alerts}
         assert SensorType.BRAKE_PIPE_PRESSURE.value in sensor_types
 
@@ -172,13 +164,9 @@ class TestAESSMasking:
         assert SensorType.OIL_PRESSURE.value not in sensor_types
 
 
-# ── Oil pressure contextual ─────────────────────────────────────────────────
-
-
 class TestOilPressureContextual:
     def test_oil_pressure_contextual_acceptable(self, make_reading):
-        """At low RPM, oil pressure of 2.0 is above min_expected -> no alert."""
-        # min_expected = 1.5 + (100/1050)*1.5 = 1.5 + 0.143 = ~1.643
+        """Low RPM: oil pressure 2.0 bar exceeds min_expected (~1.64), no alert."""
         sensors = [
             SensorPayload(sensor_type=SensorType.DIESEL_RPM, value=100.0, unit="rpm"),
             SensorPayload(sensor_type=SensorType.OIL_PRESSURE, value=2.0, unit="bar"),
@@ -194,9 +182,7 @@ class TestOilPressureContextual:
         assert SensorType.OIL_PRESSURE.value not in sensor_types
 
     def test_oil_pressure_low_for_high_rpm(self, make_reading):
-        """At high RPM, low oil pressure should alert."""
-        # min_expected = 1.5 + (900/1050)*1.5 = 1.5 + 1.286 = ~2.786
-        # value 2.0 < 2.786 -> contextual check fails -> threshold check proceeds
+        """High RPM: 2.0 bar is below min_expected (~2.79), threshold check runs."""
         sensors = [
             SensorPayload(sensor_type=SensorType.DIESEL_RPM, value=900.0, unit="rpm"),
             SensorPayload(sensor_type=SensorType.OIL_PRESSURE, value=2.0, unit="bar"),
@@ -212,13 +198,9 @@ class TestOilPressureContextual:
         assert SensorType.OIL_PRESSURE.value in sensor_types
 
 
-# ── Edge cases ──────────────────────────────────────────────────────────────
-
-
 class TestEvaluateAlertsEdge:
     def test_sensor_not_in_specs_ignored(self, make_reading):
         """A sensor type not in LOCO_SPECS should produce no alerts."""
-        # recuperation_current is not in TE33A specs
         sensors = [
             SensorPayload(sensor_type=SensorType.RECUPERATION_CURRENT, value=999.0, unit="A"),
         ]
@@ -232,19 +214,16 @@ class TestEvaluateAlertsEdge:
         assert alerts == []
 
     def test_crankcase_emergency_weight_ge_35(self, make_reading):
-        """Crankcase weight=40 (>=35) -> EMERGENCY regardless of normalized."""
+        """Crankcase weight>=35 always yields EMERGENCY on violation."""
         sensors = _te33a_nominal_sensors()
         for s in sensors:
             if s.sensor_type == SensorType.CRANKCASE_PRESSURE:
-                s.value = 15.0  # just over delta_safe=10 but weight>=35
+                s.value = 15.0
         reading = make_reading(sensors=sensors)
         alerts = evaluate_alerts(reading)
         crankcase_alerts = [a for a in alerts if a.sensor_type == SensorType.CRANKCASE_PRESSURE.value]
         assert len(crankcase_alerts) == 1
         assert crankcase_alerts[0].severity == AlertSeverity.EMERGENCY
-
-
-# ── Alert fields and message format ─────────────────────────────────────────
 
 
 class TestAlertFields:
@@ -280,5 +259,5 @@ class TestAlertFields:
         msg = coolant_alerts[0].message
         assert "TE33A" in msg
         assert "96.00" in msg
-        # Message should contain threshold range info
-        assert "\u2013" in msg  # en-dash in range
+        # Range uses en-dash.
+        assert "\u2013" in msg

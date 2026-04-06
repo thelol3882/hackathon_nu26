@@ -1,19 +1,7 @@
 'use client';
 
-/**
- * Thin React wrapper around uPlot for the trends panel.
- *
- * Why uPlot and not Recharts here:
- *  - Canvas-based renderer comfortably handles 1000+ points at 60 fps
- *    (Recharts/SVG starts dropping frames around ~600 points).
- *  - `null` in the data array natively breaks the line — exactly what we
- *    need for smart-gap rendering, no per-point dot-render callbacks.
- *  - Built-in drag-to-zoom on the time scale, no event plumbing required.
- *
- * The wrapper is intentionally generic: a single y-series with an area
- * fill, a tooltip plugin styled to match the dashboard's Mantine theme,
- * and a controlled `selection` callback so the parent owns the zoom stack.
- */
+// React wrapper around uPlot. Chosen over Recharts for canvas-based rendering
+// (1000+ points at 60fps), native null-gap support, and built-in drag-to-zoom.
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import uPlot from 'uplot';
@@ -22,33 +10,27 @@ import 'uplot/dist/uPlot.min.css';
 import { dayjs } from '@/shared/utils/date';
 
 export interface UPlotChartProps {
-    /** Epoch-seconds timestamps. Must be sorted ascending. */
+    /** Epoch-seconds timestamps, sorted ascending. */
     timestamps: number[];
-    /** Same length as `timestamps`; `null` means a real gap (line break). */
+    /** Same length as timestamps; null means a gap (line break). */
     values: Array<number | null>;
-    /** Optional matching min/max series for the tooltip — not plotted. */
+    /** Optional min/max series for the tooltip only (not plotted). */
     minValues?: Array<number | null>;
     maxValues?: Array<number | null>;
     /** Forces the visible x-window even if data is missing on the left. */
     xMin: number;
     xMax: number;
-    /** Series stroke colour (any CSS color). */
     color: string;
-    /** Tooltip metadata. */
     sensorLabel: string;
     unit: string;
-    /** Format string for the y-axis tick labels. */
     yTickFormatter?: (v: number) => string;
-    /** Called when the user releases a drag-to-zoom selection. */
     onZoomSelect?: (xMinSec: number, xMaxSec: number) => void;
-    /** Total chart height in px. */
     height?: number;
 }
 
 const FONT_FAMILY = "var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-/** Hex/CSS color → rgba string with given alpha. Cheaper than reading
- *  computed style for every render. Accepts only #rrggbb / #rgb / rgb(...).*/
+/** Hex/CSS color to rgba. Accepts #rrggbb / #rgb / rgb(...). */
 function withAlpha(color: string, alpha: number): string {
     if (color.startsWith('#')) {
         const hex =
@@ -67,19 +49,17 @@ function withAlpha(color: string, alpha: number): string {
     if (color.startsWith('rgb(')) {
         return color.replace('rgb(', 'rgba(').replace(')', `,${alpha})`);
     }
-    // CSS variable or named color — fall back to a uniform shade.
     return color;
 }
 
-/** Read a CSS color out of an element so we can resolve `var(--…)` strings. */
+/** Resolve `var(--…)` strings via a probe element. */
 function resolveColor(probe: HTMLElement, value: string): string {
     if (!value.includes('var(')) return value;
     probe.style.color = value;
     return getComputedStyle(probe).color || value;
 }
 
-/** Pick a "nice" tick step (in seconds) for a window length, the same way
- *  DigitalOcean does: 5 min for 1 h, 30 min for 6 h, 2 h for 24 h … */
+/** Pick a tick step (seconds) for a given window length. */
 function niceTickStepSec(windowSec: number): number {
     const m = 60;
     const h = 60 * m;
@@ -93,16 +73,11 @@ function niceTickStepSec(windowSec: number): number {
     return 2 * h;
 }
 
-/**
- * Build explicit X-axis tick positions for the visible window. We snap to
- * local-TZ multiples of `stepSec` (so labels read 17:35, 17:40, …, not
- * 17:32, 17:37). Without this uPlot's auto split picker can produce
- * dozens of identical "17:48" labels for a small window.
- */
+// Snap tick positions to local-TZ multiples of stepSec so labels read 17:35,
+// 17:40, ... instead of the sub-minute labels uPlot's auto picker produces.
 function buildTimeSplits(xMin: number, xMax: number, stepSec: number): number[] {
     if (xMax <= xMin || stepSec <= 0) return [];
-    // getTimezoneOffset() returns minutes; positive when local is *behind*
-    // UTC, so for UTC+5 the value is -300.  local = utc - tzShift.
+    // getTimezoneOffset() is minutes, positive when local is behind UTC.
     const tzShiftSec = new Date(xMin * 1000).getTimezoneOffset() * 60;
     const firstLocalTick = Math.ceil((xMin - tzShiftSec) / stepSec) * stepSec;
     const out: number[] = [];
@@ -139,8 +114,7 @@ export default function UPlotChart({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const plotRef = useRef<uPlot | null>(null);
     const tooltipRef = useRef<TooltipState | null>(null);
-    // We pass the latest tooltip-related closures into uPlot via a ref so
-    // we don't have to tear down the plot each time the parent rerenders.
+    // Ref so uPlot always sees the latest tooltip closures without rebuilding.
     const metaRef = useRef({ sensorLabel, unit, minValues, maxValues, color });
     metaRef.current = { sensorLabel, unit, minValues, maxValues, color };
 
@@ -155,15 +129,12 @@ export default function UPlotChart({
         [timestamps, values],
     );
 
-    // Build/destroy lifecycle. We rebuild on color/dimension/format changes;
-    // for data updates we call setData() in a separate effect to keep the
-    // canvas warm and avoid layout thrash.
+    // Rebuild on structural changes only; data updates go through setData() below.
     useLayoutEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
-        // Resolve any CSS-var colours up front against a probe element so
-        // uPlot's canvas paths get a real concrete colour string.
+        // Resolve CSS-var colours up front — uPlot's canvas doesn't understand var(--…).
         const probe = document.createElement('span');
         probe.style.display = 'none';
         container.appendChild(probe);
@@ -174,14 +145,10 @@ export default function UPlotChart({
             resolveColor(probe, 'var(--dashboard-border)') || 'rgba(255,255,255,0.08)';
         const axisColor =
             resolveColor(probe, 'var(--dashboard-text-secondary)') || 'rgba(255,255,255,0.55)';
-        // Canvas (where uPlot draws cursor.points) does NOT understand CSS
-        // variables — passing `var(--…)` to ctx.fillStyle silently falls
-        // back to black/transparent and the hover dot disappears against
-        // the line. Resolve to a concrete colour string here.
+        // Canvas needs a concrete colour, not a CSS var, or the hover dot disappears.
         const surfaceColor = resolveColor(probe, 'var(--dashboard-surface)') || '#11141c';
         container.removeChild(probe);
 
-        // ---------- tooltip plugin ----------
         const tooltip = document.createElement('div');
         tooltip.style.cssText = [
             'position:absolute',
@@ -196,9 +163,7 @@ export default function UPlotChart({
             'box-shadow:0 4px 12px rgba(0,0,0,0.18)',
             'z-index:10',
             'white-space:nowrap',
-            // No CSS transform — we manually compute and clamp the
-            // tooltip's left/top below so it never escapes the chart
-            // container at the edges.
+            // Left/top are computed and clamped manually below (no transform).
         ].join(';');
         const titleEl = document.createElement('div');
         titleEl.style.cssText =
@@ -240,8 +205,7 @@ export default function UPlotChart({
                         } else {
                             rangeEl.style.display = 'none';
                         }
-                        // Make the tooltip visible BEFORE measuring its
-                        // size, otherwise offsetWidth/Height come back as 0.
+                        // Must be visible before measuring, else offsetWidth/Height are 0.
                         tooltip.style.display = 'block';
                         const anchorX = u.valToPos(ts, 'x');
                         const anchorY = u.valToPos(v as number, 'y');
@@ -250,9 +214,7 @@ export default function UPlotChart({
                         const containerW = container.clientWidth;
                         const containerH = container.clientHeight;
 
-                        // Horizontal: try to centre the tooltip on the
-                        // anchor; clamp into the container with a 4 px
-                        // safety margin so the border isn't clipped.
+                        // Centre on anchor, clamped into the container with a 4 px margin.
                         const PAD = 4;
                         let leftPx = anchorX - tw / 2;
                         if (leftPx < PAD) leftPx = PAD;
@@ -260,9 +222,7 @@ export default function UPlotChart({
                             leftPx = containerW - tw - PAD;
                         }
 
-                        // Vertical: prefer 12 px above the data point.
-                        // If that would clip the top of the chart, flip
-                        // it 12 px below the point instead.
+                        // Prefer above the point; flip below if it would clip the top.
                         const GAP = 12;
                         let topPx = anchorY - th - GAP;
                         if (topPx < PAD) {
@@ -279,9 +239,7 @@ export default function UPlotChart({
             },
         };
 
-        // ---------- selection plugin (drag-to-zoom) ----------
-        // uPlot already has built-in drag selection; we just listen on
-        // setSelect to feed our parent and reset the visual selection.
+        // Drag-to-zoom: feed the parent and reset the visual selection.
         const selectPlugin: uPlot.Plugin = {
             hooks: {
                 setSelect: [
@@ -290,8 +248,7 @@ export default function UPlotChart({
                         if (!sel || sel.width <= 2) return;
                         const left = u.posToVal(sel.left, 'x');
                         const right = u.posToVal(sel.left + sel.width, 'x');
-                        // Clear the visual selection rect immediately —
-                        // the parent will rerender with a new xMin/xMax.
+                        // Parent will rerender with a new xMin/xMax.
                         u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
                         if (right - left > 1 && onZoomRef.current) {
                             onZoomRef.current(Math.min(left, right), Math.max(left, right));
@@ -305,15 +262,10 @@ export default function UPlotChart({
             width: container.clientWidth || 600,
             height,
             cursor: {
-                // Crosshair: vertical line that follows the mouse, no
-                // horizontal — same as DigitalOcean.
                 x: true,
                 y: false,
                 drag: { x: true, y: false, setScale: false },
                 points: {
-                    // Snap-to-data hover marker. Resolved to concrete
-                    // colours (canvas can't read CSS vars). Larger and
-                    // ringed so it stands out against the line.
                     show: true,
                     size: 11,
                     width: 2,
@@ -333,10 +285,8 @@ export default function UPlotChart({
                     ticks: { show: false },
                     space: 60,
                     font: `11px ${FONT_FAMILY}`,
-                    // Force tick positions onto round local-TZ boundaries.
-                    // Without this uPlot's auto-split sprays sub-minute ticks
-                    // across the window and the HH:mm formatter collapses
-                    // them all to the same label ("17:48 17:48 17:48 …").
+                    // Force ticks onto local-TZ boundaries; auto-split otherwise
+                    // sprays sub-minute ticks that collapse to identical HH:mm labels.
                     splits: (u, _ax, sMin, sMax) => {
                         const w = sMax - sMin;
                         return buildTimeSplits(sMin, sMax, niceTickStepSec(w));
@@ -344,8 +294,6 @@ export default function UPlotChart({
                     values: (_u, splits) => {
                         const w = xMax - xMin;
                         const stepSec = niceTickStepSec(w);
-                        // Use HH:mm:ss only when the tick step itself is
-                        // sub-minute. Otherwise HH:mm reads cleaner.
                         const useSec = stepSec < 60;
                         return splits.map((s) =>
                             dayjs(s * 1000).format(useSec ? 'HH:mm:ss' : 'HH:mm'),
@@ -395,7 +343,7 @@ export default function UPlotChart({
         const u = new uPlot(opts, data, container);
         plotRef.current = u;
 
-        // Resize observer — uPlot doesn't track its parent on its own.
+        // uPlot doesn't track its parent size on its own.
         const ro = new ResizeObserver(() => {
             if (!container || !plotRef.current) return;
             plotRef.current.setSize({
@@ -412,12 +360,10 @@ export default function UPlotChart({
             plotRef.current = null;
             tooltipRef.current = null;
         };
-        // We intentionally rebuild only when these "structural" props change.
-        // Data and x-range updates flow through the effect below via setData.
+        // Rebuild only on structural props; data/x-range flow through setData below.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [color, height, sensorLabel, unit, yTickFormatter]);
 
-    // Push fresh data + window into the live plot without rebuilding it.
     useEffect(() => {
         const u = plotRef.current;
         if (!u) return;
@@ -436,7 +382,4 @@ function escapeHtml(s: string): string {
         .replace(/"/g, '&quot;');
 }
 
-// Re-export the tick step helper so the parent can stay in sync if it
-// needs to know how the X axis is being subdivided (e.g. for the bucket
-// auto-selection that drives the network request).
 export { niceTickStepSec };

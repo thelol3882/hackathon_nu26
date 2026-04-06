@@ -9,14 +9,7 @@ import {
     type FleetChangesPayload,
 } from '@/store/slices/fleetSlice';
 
-/**
- * Connects to /ws/fleet and dispatches fleet summary + changes
- * into the fleet Redux slice.
- *
- * The WS server sends two envelope types:
- *   fleet_summary — full fleet stats every ~2 seconds
- *   fleet_changes — only locomotives that changed health category
- */
+// Envelope types: fleet_summary (full stats, ~2s) and fleet_changes (deltas only).
 export function useFleetDispatch() {
     const { status, subscribe } = useWebSocket('/ws/fleet');
     const dispatch = useAppDispatch();

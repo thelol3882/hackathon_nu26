@@ -1,7 +1,4 @@
-"""PostgreSQL connection pool for Report Service.
-
-Schema is managed via Alembic migrations (alembic upgrade head runs at startup).
-"""
+"""PostgreSQL connection pool. Schema is managed via Alembic at startup."""
 
 from collections.abc import AsyncGenerator
 

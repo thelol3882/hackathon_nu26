@@ -1,9 +1,4 @@
-"""Report request service — publishes tasks to RabbitMQ, queries via gRPC.
-
-API Gateway does NOT own the generated_reports table.  It publishes
-report generation tasks to RabbitMQ and queries Report Service via gRPC
-for status, listing, and downloads.
-"""
+"""Report request service: publishes tasks to RabbitMQ, queries via gRPC."""
 
 from __future__ import annotations
 
@@ -29,11 +24,7 @@ _background_tasks: set[asyncio.Task] = set()
 
 
 async def create_report_job(request: ReportRequest) -> ReportResponse:
-    """Publish a report generation task to RabbitMQ and return job_id.
-
-    Report Service will consume the message, create the DB record,
-    generate the report, and update the status.
-    """
+    """Publish a report generation task to RabbitMQ and return the job_id."""
     report_id = generate_id()
     now = datetime.now(UTC)
 

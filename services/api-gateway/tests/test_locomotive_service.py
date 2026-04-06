@@ -13,11 +13,6 @@ from sqlalchemy.exc import IntegrityError
 from shared.enums import LocomotiveStatus
 from shared.schemas.locomotive import LocomotiveCreate, LocomotiveListResponse, LocomotiveRead
 
-# ---------------------------------------------------------------------------
-# Helper: build a fake Locomotive entity that model_validate(from_attributes)
-# can read via attribute access.
-# ---------------------------------------------------------------------------
-
 
 def _make_entity(**overrides):
     defaults = {
@@ -34,21 +29,15 @@ def _make_entity(**overrides):
     obj = MagicMock()
     for k, v in defaults.items():
         setattr(obj, k, v)
-    # Make sure __dict__ works for Pydantic from_attributes
+    # Required for Pydantic from_attributes.
     obj.__dict__.update(defaults)
     return obj
-
-
-# ---------------------------------------------------------------------------
-# create_locomotive
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_create_locomotive_success(mock_session):
     entity = _make_entity()
 
-    # After refresh, the session mock should expose the entity via refresh side-effect
     async def _refresh(e):
         for attr in (
             "id",
@@ -93,11 +82,6 @@ async def test_create_locomotive_duplicate_409(mock_session):
     mock_session.rollback.assert_awaited_once()
 
 
-# ---------------------------------------------------------------------------
-# get_locomotive
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_get_locomotive_found(mock_session):
     entity = _make_entity()
@@ -127,13 +111,8 @@ async def test_get_locomotive_not_found_404(mock_session):
     assert exc_info.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# list_locomotives
-# ---------------------------------------------------------------------------
-
-
 def _mock_list_session(mock_session, entities):
-    """Set up mock_session.execute to return count then rows for list_locomotives."""
+    """Configure mock_session.execute to return count then rows."""
     count_result = MagicMock()
     count_result.scalar_one.return_value = len(entities)
 

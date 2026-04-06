@@ -1,12 +1,4 @@
-/**
- * Types for the operator-driven locomotive simulator.
- *
- * The dashboard talks to the simulator through `/api/simulator/...`
- * which is just a thin pass-through over the simulator service. The
- * shapes below mirror the Pydantic DTOs in
- * `services/simulator/main.py` (LocomotiveStateDTO,
- * CreateLocomotiveRequest, UpdateLocomotiveRequest).
- */
+// Mirrors the Pydantic DTOs in services/simulator/main.py.
 
 export type LocomotiveType = 'TE33A' | 'KZ8A';
 
@@ -44,7 +36,7 @@ export interface SimulatedLocomotive {
 }
 
 export interface CreateSimulatedLocomotiveBody {
-    id: string; // catalogue UUID — must already exist in /locomotives
+    id: string; // must already exist in /locomotives
     loco_type: LocomotiveType;
     route_name: string;
     name?: string;

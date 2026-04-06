@@ -5,18 +5,13 @@ import base64
 from report_service.services.report_formatter import _to_local, format_report
 from shared.schemas.report import ReportFormat
 
-# ── JSON format tests ─────────────────────────────────────────────────────────
-
 
 class TestFormatJson:
     def test_json_returns_data_unchanged(self, sample_report_data, sample_job):
         result = format_report(sample_report_data, ReportFormat.JSON, sample_job)
-        # _format_json enriches with human-readable names, so check key data is preserved
+        # _format_json enriches with display names but must preserve top-level keys.
         for key in sample_report_data:
             assert key in result
-
-
-# ── CSV format tests ──────────────────────────────────────────────────────────
 
 
 class TestFormatCsv:
@@ -47,9 +42,6 @@ class TestFormatCsv:
         assert result["summary"] == {}
 
 
-# ── PDF format tests ──────────────────────────────────────────────────────────
-
-
 class TestFormatPdf:
     def test_to_local_converts_utc_to_almaty(self):
         assert _to_local("2026-01-01T00:00:00+00:00") == "2026-01-01 05:00:00"
@@ -67,21 +59,19 @@ class TestFormatPdf:
         assert pdf_bytes[:5] == b"%PDF-"
 
     def test_pdf_empty_data(self, sample_job):
-        """Empty data dict should still produce a valid PDF without crashing."""
         result = format_report({}, ReportFormat.PDF, sample_job)
         assert "pdf_base64" in result
         pdf_bytes = base64.b64decode(result["pdf_base64"])
         assert pdf_bytes[:5] == b"%PDF-"
 
     def test_pdf_long_alert_no_crash(self, sample_job):
-        """Alert message >60 chars is truncated in PDF, no exception."""
         data = {
             "alerts": [
                 {
                     "sensor_type": "coolant_temp",
                     "severity": "warning",
                     "value": 94.5,
-                    "message": "A" * 200,  # very long message
+                    "message": "A" * 200,
                     "timestamp": "2026-01-01T12:00:00+00:00",
                 }
             ],
@@ -91,14 +81,8 @@ class TestFormatPdf:
         assert "pdf_base64" in result
 
 
-# ── Unknown format test ───────────────────────────────────────────────────────
-
-
 class TestFormatUnknown:
     def test_unknown_format_returns_data(self, sample_report_data, sample_job):
-        """A format value not matching JSON/CSV/PDF falls through and returns data."""
-        # ReportFormat is a StrEnum so we can't easily pass a bad value,
-        # but the function has a final `return data` fallback.
-        # We test by calling the function with a string that isn't a ReportFormat member.
+        # Unknown formats fall through to the `return data` default.
         result = format_report(sample_report_data, "xml", sample_job)
         assert result is sample_report_data

@@ -1,5 +1,3 @@
-"""Report repository — PostgreSQL only."""
-
 from __future__ import annotations
 
 from sqlalchemy import func, select, update

@@ -1,18 +1,7 @@
 'use client';
 
-/**
- * Per-locomotive simulation control panel.
- *
- * Shows the operator's current settings (route, sub-segment, scenario,
- * mode) and lets them edit any of them inline. The big red
- * "Аварийный сценарий" button is the headline action — one click and
- * the locomotive trips its brake-pipe scenario, which the state
- * machine in `services/simulator/.../locomotive_state.py` immediately
- * snaps into EMERGENCY mode and forces to a stop.
- *
- * Edits are debounced into a single PATCH on `Сохранить`. We don't
- * try to live-sync per-keystroke — operator actions are deliberate.
- */
+// Per-locomotive simulation control. Edits are collected locally and
+// sent as a single PATCH on Save (no per-keystroke sync).
 
 import { useMemo, useState } from 'react';
 import {
@@ -62,11 +51,7 @@ const SCENARIO_COLOR: Record<LocomotiveScenario, string> = {
 };
 
 export function SimulationControlPanel({ locomotiveId }: Props) {
-    // Polling — operator changes propagate to the runner instantly,
-    // but the inverse (kinematics moving the loco along the route)
-    // also benefits from a slow refresh so the visible distance / km
-    // stays accurate without leaning on a separate WS for runtime
-    // metadata.
+    // Slow poll keeps kinematics (distance/km) fresh without a dedicated WS.
     const {
         data: live,
         isLoading,
@@ -76,12 +61,8 @@ export function SimulationControlPanel({ locomotiveId }: Props) {
     const { data: routes = [] } = useGetRoutesQuery();
     const [patch, { isLoading: saving }] = useUpdateSimulatedLocomotiveMutation();
 
-    // Local edit state — initialised from `live` only at the moment
-    // the operator clicks "Изменить" (see `enterEditMode` below). We
-    // deliberately don't sync on every poll: if the user is mid-typing,
-    // an incoming refresh would clobber their input. The Save button
-    // PATCHes everything in one go and the form re-renders from the
-    // fresh server state via the polling query.
+    // Local edit state; seeded from `live` on Edit click, not on every poll
+    // (a refresh mid-typing would clobber input). Save PATCHes in one go.
     const [routeName, setRouteName] = useState<string | null>(null);
     const [startStation, setStartStation] = useState<string | null>(null);
     const [endStation, setEndStation] = useState<string | null>(null);
@@ -92,8 +73,6 @@ export function SimulationControlPanel({ locomotiveId }: Props) {
     const [editing, setEditing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    /** Snapshot the current live state into the form's local state.
-     *  Called when the operator clicks "Изменить", not on each poll. */
     const enterEditMode = () => {
         if (!live) return;
         setRouteName(live.route_name);
@@ -101,8 +80,7 @@ export function SimulationControlPanel({ locomotiveId }: Props) {
         setAutoMode(live.auto_mode);
         setOnArrival(live.on_arrival);
         setSpeed(Math.round(live.speed_kmh));
-        // Resolve station names by km mark — the backend doesn't
-        // echo names back, but km marks are unique within a route.
+        // Backend doesn't echo station names back, but km marks are unique per route.
         const r = routes.find((x) => x.name === live.route_name);
         const matchByKm = (km: number) =>
             r?.stations.find((s) => Math.round(s.km_from_start) === Math.round(km))?.name ?? null;

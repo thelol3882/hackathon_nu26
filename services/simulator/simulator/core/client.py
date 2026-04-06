@@ -25,7 +25,7 @@ async def get_client() -> httpx.AsyncClient:
 
 
 async def post_batch(readings_json: list[dict]) -> dict | None:
-    """POST a batch of TelemetryReading dicts to the processor. Returns response or None on failure."""
+    """POST a batch of TelemetryReading dicts; returns response JSON or None on failure."""
     client = await get_client()
     for attempt in range(MAX_RETRIES):
         try:

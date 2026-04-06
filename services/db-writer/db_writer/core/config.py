@@ -10,24 +10,22 @@ class DbWriterSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    # --- Application ---
     app_name: str = "locomotive-db-writer"
     debug: bool = False
 
-    # --- TimescaleDB / PostgreSQL ---
     db_host: str = "timescaledb"
     db_port: int = 5432
     db_user: str = "telemetry"
     db_password: str = "changeme"
     db_name: str = "locomotive_telemetry"
     db_pool_min: int = 10
-    db_pool_max: int = 40  # writer needs more connections for bulk inserts
+    # Writer needs more connections for parallel bulk inserts.
+    db_pool_max: int = 40
 
     @property
     def database_url(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
-    # --- Redis ---
     redis_host: str = "redis"
     redis_port: int = 6379
     redis_db: int = 0
@@ -36,31 +34,25 @@ class DbWriterSettings(BaseSettings):
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    # --- Worker ---
-    consumer_name: str = "writer-1"  # unique per replica
+    # Must be unique per replica.
+    consumer_name: str = "writer-1"
 
-    # Worker pool size per stream. Telemetry is the hot path and scales out
-    # to multiple parallel COPY workers; alerts/health are low volume.
+    # Telemetry is the hot path and scales with parallel COPY workers.
     writer_workers_telemetry: int = 3
     writer_workers_alerts: int = 1
     writer_workers_health: int = 1
 
-    # Max rows the writer flushes in a single COPY → INSERT SELECT transaction.
-    # Keeps per-flush latency bounded so XACK cadence stays high and the
-    # Redis Stream backlog cannot grow without bound.
+    # Bounds per-flush latency so XACK cadence keeps the Redis backlog in check.
     rows_per_flush: int = 5000
 
-    # Bounded reader→worker queue. Provides backpressure on the reader when
-    # workers fall behind. Sized to hold a few batches per worker.
+    # Bounded reader→worker queue provides backpressure.
     queue_maxsize: int = 4
 
-    # --- Retention ---
     retention_telemetry_hours: int = 72
     retention_alerts_hours: int = 168
     retention_health_hours: int = 168
     compression_after_hours: int = 1
 
-    # --- Metrics ---
     metrics_port: int = 8004
 
 

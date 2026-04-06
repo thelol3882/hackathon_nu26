@@ -1,8 +1,4 @@
-"""Minimal Redis client for the WS server.
-
-Only the raw (binary) client is needed — for pub/sub with msgpack payloads
-and ticket validation via GETDEL.
-"""
+"""Raw (binary) Redis client for pub/sub msgpack payloads and GETDEL tickets."""
 
 from __future__ import annotations
 
@@ -26,7 +22,7 @@ async def init_redis() -> None:
         decode_responses=False,
     )
     await _redis_raw.ping()
-    logger.info("Redis client initialized (raw/binary)")
+    logger.info("Redis client initialized")
 
 
 async def close_redis() -> None:
@@ -39,5 +35,5 @@ async def close_redis() -> None:
 
 def get_redis_raw() -> aioredis.Redis:
     if _redis_raw is None:
-        raise RuntimeError("Redis not initialized — call init_redis() first")
+        raise RuntimeError("Redis not initialized; call init_redis() first")
     return _redis_raw

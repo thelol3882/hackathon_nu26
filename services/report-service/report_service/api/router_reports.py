@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.post("/generate", status_code=201)
 async def generate_report(request: ReportRequest, db: DbSession):
-    """Generate a report synchronously (direct path, no RabbitMQ)."""
+    """Synchronous report generation (bypasses the RabbitMQ job queue)."""
     report_id = generate_id()
 
     logger.info(

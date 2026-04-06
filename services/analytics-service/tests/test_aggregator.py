@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from analytics.aggregator import FleetAggregator, _LocoState
 
-# -- _LocoState -----------------------------------------------------------
-
 
 class TestLocoState:
     def test_slots(self):
-        """_LocoState uses __slots__ to minimize memory."""
         state = _LocoState("id-1", "TE33A", 85.0, "Норма")
         assert state.locomotive_id == "id-1"
         assert state.score == 85.0
@@ -20,12 +17,8 @@ class TestLocoState:
         assert state.updated_at is not None
 
 
-# -- FleetAggregator._update_state ----------------------------------------
-
-
 class TestUpdateState:
     def _make_aggregator(self):
-        """Create an aggregator with a dummy redis (not used in these tests)."""
         return FleetAggregator(redis_client=None)
 
     def test_first_update_creates_entry(self):
@@ -73,9 +66,6 @@ class TestUpdateState:
         assert agg.fleet_size == 0
 
 
-# -- FleetAggregator._compute_summary ------------------------------------
-
-
 class TestComputeSummary:
     def _make_aggregator_with_fleet(self, entries):
         agg = FleetAggregator(redis_client=None)
@@ -116,19 +106,13 @@ class TestComputeSummary:
         summary = agg._compute_summary()
         worst = summary["worst_10"]
         assert len(worst) == 10
-        # First should be the lowest score (0 * 5 = 0.0)
         assert worst[0]["score"] == 0.0
-        # Scores should be ascending
         scores = [w["score"] for w in worst]
         assert scores == sorted(scores)
 
     def test_empty_fleet(self):
         agg = FleetAggregator(redis_client=None)
-        # No entries → skip (publish_loop checks fleet_size)
         assert agg.fleet_size == 0
-
-
-# -- FleetAggregator._drain_changes --------------------------------------
 
 
 class TestDrainChanges:
@@ -138,7 +122,6 @@ class TestDrainChanges:
         agg._update_state({"locomotive_id": "1", "overall_score": 40, "category": "Критично"})
         changes = agg._drain_changes()
         assert len(changes) == 1
-        # Buffer should be empty after drain
         assert agg._drain_changes() == []
 
     def test_drain_empty_returns_empty(self):

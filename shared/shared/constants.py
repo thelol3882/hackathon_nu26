@@ -1,5 +1,4 @@
-"""
-Shared constants: sensor specifications, thresholds, EMA gains, Redis channels.
+"""Shared constants: sensor specs, thresholds, EMA gains, Redis channels.
 
 Health Index formula (processor real-time):
     HI(t) = 100 - Σ W_i · ( max(0, |P̂_i - P_nom| - δ_safe) / (P_crit - P_nom) )^k
@@ -26,11 +25,10 @@ class SensorSpec:
 
     @property
     def crit_range(self) -> float:
-        """Distance from (nominal ± delta_safe) to critical for normalization."""
+        """Distance from (nominal ± delta_safe) to critical, for normalization."""
         return max(1e-6, abs(self.p_crit - self.p_nom) - self.delta_safe)
 
 
-# ── TE33A Sensor Specs ──────────────────────────────────────────────────────
 _TE33A: dict[str, SensorSpec] = {
     SensorType.DIESEL_RPM: SensorSpec(
         weight=15,
@@ -40,7 +38,7 @@ _TE33A: dict[str, SensorSpec] = {
         threshold_type=ThresholdType.UPPER_BOUND,
         k=2.0,
     ),
-    # Oil pressure is cross-validated against RPM (see alert_evaluator)
+    # Cross-validated against RPM (see alert_evaluator)
     SensorType.OIL_PRESSURE: SensorSpec(
         weight=35,
         p_nom=3.5,
@@ -89,7 +87,7 @@ _TE33A: dict[str, SensorSpec] = {
         threshold_type=ThresholdType.UPPER_BOUND,
         k=3.0,
     ),
-    # Common params shared across both types
+    # Common params shared across both loco types
     SensorType.BRAKE_PIPE_PRESSURE: SensorSpec(
         weight=40,
         p_nom=5.1,
@@ -116,7 +114,6 @@ _TE33A: dict[str, SensorSpec] = {
     ),
 }
 
-# ── KZ8A Sensor Specs ───────────────────────────────────────────────────────
 _KZ8A: dict[str, SensorSpec] = {
     SensorType.CATENARY_VOLTAGE: SensorSpec(
         weight=25,
@@ -134,7 +131,7 @@ _KZ8A: dict[str, SensorSpec] = {
         threshold_type=ThresholdType.UPPER_BOUND,
         k=2.0,
     ),
-    # Alstom transformer — cellulose aging doubles every 6 °C (Montsinger)
+    # Alstom transformer: cellulose aging doubles every 6 °C (Montsinger)
     SensorType.TRANSFORMER_TEMP: SensorSpec(
         weight=20,
         p_nom=65,
@@ -145,7 +142,7 @@ _KZ8A: dict[str, SensorSpec] = {
         is_aging_param=True,
         montsinger_ref_temp=65.0,
     ),
-    # IGBT — semiconductor aging; critical if sustained overtemp
+    # IGBT: semiconductor aging, critical on sustained overtemp
     SensorType.IGBT_TEMP: SensorSpec(
         weight=30,
         p_nom=57,
@@ -199,16 +196,14 @@ _KZ8A: dict[str, SensorSpec] = {
     ),
 }
 
-# Public lookup: LOCO_SPECS[locomotive_type][sensor_type] -> SensorSpec
+# LOCO_SPECS[locomotive_type][sensor_type] -> SensorSpec
 LOCO_SPECS: dict[str, dict[str, SensorSpec]] = {
     "TE33A": _TE33A,
     "KZ8A": _KZ8A,
 }
 
-# ── EMA / Kalman gain per sensor ────────────────────────────────────────────
-# K in x̂_k = K·z_k + (1-K)·x̂_{k-1}
-# Low K → heavy smoothing (thermal sensors, 1 Hz)
-# High K → light smoothing (electrodynamic, 50 Hz)
+# EMA gain K in x̂_k = K·z_k + (1-K)·x̂_{k-1}.
+# Low K = heavy smoothing (thermal, 1 Hz); high K = light (electrodynamic, 50 Hz).
 EMA_GAINS: dict[str, float] = {
     # Thermal — slow dynamics
     SensorType.COOLANT_TEMP: 0.10,
@@ -221,11 +216,10 @@ EMA_GAINS: dict[str, float] = {
     SensorType.DC_LINK_VOLTAGE: 0.35,
     SensorType.WHEEL_SLIP_RATIO: 0.25,
     SensorType.DIESEL_RPM: 0.25,
-    # Default fallback
     "__default__": 0.20,
 }
 
-# ── AESS (Auto Engine Start/Stop) masking for TE33A ─────────────────────────
+# AESS (Auto Engine Start/Stop) masking for TE33A
 AESS_RPM_THRESHOLD: float = 50.0  # RPM ≤ this → engine in sleep mode
 AESS_MASKED_SENSORS: frozenset[str] = frozenset(
     {
@@ -234,26 +228,25 @@ AESS_MASKED_SENSORS: frozenset[str] = frozenset(
     }
 )
 
-# ── HI category thresholds ──────────────────────────────────────────────────
-HI_CATEGORY_NORMAL = 80.0  # ≥ 80 → "Норма"
-HI_CATEGORY_WARNING = 50.0  # 50–79 → "Внимание"
-# < 50 → "Критично"
+# HI category thresholds: ≥80 "Норма" (Normal), 50–79 "Внимание" (Warning),
+# <50 "Критично" (Critical).
+HI_CATEGORY_NORMAL = 80.0
+HI_CATEGORY_WARNING = 50.0
 
-# ── Montsinger aging constants ───────────────────────────────────────────────
+# Montsinger aging
 MONTSINGER_DEGREE_STEP: float = 6.0  # aging doubles every 6 °C
-MONTSINGER_BASE_DAMAGE: float = 0.001  # penalty subtracted per unit of age
+MONTSINGER_BASE_DAMAGE: float = 0.001  # penalty per unit of age
 
-# ── Redis Pub/Sub channels ───────────────────────────────────────────────────
+# Redis Pub/Sub channels
 TELEMETRY_CHANNEL = "telemetry:live"
 ALERT_CHANNEL = "alerts:live"
 HEALTH_CHANNEL = "health:live"
 
-# Fleet aggregation channels — published by fleet aggregator inside Analytics Service.
-# Consumed by WS Server for fleet dashboard streaming.
+# Fleet aggregation channels: published by Analytics Service, consumed by WS Server.
 FLEET_SUMMARY_CHANNEL = "fleet:summary"
 FLEET_CHANGES_CHANNEL = "fleet:changes"
 
-# ── Legacy — kept for report-service backward compatibility ─────────────────
+# Legacy — kept for report-service backward compatibility
 DEFAULT_THRESHOLDS: dict[str, tuple[float, float]] = {
     "diesel_rpm": (0.0, 1050.0),
     "oil_pressure": (1.5, 5.0),

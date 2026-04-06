@@ -1,21 +1,9 @@
 """Report Service entry point.
 
-ARCHITECTURE:
-  This service runs THREE concurrent subsystems:
-
-  1. gRPC server (port 50052) — handles report queries from API Gateway
-     (GetReport, ListReports, DownloadReport).
-
-  2. HTTP server (port 8002) — serves /reports (sync generation),
-     /health-index, /analytics, /health, and Prometheus /metrics.
-
-  3. RabbitMQ consumer — processes async report generation jobs
-     published by API Gateway.
-
-  WHY TWO SERVERS:
-    gRPC uses HTTP/2 with binary protobuf — Prometheus can't scrape it.
-    Prometheus expects plain HTTP GET /metrics with text/plain response.
-    Plus we have existing HTTP endpoints for health-index and analytics.
+Runs three concurrent subsystems: gRPC server (report queries), HTTP server
+(sync reports, health-index, analytics, Prometheus /metrics), and a RabbitMQ
+consumer for async report jobs. The HTTP server exists alongside gRPC because
+Prometheus cannot scrape HTTP/2 binary protobuf.
 """
 
 import asyncio
@@ -75,11 +63,9 @@ async def serve_grpc(port: int) -> grpc.aio.Server:
 async def main() -> None:
     settings = get_settings()
 
-    # Initialize infrastructure
     await init_db_pool()
     await init_rabbitmq()
 
-    # Connect to Analytics Service via gRPC for telemetry queries
     analytics = AnalyticsClient(
         settings.analytics_grpc_target,
         timeout=settings.analytics_grpc_timeout,
@@ -87,18 +73,14 @@ async def main() -> None:
     await analytics.connect()
     set_analytics_client(analytics)
 
-    # Start RabbitMQ consumer
     await start_consuming(process_report_job)
 
-    # Start gRPC server
     grpc_server = await serve_grpc(settings.grpc_port)
 
-    # Start HTTP server (existing endpoints + Prometheus /metrics)
     http_app = FastAPI(title="Locomotive Report Service")
     shutdown_otel = setup_observability(http_app, service_name="report-service")
     setup_prometheus(http_app, service_name="report-service")
 
-    # Store analytics client in app state for HTTP endpoint dependencies
     http_app.state.analytics = analytics
 
     http_app.include_router(reports_router, prefix="/reports", tags=["reports"])
@@ -114,7 +96,6 @@ async def main() -> None:
     )
     http_server = uvicorn.Server(config)
 
-    # Graceful shutdown handling
     stop_event = asyncio.Event()
 
     if sys.platform != "win32":
@@ -142,8 +123,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Run migrations BEFORE entering the async event loop.
-    # Alembic env.py uses asyncio.run() internally, which can't nest.
+    # Must run before the async event loop: Alembic env.py uses asyncio.run()
+    # internally, which can't nest inside another running loop.
     logger.info("Running Alembic migrations...")
     _run_migrations()
     logger.info("Migrations complete")

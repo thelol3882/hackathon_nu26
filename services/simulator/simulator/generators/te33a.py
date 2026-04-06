@@ -9,12 +9,12 @@ from simulator.models.locomotive_state import LocomotiveMode, LocomotiveState
 
 
 def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
-    """Generate all sensor readings for a TE33A diesel locomotive."""
+    """Generate sensor readings for a TE33A diesel locomotive."""
     sensors: list[SensorPayload] = []
     n = state.notch  # 0..8
 
     if state.mode == LocomotiveMode.AESS_SLEEP:
-        # Engine shut down — AESS mode
+        # Engine shut down in AESS mode.
         sensors.extend(
             [
                 SensorPayload(sensor_type=SensorType.DIESEL_RPM, value=add_noise(0, 300), unit="RPM"),
@@ -22,12 +22,10 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
                 SensorPayload(sensor_type=SensorType.FUEL_RATE, value=0.0, unit="L/h"),
             ]
         )
-        # Coolant slowly drops toward ambient
         state.coolant_temp += (35.0 - state.coolant_temp) * 0.01
         sensors.append(
             SensorPayload(sensor_type=SensorType.COOLANT_TEMP, value=add_noise(state.coolant_temp, 82), unit="C")
         )
-        # Traction motor cools
         state.traction_motor_temp += (30.0 - state.traction_motor_temp) * 0.01
         sensors.append(
             SensorPayload(
@@ -37,7 +35,6 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
             )
         )
     else:
-        # Normal diesel operation
         diesel_rpm = 300 + n * 93.75
         fuel_rate = 15 + (n / 8) ** 1.5 * 165
         oil_pressure = 1.5 + (diesel_rpm / 1050) * 3.0
@@ -49,7 +46,6 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
         motor_target = 40 + (n / 8) * 70
         state.traction_motor_temp += (motor_target - state.traction_motor_temp) * 0.03
 
-        # Fuel consumption
         state.fuel_level = max(0.0, state.fuel_level - fuel_rate / 3600)
 
         sensors.extend(
@@ -66,7 +62,6 @@ def generate_te33a(state: LocomotiveState) -> list[SensorPayload]:
             ]
         )
 
-    # Always report fuel level and crankcase
     sensors.append(SensorPayload(sensor_type=SensorType.FUEL_LEVEL, value=add_noise(state.fuel_level, 50), unit="%"))
     sensors.append(SensorPayload(sensor_type=SensorType.CRANKCASE_PRESSURE, value=add_noise(2.0, 0), unit="mbar"))
 

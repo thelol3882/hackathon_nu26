@@ -1,4 +1,4 @@
-"""Orchestrates report generation: query Analytics Service via gRPC -> calculate -> return structured data."""
+"""Report generation orchestration: query Analytics via gRPC, score, return data."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 async def generate_report_data(analytics: AnalyticsClient, job: ReportJobMessage) -> dict:
-    """Generate report data by querying Analytics Service via gRPC."""
+    """Build report payload by querying Analytics over gRPC."""
     logger.info(
         "Report generation started",
         code=REPORT_PROCESSING,

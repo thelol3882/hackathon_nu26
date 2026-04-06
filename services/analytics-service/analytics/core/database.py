@@ -1,8 +1,4 @@
-"""TimescaleDB connection pool — READ ONLY.
-
-Analytics Service is the single reader of TimescaleDB. DB Writer handles
-all writes. No create_all needed here — DB Writer owns the schema.
-"""
+"""Read-only TimescaleDB pool. DB Writer owns schema and all writes."""
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,

@@ -1,25 +1,8 @@
 """Analytics Service entry point.
 
-ARCHITECTURE:
-  This service runs THREE concurrent subsystems:
-
-  1. gRPC server (port 50051) — handles RPC calls from API Gateway
-     and Report Service. This is the primary query interface.
-
-  2. HTTP server (port 8020) — serves Prometheus /metrics and a /health
-     endpoint for Docker/Kubernetes readiness probes.
-
-  3. Fleet aggregator — background task that subscribes to health:live:*,
-     maintains in-memory fleet state, and publishes fleet:summary +
-     fleet:changes to Redis Pub/Sub for the fleet dashboard.
-
-  Plus the existing health cache listener (caches individual locomotive
-  health indices from processor pub/sub into Redis keys).
-
-  WHY TWO SERVERS:
-    gRPC uses HTTP/2 with binary protobuf — Prometheus can't scrape it.
-    Prometheus expects plain HTTP GET /metrics with text/plain response.
-    So we run a tiny FastAPI app alongside for observability only.
+Runs concurrently: gRPC server, HTTP server (Prometheus /metrics + /health),
+fleet aggregator, and per-locomotive health cache listener. The extra HTTP
+server exists because Prometheus cannot scrape gRPC.
 """
 
 import asyncio
@@ -46,26 +29,19 @@ logger = get_logger(__name__)
 
 
 async def serve_grpc(port: int) -> grpc.aio.Server:
-    """Start the async gRPC server.
-
-    grpc.aio.server() creates an async server that integrates with
-    Python's asyncio event loop — same loop as FastAPI/uvicorn.
-    """
+    """Start the async gRPC server on the shared asyncio loop."""
     server = grpc.aio.server(
         options=[
-            # Max inbound message: 10 MB
             ("grpc.max_receive_message_length", 10 * 1024 * 1024),
             ("grpc.max_send_message_length", 10 * 1024 * 1024),
         ],
     )
 
-    # Register the service implementation
     telemetry_pb2_grpc.add_AnalyticsServiceServicer_to_server(
         AnalyticsServicer(),
         server,
     )
 
-    # Listen on all interfaces (0.0.0.0) inside Docker
     server.add_insecure_port(f"0.0.0.0:{port}")
     await server.start()
     logger.info("gRPC server started", port=port)
@@ -73,12 +49,7 @@ async def serve_grpc(port: int) -> grpc.aio.Server:
 
 
 def _run_migrations() -> None:
-    """Apply pending Alembic migrations before accepting traffic.
-
-    Analytics Service owns the TimescaleDB schema — tables, hypertables,
-    continuous aggregates, retention and compression policies are all
-    managed here.  DB Writer only does INSERT.
-    """
+    """Apply pending Alembic migrations (this service owns the schema)."""
     import pathlib
 
     ini_path = pathlib.Path(__file__).resolve().parent / "alembic.ini"
@@ -89,21 +60,16 @@ def _run_migrations() -> None:
 async def main() -> None:
     settings = get_settings()
 
-    # Initialize infrastructure
     await init_db_pool()
     await init_redis()
 
     redis_raw = get_redis_raw()
 
-    # Background task: cache individual locomotive health from pub/sub
     health_task = asyncio.create_task(
         run_health_cache(redis_raw),
         name="health-cache",
     )
 
-    # Background task: fleet aggregator — subscribes to health:live:*,
-    # maintains in-memory state of all 1700 locos, publishes fleet:summary
-    # and fleet:changes every 2 seconds for the fleet dashboard.
     aggregator = FleetAggregator(redis_raw)
     aggregator_task = asyncio.create_task(
         aggregator.run(),
@@ -111,10 +77,8 @@ async def main() -> None:
     )
     logger.info("Fleet aggregator started")
 
-    # Start gRPC server
     grpc_server = await serve_grpc(settings.grpc_port)
 
-    # Start HTTP server for Prometheus /metrics and health checks
     metrics_app = FastAPI(title="Analytics Service Metrics")
     shutdown_otel = setup_observability(metrics_app, service_name=settings.service_name)
     setup_prometheus(metrics_app, service_name=settings.service_name)
@@ -134,7 +98,6 @@ async def main() -> None:
     )
     http_server = uvicorn.Server(config)
 
-    # Graceful shutdown handling
     stop_event = asyncio.Event()
 
     if sys.platform != "win32":
@@ -142,12 +105,10 @@ async def main() -> None:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, stop_event.set)
 
-    # Run HTTP server in a task so we can await the stop event
     http_task = asyncio.create_task(http_server.serve())
 
     if sys.platform == "win32":
-        # On Windows, signal handlers don't work with asyncio.
-        # Just wait for the HTTP server (Ctrl+C stops uvicorn directly).
+        # asyncio signal handlers don't work on Windows; rely on uvicorn's Ctrl+C.
         await http_task
     else:
         await stop_event.wait()
@@ -166,8 +127,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Run migrations BEFORE entering the async event loop.
-    # Alembic env.py uses asyncio.run() internally, which can't nest.
+    # Alembic env.py uses asyncio.run() internally, so migrations must run
+    # before we enter the main event loop.
     logger.info("Running Alembic migrations...")
     _run_migrations()
     logger.info("Migrations complete")

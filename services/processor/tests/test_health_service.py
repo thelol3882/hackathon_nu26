@@ -13,7 +13,7 @@ from .conftest import KZ8A_ID, TE33A_ID
 
 
 def _te33a_nominal_sensors() -> list[SensorPayload]:
-    """All TE33A sensors at nominal values -> penalty ~0."""
+    """All TE33A sensors at nominal values (penalty ~0)."""
     return [
         SensorPayload(sensor_type=SensorType.DIESEL_RPM, value=700.0, unit="rpm"),
         SensorPayload(sensor_type=SensorType.OIL_PRESSURE, value=3.5, unit="bar"),

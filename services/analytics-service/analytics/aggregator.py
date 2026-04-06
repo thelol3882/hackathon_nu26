@@ -1,47 +1,9 @@
-"""
-Fleet health aggregator — background task that maintains a real-time
-overview of all locomotives in the fleet.
+"""Fleet health aggregator: in-memory fleet state driven by health:live:*.
 
-HOW IT WORKS:
-  1. Subscribes to health:live:* via Redis pattern subscribe
-  2. For each incoming HealthIndex, updates an in-memory dict
-  3. Every PUBLISH_INTERVAL seconds, computes fleet summary:
-     - Count per category (Норма / Внимание / Критично)
-     - Average score across fleet
-     - Top 10 worst locomotives
-     - Locomotives whose category changed since last publish
-  4. Publishes summary and changes to Redis Pub/Sub
-  5. WS Server picks them up and streams to fleet dashboard
-
-MEMORY USAGE:
-  1700 locomotives × ~200 bytes per entry ≈ 340 KB.
-  Negligible. Even 100,000 locomotives would be ~20 MB.
-
-WHY IN-MEMORY AND NOT REDIS HASH:
-  Reading HGETALL with 1700 keys every second adds unnecessary
-  Redis round-trips. In-memory dict is instant. The tradeoff is
-  that this task must be a singleton (can't run multiple replicas).
-
-PUBLISH STRATEGY:
-  fleet:summary — published every PUBLISH_INTERVAL regardless.
-    Contains full fleet stats. Small payload (~500 bytes).
-    Frontend uses this for the summary bar (counts, avg score).
-
-  fleet:changes — published only when a locomotive changes category.
-    Contains only the changed locomotives. Frontend uses this for
-    point updates on the map without re-rendering all 1700 markers.
-
-  This two-channel approach minimizes both network traffic and
-  frontend re-renders. Summary is cheap to process (one object),
-  changes are sparse (most ticks, nothing changes).
-
-SINGLETON CONSTRAINT:
-  This aggregator is stateful — it holds all 1700 locomotive states
-  in memory. Running two copies would produce duplicate publishes.
-  Currently runs inside Analytics Service as a background task.
-  If Analytics needs horizontal scaling, extract this into a
-  separate fleet-aggregator container. The code is self-contained
-  in this module to make that move trivial.
+Subscribes to per-locomotive HealthIndex pub/sub, keeps latest state in an
+in-memory dict, and periodically publishes a compact fleet summary plus a
+delta of category changes. Must run as a singleton (stateful). In-memory
+is preferred over Redis HGETALL for per-tick reads.
 """
 
 from __future__ import annotations
@@ -67,8 +29,7 @@ from shared.wire import encode as wire_encode
 
 logger = get_logger(__name__)
 
-# How often to publish fleet summary (seconds).
-# 2 seconds balances real-time feel vs. Redis/WS load.
+# Balances real-time feel vs. Redis/WS load.
 PUBLISH_INTERVAL = 2.0
 
 _CATEGORY_NORMA = "Норма"
@@ -76,7 +37,7 @@ _CATEGORY_VNIMANIE = "Внимание"
 
 
 class _LocoState:
-    """In-memory state for one locomotive. Uses __slots__ to save memory."""
+    """In-memory state for one locomotive."""
 
     __slots__ = ("category", "locomotive_id", "locomotive_type", "score", "updated_at")
 
@@ -89,16 +50,7 @@ class _LocoState:
 
 
 class FleetAggregator:
-    """Maintains real-time fleet overview by listening to health:live:*
-    and publishing aggregated summaries.
-
-    Usage (in Analytics Service main.py):
-        aggregator = FleetAggregator(redis_client)
-        task = asyncio.create_task(aggregator.run())
-        # ... on shutdown:
-        aggregator.stop()
-        task.cancel()
-    """
+    """Listens to health:live:* and publishes aggregated fleet summaries."""
 
     def __init__(self, redis_client: aioredis.Redis) -> None:
         self._redis = redis_client
@@ -114,7 +66,7 @@ class FleetAggregator:
         self._running = False
 
     async def run(self) -> None:
-        """Main loop: listener + publisher running concurrently."""
+        """Run listener and publisher concurrently."""
         listener_task = asyncio.create_task(self._listen_loop(), name="fleet-listener")
         publisher_task = asyncio.create_task(self._publish_loop(), name="fleet-publisher")
         try:
@@ -125,17 +77,8 @@ class FleetAggregator:
             listener_task.cancel()
             publisher_task.cancel()
 
-    # -- Listener ----------------------------------------------------------
-
     async def _listen_loop(self) -> None:
-        """Subscribe to health:live:* and update in-memory state.
-
-        Pattern subscribe (psubscribe) matches all channels that start
-        with "health:live:". Each message contains a wire-encoded
-        HealthIndex dict from the processor.
-
-        Reconnects with exponential backoff if Redis connection drops.
-        """
+        """Subscribe to health:live:* and update state; reconnect with backoff."""
         backoff = 1.0
         while self._running:
             pubsub = self._redis.pubsub()
@@ -169,11 +112,7 @@ class FleetAggregator:
                     pass
 
     def _update_state(self, data: dict) -> None:
-        """Update in-memory state for one locomotive.
-
-        If the locomotive's category changed (e.g. Норма → Внимание),
-        record it in _changes for the next publish cycle.
-        """
+        """Update locomotive state and record category transitions."""
         loco_id = str(data.get("locomotive_id", ""))
         if not loco_id:
             return
@@ -192,7 +131,6 @@ class FleetAggregator:
             category=new_category,
         )
 
-        # Track category transitions for fleet:changes channel
         if old_category is not None and old_category != new_category:
             self._changes.append(
                 {
@@ -205,13 +143,8 @@ class FleetAggregator:
                 }
             )
 
-    # -- Publisher ----------------------------------------------------------
-
     async def _publish_loop(self) -> None:
-        """Periodically compute and publish fleet summary + changes.
-
-        Uses a Redis pipeline to publish both channels in one round-trip.
-        """
+        """Periodically publish fleet summary and changes via one pipeline."""
         while self._running:
             try:
                 await asyncio.sleep(PUBLISH_INTERVAL)
@@ -222,14 +155,12 @@ class FleetAggregator:
                 summary = self._compute_summary()
                 changes = self._drain_changes()
 
-                # Publish both in one pipeline (one Redis round-trip)
                 pipe = self._redis.pipeline(transaction=False)
                 pipe.publish(FLEET_SUMMARY_CHANNEL, wire_encode(summary))
                 if changes:
                     pipe.publish(FLEET_CHANGES_CHANNEL, wire_encode({"changes": changes}))
                 await pipe.execute()
 
-                # Update Prometheus metrics
                 fleet_aggregator_size.set(len(self._fleet))
                 fleet_summary_published.inc()
                 if changes:
@@ -247,16 +178,7 @@ class FleetAggregator:
                 logger.exception("Fleet publisher error")
 
     def _compute_summary(self) -> dict:
-        """Compute fleet-wide statistics from in-memory state.
-
-        Returns a compact summary for the fleet dashboard:
-        - Category counts (how many in each state)
-        - Average score across fleet
-        - Top 10 worst locomotives (lowest HI score)
-        - Fleet size and timestamp
-
-        Iterating 1700 entries takes <1ms in Python — no concern.
-        """
+        """Return compact fleet stats: category counts, avg score, worst 10."""
         norma = 0
         vnimanie = 0
         kritichno = 0
@@ -273,7 +195,6 @@ class FleetAggregator:
                 kritichno += 1
             worst.append((state.score, state))
 
-        # Sort ascending by score, take bottom 10
         worst.sort(key=lambda x: x[0])
         top_worst = [
             {
@@ -301,10 +222,7 @@ class FleetAggregator:
         }
 
     def _drain_changes(self) -> list[dict]:
-        """Return accumulated changes and clear the buffer.
-
-        Thread-safe because asyncio is single-threaded — no locks needed.
-        """
+        """Return accumulated changes and clear the buffer."""
         changes = self._changes
         self._changes = []
         return changes

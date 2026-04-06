@@ -7,9 +7,8 @@ from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
-# Main client (decode_responses=True) for general ops
 _redis_pool: redis.Redis | None = None
-# Raw client (decode_responses=False) for pub/sub — supports binary msgpack
+# Binary client for pub/sub msgpack payloads.
 _redis_raw: redis.Redis | None = None
 
 
@@ -47,21 +46,21 @@ def get_redis_raw() -> redis.Redis:
 
 
 async def publish_telemetry(loco_id: str, payload: bytes) -> None:
-    """Publish telemetry to the live channel. Payload is wire-encoded bytes."""
+    """Publish wire-encoded telemetry to the live channel."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(f"{TELEMETRY_CHANNEL}:{loco_id}", payload)
 
 
 async def publish_alert(payload: bytes) -> None:
-    """Publish an AlertEvent to the global alert channel. Payload is wire-encoded bytes."""
+    """Publish a wire-encoded AlertEvent to the global alert channel."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(ALERT_CHANNEL, payload)
 
 
 async def publish_health(loco_id: str, payload: bytes) -> None:
-    """Publish a HealthIndex to the live health channel. Payload is wire-encoded bytes."""
+    """Publish a wire-encoded HealthIndex to the live health channel."""
     if _redis_raw is None:
         raise RuntimeError("Redis not initialized.")
     await _redis_raw.publish(f"{HEALTH_CHANNEL}:{loco_id}", payload)

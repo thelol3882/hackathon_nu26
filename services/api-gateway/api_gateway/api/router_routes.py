@@ -1,15 +1,4 @@
-"""Routes endpoint — exposes the canonical railway polylines + stations.
-
-This data is **static** for the lifetime of the process: the routes
-are generated once at module import time by ``shared.route_geometry``
-(deterministic synthetic polylines, see that module's docstring) and
-both this gateway and the simulator load the exact same numbers.
-
-The dashboard's RouteMap fetches /routes once on mount and uses the
-result to render polylines and station markers under each locomotive.
-A simple ``Cache-Control`` header lets the browser cache the response
-for the rest of the session.
-"""
+"""Routes endpoint exposing static railway polylines and stations."""
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -30,8 +19,7 @@ class RouteDTO(BaseModel):
     name: str
     electrified: bool
     length_km: float
-    # Polyline encoded as a list of [lat, lon] pairs (not objects) so the
-    # JSON is small and react-leaflet can pass it straight to <Polyline>.
+    # [lat, lon] pairs so react-leaflet can pass directly to <Polyline>.
     waypoints: list[tuple[float, float]]
     stations: list[StationDTO]
 
@@ -54,7 +42,6 @@ def _to_dto(route) -> RouteDTO:
     )
 
 
-# Pre-build the response once — routes never change at runtime.
 _CACHED_PAYLOAD: list[RouteDTO] = [_to_dto(r) for r in ROUTES]
 
 

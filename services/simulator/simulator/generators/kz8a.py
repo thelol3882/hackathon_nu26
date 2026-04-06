@@ -9,31 +9,28 @@ from simulator.models.locomotive_state import LocomotiveMode, LocomotiveState
 
 
 def generate_kz8a(state: LocomotiveState) -> list[SensorPayload]:
-    """Generate all sensor readings for a KZ8A electric locomotive."""
+    """Generate sensor readings for a KZ8A electric locomotive."""
     sensors: list[SensorPayload] = []
     speed = state.speed
 
-    # Pantograph current — proportional to speed (traction demand)
     pantograph_current = 50 + (speed / 120) * 300
 
-    # Catenary voltage — nominal 25kV with load-dependent sag
+    # Nominal 25 kV with load-dependent sag
     catenary_voltage = 25000 - pantograph_current * 8
 
-    # IGBT temperature — slow thermal inertia
+    # Slow thermal inertia (EMA)
     if state.igbt_override is not None:
         state.igbt_temp = state.igbt_override
     else:
         igbt_target = 35 + (pantograph_current / 400) * 40
         state.igbt_temp += (igbt_target - state.igbt_temp) * 0.05
 
-    # Transformer temperature — even slower
     transformer_target = 45 + (pantograph_current / 400) * 35
     state.transformer_temp += (transformer_target - state.transformer_temp) * 0.03
 
-    # DC link voltage
     dc_link = 2800.0
 
-    # Recuperation current — only during braking (ARRIVAL mode, speed > 20)
+    # Recuperation only flows when braking from speed
     recuperation = 0.0
     if state.mode == LocomotiveMode.ARRIVAL and speed > 20:
         recuperation = (120 - speed) / 120 * 200

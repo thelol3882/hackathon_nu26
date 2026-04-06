@@ -1,4 +1,4 @@
-"""Tests for shared.ws_ticket — ticket creation and validation."""
+"""Tests for shared.ws_ticket creation and validation."""
 
 from unittest.mock import AsyncMock
 
@@ -9,10 +9,8 @@ from shared.ws_ticket import WS_TICKET_PREFIX, create_ticket, validate_ticket
 
 @pytest.mark.asyncio
 async def test_create_and_validate_roundtrip():
-    """Create a ticket, validate it — should return user info."""
     mock_redis = AsyncMock()
 
-    # Capture what create_ticket stores
     stored = {}
 
     async def mock_set(key, value, ex=None):
@@ -25,7 +23,7 @@ async def test_create_and_validate_roundtrip():
     mock_redis.getdel = mock_getdel
 
     ticket = await create_ticket(mock_redis, user_id="user-123", role="operator")
-    assert ticket  # non-empty string
+    assert ticket
 
     result = await validate_ticket(mock_redis, ticket)
     assert result is not None
@@ -35,7 +33,7 @@ async def test_create_and_validate_roundtrip():
 
 @pytest.mark.asyncio
 async def test_ticket_single_use():
-    """Validate twice — second time should return None (GETDEL consumed it)."""
+    # GETDEL should consume the ticket on first validate.
     mock_redis = AsyncMock()
     stored = {}
 
@@ -59,7 +57,6 @@ async def test_ticket_single_use():
 
 @pytest.mark.asyncio
 async def test_invalid_ticket():
-    """Validating a non-existent ticket should return None."""
     mock_redis = AsyncMock()
     mock_redis.getdel = AsyncMock(return_value=None)
 

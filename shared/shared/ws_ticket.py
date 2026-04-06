@@ -1,19 +1,11 @@
-"""WebSocket ticket system for secure, one-time-use authentication.
+"""One-time-use WebSocket auth tickets.
 
-Browser WebSocket API doesn't support custom headers.  The common workaround
-is ``ws://host/ws?token=JWT``, but this leaks the long-lived JWT into server
-access logs, browser history, and Referer headers.
+Browsers can't set headers on WS connections; passing a JWT via ``?token=``
+would leak the long-lived JWT into logs/history/Referer. Tickets are short-
+lived (30s), single-use (GETDEL), and carry only user_id + role.
 
-Tickets solve this:
-  - One-time use: deleted from Redis immediately via GETDEL
-  - Short TTL: 30 seconds, useless after expiration
-  - Minimal data: only user_id and role, not a full auth token
-
-Flow:
-  1. Client calls ``GET /ws/ticket`` with JWT in Authorization header
-  2. API Gateway validates JWT, creates ticket in Redis (TTL 30s)
-  3. Client opens WebSocket with ``?ticket=<ticket>``
-  4. WS Server validates + consumes ticket via GETDEL, accepts connection
+Flow: client GET /ws/ticket with JWT -> API Gateway stores ticket in Redis
+-> client opens WS with ?ticket=X -> WS Server consumes ticket via GETDEL.
 """
 
 from __future__ import annotations
@@ -32,11 +24,7 @@ async def create_ticket(
     user_id: str,
     role: str,
 ) -> str:
-    """Generate a one-time WebSocket ticket and store in Redis.
-
-    Called by API Gateway when an authenticated user requests a WS ticket.
-    Returns the ticket string for the client to pass as a query parameter.
-    """
+    """Generate and store a one-time WS ticket; return the ticket string."""
     ticket = str(uuid.uuid4())
     key = f"{WS_TICKET_PREFIX}:{ticket}"
     data = json.dumps({"user_id": user_id, "role": role})
@@ -48,12 +36,9 @@ async def validate_ticket(
     redis_client: aioredis.Redis,
     ticket: str,
 ) -> dict | None:
-    """Validate and consume a WebSocket ticket.
+    """Atomically consume a WS ticket. Returns {user_id, role} or None.
 
-    Uses GETDEL (Redis 6.2+) for atomic get-and-delete so the ticket
-    can only be used exactly once, even with concurrent connection attempts.
-
-    Returns ``{user_id, role}`` on success, ``None`` if expired or already used.
+    GETDEL (Redis 6.2+) ensures single-use even under concurrent connects.
     """
     key = f"{WS_TICKET_PREFIX}:{ticket}"
     raw = await redis_client.getdel(key)

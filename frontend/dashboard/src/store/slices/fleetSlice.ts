@@ -1,10 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
 interface WorstLocomotive {
     locomotive_id: string;
     locomotive_type: string;
@@ -18,7 +14,7 @@ interface FleetCategories {
     kritichno: number;
 }
 
-/** Payload from the fleet:summary Redis channel. */
+/** fleet:summary Redis channel payload. */
 export interface FleetSummaryPayload {
     fleet_size: number;
     avg_score: number;
@@ -27,7 +23,6 @@ export interface FleetSummaryPayload {
     timestamp: string;
 }
 
-/** A single locomotive category change. */
 interface FleetChange {
     locomotive_id: string;
     locomotive_type: string;
@@ -37,7 +32,7 @@ interface FleetChange {
     timestamp: string;
 }
 
-/** Payload from the fleet:changes Redis channel. */
+/** fleet:changes Redis channel payload. */
 export interface FleetChangesPayload {
     changes: FleetChange[];
 }
@@ -55,7 +50,7 @@ interface FleetState {
     categories: FleetCategories;
     worst10: WorstLocomotive[];
     lastUpdated: number | null;
-    /** Per-locomotive state for map markers — updated only via fleet:changes. */
+    /** Per-locomotive map-marker state; updated only via fleet:changes. */
     locomotiveStates: Record<string, LocomotiveMapState>;
 }
 
@@ -68,15 +63,10 @@ const initialState: FleetState = {
     locomotiveStates: {},
 };
 
-/* ------------------------------------------------------------------ */
-/*  Slice                                                              */
-/* ------------------------------------------------------------------ */
-
 const fleetSlice = createSlice({
     name: 'fleet',
     initialState,
     reducers: {
-        /** Replace fleet summary stats (received every ~2 seconds). */
         fleetSummaryUpdated(state, action: PayloadAction<FleetSummaryPayload>) {
             const { fleet_size, avg_score, categories, worst_10, timestamp } = action.payload;
             state.fleetSize = fleet_size;
@@ -86,7 +76,6 @@ const fleetSlice = createSlice({
             state.lastUpdated = new Date(timestamp).getTime();
         },
 
-        /** Apply category changes to per-locomotive map state. */
         fleetChangesReceived(state, action: PayloadAction<FleetChangesPayload>) {
             for (const change of action.payload.changes) {
                 state.locomotiveStates[change.locomotive_id] = {
@@ -106,10 +95,6 @@ const fleetSlice = createSlice({
 
 export const { fleetSummaryUpdated, fleetChangesReceived, fleetReset } = fleetSlice.actions;
 export const fleetReducer = fleetSlice.reducer;
-
-/* ------------------------------------------------------------------ */
-/*  Selectors                                                          */
-/* ------------------------------------------------------------------ */
 
 export const selectFleetCategories = (state: RootState) => state.fleet.categories;
 export const selectFleetAvgScore = (state: RootState) => state.fleet.avgScore;

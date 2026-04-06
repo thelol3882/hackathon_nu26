@@ -1,24 +1,8 @@
-"""Simulator service — operator-managed locomotive sandbox.
+"""Simulator service: operator-managed locomotive sandbox.
 
-Boots empty. The dashboard creates locomotives one at a time, each
-with its own route, sub-segment between two stations, scenario and
-mode. There's no fleet-wide scenario any more; each locomotive owns
-its own runtime state.
-
-The HTTP surface is intentionally minimal:
-
-  GET    /health                       — liveness + simple stats
-  GET    /metrics-stats                — runner counters
-  GET    /locomotives                  — list everything currently simulated
-  GET    /locomotives/{id}             — one locomotive's full state
-  POST   /locomotives                  — add a new locomotive
-  PATCH  /locomotives/{id}             — partial update
-  DELETE /locomotives/{id}             — remove from the fleet
-  POST   /burst                        — kept for load-testing convenience
-
-No authentication. The simulator runs internal-only behind the
-api-gateway, which the operator hits with admin auth — see
-``services/api-gateway/api_gateway/api/router_simulator.py``.
+Boots empty; the dashboard creates locomotives one at a time, each owning
+its own route segment, scenario, and mode. No authentication — this service
+is internal-only behind the api-gateway (see api_gateway/api/router_simulator).
 """
 
 import asyncio
@@ -66,11 +50,6 @@ async def shutdown() -> None:
     app.state.shutdown_otel()
 
 
-# ---------------------------------------------------------------------------
-# Health / metrics
-# ---------------------------------------------------------------------------
-
-
 @app.get("/health")
 async def health() -> dict:
     return {
@@ -94,23 +73,13 @@ async def burst(
     return {"status": "ok", "multiplier": multiplier, "duration": duration}
 
 
-# ---------------------------------------------------------------------------
-# Locomotive CRUD
-# ---------------------------------------------------------------------------
-
-
 class StationDTO(BaseModel):
     name: str
     km_from_start: float
 
 
 class LocomotiveStateDTO(BaseModel):
-    """What we hand back to the dashboard about one locomotive.
-
-    The full ``LocomotiveState`` carries internal kinematics fields
-    (``mode_ticks``, ``scenario_tick``, etc.) the UI shouldn't see.
-    This DTO is the curated view.
-    """
+    """Curated locomotive view for the dashboard (hides internal kinematics)."""
 
     id: UUID
     name: str
@@ -156,11 +125,9 @@ def _to_dto(state: LocomotiveState) -> LocomotiveStateDTO:
 class CreateLocomotiveRequest(BaseModel):
     """Body for ``POST /locomotives``.
 
-    ``id`` lets the dashboard supply the catalogue UUID it just got
-    from the gateway's ``POST /locomotives``, so the simulation entry
-    and the DB record line up. Stations are picked by name from the
-    /routes catalogue; if either is omitted the locomotive runs the
-    full route from end to end.
+    ``id`` is supplied by the dashboard so the simulator entry matches the
+    catalogue row the gateway just created. Missing start/end stations default
+    to the full route.
     """
 
     id: UUID
@@ -173,15 +140,13 @@ class CreateLocomotiveRequest(BaseModel):
     scenario: LocomotiveScenario = LocomotiveScenario.NORMAL
     on_arrival: OnArrival = OnArrival.LOOP
     auto_mode: bool = False
-    # Upper bound is intentionally generous — pet project, the operator
-    # can request silly speeds for fun. The auto state machine will
-    # still clamp anything > 110 km/h back to 110 if `auto_mode` is
-    # True, so to actually pin a high speed you must turn auto off.
+    # Generous upper bound — auto mode still clamps back to 110 km/h, so
+    # disable auto_mode to actually pin higher speeds.
     initial_speed_kmh: float = Field(default=0.0, ge=0.0, le=500.0)
 
 
 class UpdateLocomotiveRequest(BaseModel):
-    """Body for ``PATCH /locomotives/{id}``. All fields optional."""
+    """Partial update body for ``PATCH /locomotives/{id}``."""
 
     name: str | None = None
     route_name: str | None = None
@@ -195,13 +160,7 @@ class UpdateLocomotiveRequest(BaseModel):
 
 
 def _resolve_station_km(route_name: str, station_name: str | None) -> float | None:
-    """Look up a station's km mark on a given route.
-
-    Returns ``None`` when the station name is empty (caller falls back
-    to the route's natural endpoint). Raises HTTPException 400 if the
-    name is given but doesn't exist on the route — better a clean
-    error than a silently wrong distance.
-    """
+    """Look up a station's km mark; None when empty, HTTP 400 when invalid."""
     if not station_name:
         return None
     route = get_route(route_name)
@@ -254,8 +213,7 @@ async def create_locomotive(body: CreateLocomotiveRequest) -> LocomotiveStateDTO
 
 @app.patch("/locomotives/{loco_id}", response_model=LocomotiveStateDTO)
 async def patch_locomotive(loco_id: UUID, body: UpdateLocomotiveRequest) -> LocomotiveStateDTO:
-    # If the caller is moving the loco to a new route AND naming
-    # stations on it, those station lookups must use the new route.
+    # Station lookups must use the target route when the loco is being moved.
     target_route = body.route_name
     if target_route is None:
         try:
@@ -292,12 +250,7 @@ async def delete_locomotive(loco_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="Locomotive not in simulator") from e
 
 
-# ---------------------------------------------------------------------------
-# Routes catalogue (mirrors api-gateway /routes — handy for the simulator's
-# own dry-runs and CLI scripts that want to know station positions)
-# ---------------------------------------------------------------------------
-
-
+# Routes catalogue mirrors api-gateway /routes for local dry-runs and CLI scripts.
 class RouteSummaryDTO(BaseModel):
     name: str
     electrified: bool

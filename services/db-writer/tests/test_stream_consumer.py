@@ -7,8 +7,6 @@ import pytest
 from shared.wire import decode as wire_decode
 from shared.wire import encode as wire_encode
 
-# ── Payload encoding / decoding ───────────────────────────────────────
-
 
 class TestPayloadCodec:
     def test_round_trip(self):
@@ -26,15 +24,11 @@ class TestPayloadCodec:
         assert decoded["rows"] == []
 
 
-# ── Test fixtures / helpers ───────────────────────────────────────────
-
-
 def _make_consumer(model_class=None, worker_count: int = 1, rows_per_flush: int = 5000):
     """Build a StreamConsumer wired to fully-mocked Redis and pg pool."""
     from db_writer.services.stream_consumer import StreamConsumer
 
     if model_class is None:
-        # Fake model with a fake __table__.columns for the adapter.
         from db_writer.models.telemetry_entity import TelemetryRecord
 
         model_class = TelemetryRecord
@@ -53,9 +47,6 @@ def _make_consumer(model_class=None, worker_count: int = 1, rows_per_flush: int 
         rows_per_flush=rows_per_flush,
         queue_maxsize=2,
     )
-
-
-# ── StreamConsumer._enqueue_entries ───────────────────────────────────
 
 
 class TestEnqueueEntries:
@@ -81,14 +72,12 @@ class TestEnqueueEntries:
 
         await consumer._enqueue_entries(entries)
 
-        # Queue should have exactly one batch
         assert consumer._queue.qsize() == 1
         msg_ids, enqueued_rows = await consumer._queue.get()
         assert msg_ids == [b"1-0"]
         assert len(enqueued_rows) == 1
         assert enqueued_rows[0]["sensor_type"] == "COOLANT_TEMP"
 
-        # No XACK yet — the worker is responsible for that
         consumer._redis.xack.assert_not_called()
 
     @pytest.mark.asyncio
@@ -99,9 +88,7 @@ class TestEnqueueEntries:
 
         await consumer._enqueue_entries(entries)
 
-        # Queue should be empty
         assert consumer._queue.empty()
-        # The poison pill should have been ack'd immediately
         consumer._redis.xack.assert_called_once()
 
     @pytest.mark.asyncio
@@ -113,7 +100,7 @@ class TestEnqueueEntries:
 
     @pytest.mark.asyncio
     async def test_multiple_messages_merged(self):
-        """Rows from multiple stream messages are flattened into one batch."""
+        """Rows from multiple messages are flattened into one batch."""
         consumer = _make_consumer()
         base = {
             "time": "2026-01-01T00:00:00+00:00",
@@ -140,16 +127,12 @@ class TestEnqueueEntries:
         assert len(enqueued_rows) == 3
 
 
-# ── Row adapter ───────────────────────────────────────────────────────
-
-
 class TestRowAdapter:
     def test_telemetry_adapter_produces_tuple_in_column_order(self):
         from db_writer.models.telemetry_entity import TelemetryRecord
         from db_writer.services.stream_consumer import _get_adapter
 
         columns, row_to_tuple = _get_adapter(TelemetryRecord)
-        # Physical column order comes from the ORM table definition
         assert columns == (
             "time",
             "locomotive_id",
@@ -176,11 +159,9 @@ class TestRowAdapter:
             "longitude": 37.6,
         }
         tup = row_to_tuple(row)
-        # datetime coerced
         from datetime import datetime
 
         assert isinstance(tup[0], datetime)
-        # uuid coerced
         import uuid
 
         assert isinstance(tup[1], uuid.UUID)
@@ -205,7 +186,6 @@ class TestRowAdapter:
             "calculated_at": "2026-01-01T00:00:00+00:00",
         }
         tup = row_to_tuple(row)
-        # Find the top_factors position and verify it's a JSON string
         idx = columns.index("top_factors")
         import json
 
@@ -213,22 +193,14 @@ class TestRowAdapter:
         assert json.loads(tup[idx]) == [{"sensor": "oil", "impact": 0.1}]
 
 
-# ── Worker write path chunking ────────────────────────────────────────
-
-
 class TestWorkerBatchChunking:
     @pytest.mark.asyncio
     async def test_large_batch_split_into_multiple_flushes(self):
-        """A batch bigger than rows_per_flush is split into multiple
-        (TRUNCATE, COPY, INSERT SELECT) transactions.
-        """
+        """Batches larger than rows_per_flush split into multiple transactions."""
         from db_writer.services.stream_consumer import StreamConsumer  # noqa: F401
 
-        # Build a consumer with small rows_per_flush so we can easily
-        # assert multiple chunks.
         consumer = _make_consumer(rows_per_flush=100)
 
-        # Mock asyncpg connection + transaction chain.
         mock_conn = AsyncMock()
         mock_tx = AsyncMock()
         mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
@@ -242,7 +214,7 @@ class TestWorkerBatchChunking:
         acquire_ctx.__aexit__ = AsyncMock(return_value=False)
         consumer._pool.acquire = MagicMock(return_value=acquire_ctx)
 
-        # 250 rows → 3 flushes with chunk size 100 (100 + 100 + 50)
+        # 250 rows with chunk 100 → 3 flushes (100 + 100 + 50).
         rows = [
             {
                 "time": "2026-01-01T00:00:00+00:00",
@@ -261,7 +233,6 @@ class TestWorkerBatchChunking:
 
         await consumer._write_batch("raw_telemetry_staging_test_0", rows)
 
-        # 3 chunks → 3 transaction blocks → 3 COPY calls
         assert mock_conn.copy_records_to_table.call_count == 3
-        # TRUNCATE + INSERT SELECT per chunk = 2 execute calls × 3 chunks
+        # TRUNCATE + INSERT SELECT per chunk × 3 chunks.
         assert mock_conn.execute.call_count == 6

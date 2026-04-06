@@ -1,22 +1,8 @@
-"""
-Real-time Health Index (HI) calculator.
+"""Real-time Health Index calculator.
 
-Formula (non-linear penalty):
-    HI(t) = 100 - Σ_i W_i · ( max(0, |P̂_i - P_nom| - δ_safe) / R_i )^k
-    clamped to [0, 100]
-
-where:
-  P̂_i       = EMA-filtered sensor value
-  P_nom      = nominal target value
-  δ_safe     = half-width of the safe zone (no penalty inside)
-  R_i        = p_crit_range = |P_crit - P_nom| - δ_safe  (normalization)
-  k          = exponent (typically 2; higher → steeper near critical)
-  W_i        = sensor weight (0–40; ≥35 for fatal parameters)
-
-Damage accumulator (Montsinger's rule for cellulosic insulation):
-    aging_rate  = 2^((T - T_ref) / 6)   [doubles every 6 °C above reference]
-    damage_incr = (aging_rate - 1.0) × MONTSINGER_BASE_DAMAGE
-    Accumulated damage is permanently subtracted from HI to estimate RUL.
+HI(t) = 100 − Σ_i W_i · (max(0, |P̂_i − P_nom| − δ_safe) / R_i)^k, clamped to
+[0, 100]. A Montsinger-rule damage accumulator (doubles every 6°C above
+T_ref) is persistently subtracted from HI to estimate RUL.
 """
 
 import math
@@ -41,9 +27,6 @@ logger = get_logger(__name__)
 _damage_state: dict[tuple[str, str], float] = {}
 
 
-# ── Deviation helpers ────────────────────────────────────────────────────────
-
-
 def _raw_deviation(value: float, spec: SensorSpec) -> float:
     """Unsigned deviation from nominal, respecting threshold direction."""
     if spec.threshold_type == ThresholdType.BIDIRECTIONAL:
@@ -58,26 +41,16 @@ def _raw_deviation(value: float, spec: SensorSpec) -> float:
 
 
 def _sensor_penalty(value: float, spec: SensorSpec) -> tuple[float, float]:
-    """
-    Returns (penalty, deviation_pct).
-
-    deviation_pct: how far value has moved from safe zone toward critical, 0–100 %.
-    """
+    """Return (penalty, deviation_pct) where deviation_pct is 0-100."""
     dev = _raw_deviation(value, spec)
     exceedance = max(0.0, dev - spec.delta_safe)
-    normalized = min(1.0, exceedance / spec.crit_range)  # 0–1
+    normalized = min(1.0, exceedance / spec.crit_range)
     penalty = spec.weight * (normalized**spec.k)
     return penalty, normalized * 100.0
 
 
-# ── Montsinger aging accumulator ─────────────────────────────────────────────
-
-
 def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpec) -> float:
-    """
-    Increment damage accumulator using Montsinger's rule and return current total damage.
-    Only called for sensors with is_aging_param=True.
-    """
+    """Apply Montsinger increment (aging sensors only) and return total damage."""
     ref = spec.montsinger_ref_temp
     if value <= ref:
         return _damage_state.get((loco_id, sensor_type), 0.0)
@@ -89,17 +62,8 @@ def _update_damage(loco_id: str, sensor_type: str, value: float, spec: SensorSpe
     return _damage_state[key]
 
 
-# ── Main public function ──────────────────────────────────────────────────────
-
-
 def calculate_health(reading: TelemetryReading) -> HealthIndex:
-    """
-    Compute the real-time Health Index for one telemetry reading.
-
-    Uses filtered (EMA) sensor values that should already be applied upstream
-    (ingestion_service passes filtered_value into each SensorPayload before
-    calling this function).
-    """
+    """Compute the Health Index. Expects EMA-filtered sensor values already applied."""
     loco_id = str(reading.locomotive_id)
     specs = LOCO_SPECS.get(reading.locomotive_type.value, {})
 
@@ -116,7 +80,6 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
 
         penalty, dev_pct = _sensor_penalty(sensor.value, spec)
 
-        # Montsinger accumulation for aging-sensitive components
         if spec.is_aging_param:
             damage = _update_damage(loco_id, sensor_key, sensor.value, spec)
             penalty += damage
@@ -181,5 +144,5 @@ def calculate_health(reading: TelemetryReading) -> HealthIndex:
 
 
 def get_damage_state(loco_id: str) -> dict[str, float]:
-    """Return accumulated damage per sensor for a locomotive (diagnostic use)."""
+    """Accumulated damage per sensor for a locomotive (diagnostic)."""
     return {sensor: dmg for (lid, sensor), dmg in _damage_state.items() if lid == loco_id}

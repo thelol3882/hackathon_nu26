@@ -8,7 +8,7 @@ from shared.observability.middleware import RequestContextMiddleware
 
 
 def _env(service_name: str, key: str, default: str) -> str:
-    """Read env var with per-service override: {SVC}_{KEY} → {KEY} → default."""
+    """Read env var with per-service override: {SVC}_{KEY} -> {KEY} -> default."""
     prefix = service_name.upper().replace("-", "_")
     return os.environ.get(f"{prefix}_{key}", os.environ.get(key, default))
 

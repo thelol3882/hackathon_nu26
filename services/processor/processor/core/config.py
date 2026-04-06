@@ -10,11 +10,9 @@ class ProcessorSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    # --- Application ---
     app_name: str = "locomotive-processor"
     debug: bool = False
 
-    # --- Redis ---
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
@@ -23,7 +21,6 @@ class ProcessorSettings(BaseSettings):
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    # --- Domain ---
     telemetry_batch_size: int = 100
     alert_cooldown_seconds: int = 30
 

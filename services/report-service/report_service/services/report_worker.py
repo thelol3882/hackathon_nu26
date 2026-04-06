@@ -1,4 +1,4 @@
-"""RabbitMQ message handler: consume report jobs and execute the generation pipeline."""
+"""RabbitMQ consumer that runs the report generation pipeline for each job."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from shared.schemas.report import ReportJobMessage, ReportStatus
 logger = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 
-# Analytics gRPC client is set from lifespan via set_analytics_client()
+# Wired up at startup via set_analytics_client()
 _analytics = None
 
 
@@ -31,7 +31,7 @@ def set_analytics_client(client) -> None:
 
 
 async def process_report_job(message: aio_pika.abc.AbstractIncomingMessage) -> None:
-    """Process a single report generation job from RabbitMQ."""
+    """Handle a single report job from the RabbitMQ queue."""
     async with message.process():
         body = json.loads(message.body.decode())
         job = ReportJobMessage.model_validate(body)
@@ -50,7 +50,6 @@ async def process_report_job(message: aio_pika.abc.AbstractIncomingMessage) -> N
 
 
 async def _execute_job(job: ReportJobMessage) -> None:
-    """Run the report pipeline inside an OTEL span."""
     with tracer.start_as_current_span(
         "report.generate",
         attributes={
@@ -62,8 +61,7 @@ async def _execute_job(job: ReportJobMessage) -> None:
     ):
         logger.info("Processing report job", code=REPORT_PROCESSING)
 
-        # DB session for report lifecycle (PostgreSQL — own database)
-        # Report Service creates the record itself; API Gateway only publishes to RabbitMQ.
+        # Report Service owns the report row; API Gateway only publishes the job.
         async for session in get_db_session():
             from report_service.models.report_entity import Report
 
@@ -80,7 +78,6 @@ async def _execute_job(job: ReportJobMessage) -> None:
 
             try:
                 with tracer.start_as_current_span("report.query_data"):
-                    # Analytics queries go via gRPC, not direct DB
                     data = await generate_report_data(_analytics, job)
 
                 with tracer.start_as_current_span("report.format"):

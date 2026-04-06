@@ -13,7 +13,7 @@ class WsServerSettings(BaseSettings):
     app_name: str = "locomotive-ws-server"
     debug: bool = False
 
-    # Redis only — NO database connection
+    # Redis-only: this service never touches a SQL database.
     redis_host: str = "redis"
     redis_port: int = 6379
     redis_db: int = 0
@@ -22,7 +22,6 @@ class WsServerSettings(BaseSettings):
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    # WS limits — can be higher since this server does ONLY WS
     max_connections: int = 500
 
 

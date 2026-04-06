@@ -12,7 +12,6 @@ from shared.schemas.report import DateRange, ReportFormat, ReportJobMessage
 
 @pytest.fixture
 def mock_session() -> MagicMock:
-    """AsyncSession mock with async execute, commit, and refresh."""
     session = MagicMock(spec=AsyncSession)
     session.execute = AsyncMock()
     session.commit = AsyncMock()
@@ -22,7 +21,6 @@ def mock_session() -> MagicMock:
 
 @pytest.fixture
 def sample_job() -> ReportJobMessage:
-    """Factory-style fixture returning a default ReportJobMessage."""
     return ReportJobMessage(
         report_id=uuid4(),
         locomotive_id="00000000-0000-0000-0000-000000000001",
@@ -38,7 +36,6 @@ def sample_job() -> ReportJobMessage:
 
 @pytest.fixture
 def sample_report_data() -> dict:
-    """Rich report data dict suitable for formatter and PDF tests."""
     return {
         "locomotive_id": "00000000-0000-0000-0000-000000000001",
         "report_type": "health_summary",

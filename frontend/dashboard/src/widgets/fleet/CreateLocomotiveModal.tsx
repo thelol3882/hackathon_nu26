@@ -1,22 +1,8 @@
 'use client';
 
-/**
- * "Создать локомотив" — two-stage form.
- *
- * Stage 1: catalogue.  POST /locomotives creates the physical record
- * with serial / model / manufacturer / year, and we get back the new
- * UUID.
- *
- * Stage 2: simulator.  POST /simulator/locomotives spawns the
- * runtime simulation entry with route, sub-segment between two
- * stations, scenario and mode.  Same UUID, so the dashboard's live
- * page can find it later.
- *
- * Both calls happen on submit, in sequence.  If stage 2 fails after
- * stage 1 succeeds the user is told and can retry from the catalogue
- * row (we don't try to roll back the catalogue insert — for a pet
- * project that's fine).
- */
+// Two-stage create: POST /locomotives (catalogue) then POST /simulator/locomotives
+// with the same UUID. If stage 2 fails, the catalogue row is left in place and
+// the user can retry from there.
 
 import { useMemo, useState } from 'react';
 import {
@@ -78,17 +64,14 @@ export function CreateLocomotiveModal({ opened, onClose, onCreated }: Props) {
     const [initialSpeed, setInitialSpeed] = useState<number>(60);
     const [error, setError] = useState<string | null>(null);
 
-    // KZ8A is electric — only routes with electrified=true can host one.
+    // KZ8A is electric, so only electrified routes can host it.
     const electrifiedOnly = type === 'KZ8A';
     const filteredRoutes = useMemo(
         () => (electrifiedOnly ? routes.filter((r) => r.electrified) : routes),
         [routes, electrifiedOnly],
     );
 
-    /** Reset route + stations when the user flips the type to one that
-     *  can't host the currently picked route. Done as an event handler
-     *  rather than an effect so we don't trip the cascading-setState
-     *  lint rule and so the reset is bound to a clear user action. */
+    // Event handler (not effect) so the reset stays bound to a user action.
     const handleTypeChange = (next: LocomotiveType) => {
         setType(next);
         if (next === 'KZ8A' && routeName) {
@@ -141,8 +124,7 @@ export function CreateLocomotiveModal({ opened, onClose, onCreated }: Props) {
             return;
         }
         try {
-            // Stage 1 — catalogue insert. Auto-fill serial/manufacturer/year
-            // because the operator just wants to play, not fill in 8 fields.
+            // Stage 1: catalogue insert. Serial/manufacturer/year are auto-filled.
             const catalog = await createCatalog({
                 serial_number: `SIM-${Date.now().toString(36).toUpperCase()}`,
                 model: type,
@@ -150,7 +132,7 @@ export function CreateLocomotiveModal({ opened, onClose, onCreated }: Props) {
                 year_manufactured: new Date().getFullYear(),
             }).unwrap();
 
-            // Stage 2 — simulator spawn with the same UUID.
+            // Stage 2: simulator spawn with the same UUID.
             await createSim({
                 id: catalog.id,
                 loco_type: type,

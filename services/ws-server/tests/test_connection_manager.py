@@ -1,4 +1,4 @@
-"""Tests for ws_server.connection_manager — ConnectionManager core logic."""
+"""Tests for ws_server.connection_manager."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from ws_server.connection_manager import ConnectionManager
 
 
 def _mock_redis():
-    """Create a mock Redis client with pubsub support."""
     redis = AsyncMock()
     pubsub = AsyncMock()
     pubsub.subscribe = AsyncMock()
@@ -21,12 +20,10 @@ def _mock_redis():
 
 
 def _mock_ws(*, connected=True):
-    """Create a mock WebSocket."""
     ws = AsyncMock()
     ws.accept = AsyncMock()
     ws.close = AsyncMock()
     ws.send_bytes = AsyncMock()
-    # Use starlette's WebSocketState enum value
     from starlette.websockets import WebSocketState
 
     type(ws).client_state = PropertyMock(
@@ -98,7 +95,7 @@ async def test_disconnect_removes_from_all_channels():
 
     await manager.disconnect(ws)
 
-    # Relays with zero clients should be cleaned up
+    # Relays with zero clients are cleaned up.
     assert manager.active_connections == 0
     assert "ch1" not in manager._relays
     assert "ch2" not in manager._relays
@@ -122,12 +119,10 @@ async def test_mark_pong():
 
 @pytest.mark.asyncio
 async def test_mark_pong_unknown_ws():
-    """mark_pong for an unknown WS should not raise."""
     redis = _mock_redis()
     manager = ConnectionManager(redis, max_connections=10)
     ws = _mock_ws()
 
-    # Should not raise
     manager.mark_pong(ws)
 
 
@@ -161,13 +156,10 @@ async def test_multiple_clients_same_channel():
     await manager.subscribe(ws1, "ch1", envelope_type="a")
     await manager.subscribe(ws2, "ch1", envelope_type="a")
 
-    # Both share the same relay
     assert manager._relays["ch1"].client_count == 2
 
-    # Disconnect one — relay stays
     await manager.disconnect(ws1)
     assert manager._relays["ch1"].client_count == 1
 
-    # Disconnect the other — relay cleaned up
     await manager.disconnect(ws2)
     assert "ch1" not in manager._relays

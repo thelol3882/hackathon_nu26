@@ -39,8 +39,7 @@ async def get_telemetry(
         description="LTTB downsample target. 0 disables downsampling.",
     ),
 ):
-    """Query historical telemetry. Resolution is selected automatically
-    based on the requested time range, unless bucket_interval is given."""
+    """Query historical telemetry with automatic bucket resolution."""
     result = await analytics.get_telemetry_bucketed(
         locomotive_id=locomotive_id or "",
         sensor_type=sensor_type or "",

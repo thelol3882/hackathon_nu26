@@ -20,9 +20,8 @@ _logger = get_logger(__name__)
 def run_migrations() -> None:
     """Apply pending Alembic migrations.
 
-    Must be called BEFORE the async event loop starts (e.g. at module
-    level or before uvicorn.run), because alembic env.py internally
-    calls asyncio.run() which cannot nest inside an existing loop.
+    Must be called before the async event loop starts because alembic env.py
+    internally calls asyncio.run() which cannot nest inside a running loop.
     """
     ini_path = pathlib.Path(__file__).resolve().parents[2] / "alembic.ini"
     alembic_cfg = AlembicConfig(str(ini_path))
@@ -33,12 +32,10 @@ def run_migrations() -> None:
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    await init_app_db()  # PostgreSQL for CRUD
+    await init_app_db()
     await init_redis()
     await init_rabbitmq()
 
-    # Connect to Analytics Service via gRPC.
-    # All telemetry, alert, and health queries go through this client.
     analytics = AnalyticsClient(
         settings.analytics_grpc_target,
         timeout=settings.analytics_grpc_timeout,
@@ -46,7 +43,6 @@ async def lifespan(app: FastAPI):
     await analytics.connect()
     app.state.analytics = analytics
 
-    # Connect to Report Service via gRPC for report queries.
     report_client = ReportClient(
         settings.report_grpc_target,
         timeout=settings.report_grpc_timeout,
@@ -57,7 +53,6 @@ async def lifespan(app: FastAPI):
     redis_client = get_redis()
     app_session_factory = get_app_session_factory()
 
-    # Seed default data and health config (all in PostgreSQL)
     async with app_session_factory() as session:
         await seed_admin_user(session)
         await seed_locomotives(session)

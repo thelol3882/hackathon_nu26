@@ -1,15 +1,7 @@
-"""WebSocket Server — lightweight, single-purpose service.
+"""WebSocket server: streams Redis pub/sub messages to WebSocket clients.
 
-This server does exactly ONE thing: stream real-time data from
-Redis pub/sub to WebSocket clients.  It has:
-  - NO database connection (no PostgreSQL, no TimescaleDB)
-  - NO JWT decoding (authentication via one-time Redis tickets)
-  - NO business logic (no health index, no alerts evaluation)
-
-The asyncio event loop is 100% dedicated to:
-  1. Receiving messages from Redis pub/sub
-  2. Sending messages to WebSocket clients
-  3. Heartbeat ping/pong
+Has no database, no JWT decoding (auth via one-time Redis tickets), and no
+business logic — the event loop only handles Redis fan-out and heartbeats.
 """
 
 from contextlib import asynccontextmanager
