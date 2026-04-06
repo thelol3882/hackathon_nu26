@@ -120,6 +120,7 @@ class AnalyticsClient:
         end: str = "",
         offset: int = 0,
         limit: int = 500,
+        bucket_interval: str = "",
     ) -> dict:
         """Query bucketed telemetry with auto-resolution.
 
@@ -133,6 +134,7 @@ class AnalyticsClient:
                 end=end,
                 offset=offset,
                 limit=limit,
+                bucket_interval=bucket_interval,
             ),
             timeout=self._timeout,
         )

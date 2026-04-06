@@ -29,9 +29,13 @@ async def get_telemetry(
     end: datetime | None = Query(None),
     offset: int = 0,
     limit: int = 500,
+    bucket_interval: str | None = Query(
+        None,
+        description="Explicit bucket size (e.g. '15 seconds'); empty = auto",
+    ),
 ):
     """Query historical telemetry. Resolution is selected automatically
-    based on the requested time range."""
+    based on the requested time range, unless bucket_interval is given."""
     result = await analytics.get_telemetry_bucketed(
         locomotive_id=locomotive_id or "",
         sensor_type=sensor_type or "",
@@ -39,6 +43,7 @@ async def get_telemetry(
         end=end.isoformat() if end else "",
         offset=offset,
         limit=limit,
+        bucket_interval=bucket_interval or "",
     )
     return JSONResponse(
         content=result["points"],

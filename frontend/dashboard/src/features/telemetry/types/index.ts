@@ -44,6 +44,13 @@ export interface TelemetryBucket {
 }
 
 export type BucketInterval =
+    | '2 seconds'
+    | '5 seconds'
+    | '10 seconds'
+    | '15 seconds'
+    | '20 seconds'
+    | '30 seconds'
+    | '40 seconds'
     | '1 minute'
     | '5 minutes'
     | '10 minutes'

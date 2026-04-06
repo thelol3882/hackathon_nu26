@@ -61,6 +61,7 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
                 end=_parse_dt(request.end),
                 offset=request.offset,
                 limit=request.limit or 500,
+                bucket_interval=request.bucket_interval or None,
             )
         points = [
             telemetry_pb2.TelemetryPoint(

@@ -6,7 +6,6 @@ import {
     Text,
     Group,
     Select,
-    SegmentedControl,
     Loader,
     Center,
     Badge,
@@ -55,14 +54,14 @@ const sensorLabels: Record<string, string> = {
 const sensorOptions = Object.entries(sensorLabels).map(([value, label]) => ({ value, label }));
 
 const periodOptions = [
-    { label: '5м', value: '5m' },
-    { label: '15м', value: '15m' },
-    { label: '30м', value: '30m' },
-    { label: '1ч', value: '1h' },
-    { label: '3ч', value: '3h' },
-    { label: '6ч', value: '6h' },
-    { label: '12ч', value: '12h' },
-    { label: '24ч', value: '24h' },
+    { label: '5 minutes', value: '5m' },
+    { label: '15 minutes', value: '15m' },
+    { label: '30 minutes', value: '30m' },
+    { label: '1 hour', value: '1h' },
+    { label: '3 hours', value: '3h' },
+    { label: '6 hours', value: '6h' },
+    { label: '12 hours', value: '12h' },
+    { label: '24 hours', value: '24h' },
 ];
 
 const periodConfig: Record<string, { getStart: () => string; refreshMs: number }> = {
@@ -76,16 +75,22 @@ const periodConfig: Record<string, { getStart: () => string; refreshMs: number }
     '24h': { getStart: () => hoursAgo(24), refreshMs: 120_000 },
 };
 
-/** Pick aggregation bucket size proportional to the visible time window */
+/**
+ * Pick a bucket size small enough that the line feels smooth but large enough
+ * to keep the number of points bounded. The values mirror the DigitalOcean
+ * monitoring charts the user referenced — e.g. ~15 s for a 1 hour window,
+ * ~20 s for 6 hours.
+ */
 function autoBucket(durationMs: number): BucketInterval {
     const min = durationMs / 60_000;
-    if (min <= 5) return '1 minute';
-    if (min <= 30) return '1 minute';
-    if (min <= 90) return '5 minutes';
-    if (min <= 360) return '10 minutes';
-    if (min <= 720) return '15 minutes';
-    if (min <= 1440) return '30 minutes';
-    return '1 hour';
+    if (min <= 5) return '2 seconds'; // 150 pts
+    if (min <= 15) return '5 seconds'; // 180 pts
+    if (min <= 30) return '10 seconds'; // 180 pts
+    if (min <= 60) return '15 seconds'; // 240 pts — 1 h
+    if (min <= 180) return '20 seconds'; // 540 pts — 3 h
+    if (min <= 360) return '20 seconds'; // 1080 pts — 6 h (per user spec)
+    if (min <= 720) return '40 seconds'; // 1080 pts — 12 h
+    return '1 minute'; // 1440 pts — 24 h
 }
 
 function toEpoch(bucket: string | Date): number {
@@ -95,6 +100,20 @@ function toEpoch(bucket: string | Date): number {
 /** Size of one aggregation bucket in milliseconds. */
 function bucketMs(b: BucketInterval): number {
     switch (b) {
+        case '2 seconds':
+            return 2_000;
+        case '5 seconds':
+            return 5_000;
+        case '10 seconds':
+            return 10_000;
+        case '15 seconds':
+            return 15_000;
+        case '20 seconds':
+            return 20_000;
+        case '30 seconds':
+            return 30_000;
+        case '40 seconds':
+            return 40_000;
         case '1 minute':
             return 60_000;
         case '5 minutes':
@@ -107,21 +126,42 @@ function bucketMs(b: BucketInterval): number {
             return 30 * 60_000;
         case '1 hour':
             return 60 * 60_000;
+        case '1 day':
+            return 24 * 60 * 60_000;
         default:
             return 60_000;
     }
 }
 
 /**
+ * DigitalOcean-style "nice" X-axis tick step. Picks a round duration for label
+ * spacing (e.g. 5 min for a 1 h window, 30 min for 6 h) so the ticks land on
+ * human-friendly boundaries (16:05, 16:10, …) regardless of where the window
+ * actually starts.
+ */
+function niceTickStepMs(windowDurationMs: number): number {
+    const s = 1000;
+    const m = 60 * s;
+    const h = 60 * m;
+    if (windowDurationMs <= 5 * m) return 30 * s;
+    if (windowDurationMs <= 15 * m) return 2 * m;
+    if (windowDurationMs <= 30 * m) return 5 * m;
+    if (windowDurationMs <= 60 * m) return 5 * m; // 1 h → every 5 min
+    if (windowDurationMs <= 3 * h) return 15 * m;
+    if (windowDurationMs <= 6 * h) return 30 * m; // 6 h → every 30 min
+    if (windowDurationMs <= 12 * h) return 1 * h;
+    return 2 * h; // 24 h → every 2 h
+}
+
+/**
  * Build explicit X-axis ticks spanning the FULL time window (not just the data
- * extent). This makes the chart behave like Digital Ocean's metrics: the right
+ * extent). This makes the chart behave like DigitalOcean's metrics: the right
  * edge always anchors to "now" (or window end), the left edge to window start,
  * and missing data simply leaves an empty area instead of compressing the axis.
  *
- * Ticks are de-duplicated by formatted label so we never render
- * "15:30 15:30 15:30" when the window happens to be very short.
- *
- * Format precision auto-adapts: HH:mm:ss for windows under 10 minutes,
+ * Ticks are placed on round, human-friendly boundaries (16:05, 16:10, …) at a
+ * step chosen by `niceTickStepMs` based on the visible window length. The
+ * label format auto-adapts: HH:mm:ss when the tick step is below 1 minute,
  * HH:mm otherwise; days are added on midnight crossings.
  */
 function buildXAxis(
@@ -129,24 +169,30 @@ function buildXAxis(
     endMs: number,
 ): { ticks: number[]; formatter: (ts: number, index: number) => string } {
     const windowDurationMs = endMs - startMs;
-    const useSeconds = windowDurationMs > 0 && windowDurationMs < 10 * 60_000;
-    const baseFmt = useSeconds ? 'HH:mm:ss' : 'HH:mm';
+    const baseFmt = windowDurationMs < 10 * 60_000 ? 'HH:mm:ss' : 'HH:mm';
 
     if (windowDurationMs <= 0) {
         return { ticks: [], formatter: (ts) => dayjs(ts).format(baseFmt) };
     }
 
-    const targetCount = 8;
-    const step = windowDurationMs / (targetCount - 1);
+    const step = niceTickStepMs(windowDurationMs);
+
+    // Snap first tick up to the next multiple of `step` aligned to the LOCAL
+    // timezone, not to UTC — otherwise ticks could land at 16:02 instead of
+    // the expected 16:05 for users not in UTC.
+    const tzOffsetMs = new Date(startMs).getTimezoneOffset() * 60_000;
+    const firstTick = Math.ceil((startMs - tzOffsetMs) / step) * step + tzOffsetMs;
+
     const picked: number[] = [];
     const seen = new Set<string>();
-    for (let i = 0; i < targetCount; i++) {
-        const ts = Math.round(startMs + i * step);
-        const label = dayjs(ts).format(baseFmt);
+    for (let t = firstTick; t <= endMs; t += step) {
+        const label = dayjs(t).format(baseFmt);
         if (!seen.has(label)) {
             seen.add(label);
-            picked.push(ts);
+            picked.push(t);
         }
+        // Hard safety cap — should never trigger for normal windows.
+        if (picked.length > 64) break;
     }
 
     const formatter = (ts: number, index: number) => {
@@ -261,7 +307,9 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
             start: currentWindow.start,
             end: currentWindow.end,
             bucket_interval: bucket,
-            limit: 500,
+            // High-resolution buckets (e.g. 20 s for 6 h = 1080 pts) need
+            // enough headroom beyond the default 500.
+            limit: 2000,
         }),
         [locomotiveId, selectedSensor, currentWindow, bucket],
     );
@@ -380,6 +428,51 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
         setZoomStack([]);
     }, []);
 
+    /**
+     * Render a dot only for data points that are "isolated" — i.e. both the
+     * previous and next bucket are null. Without this a single surviving data
+     * point (e.g. the first reading after a backend restart) would be invisible
+     * because `<Area>` cannot draw a line of zero length.
+     * Continuous stretches still render without dots for a clean look.
+     */
+    const dotColor = `var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`;
+    const renderIsolatedDot = useCallback(
+        (props: {
+            cx?: number;
+            cy?: number;
+            index?: number;
+            value?: number | null;
+        }) => {
+            const { cx, cy, index, value } = props;
+            if (
+                value == null ||
+                cx == null ||
+                cy == null ||
+                index == null ||
+                !Number.isFinite(cx) ||
+                !Number.isFinite(cy)
+            ) {
+                return <g />;
+            }
+            const prev = chartData[index - 1]?.avg_value;
+            const next = chartData[index + 1]?.avg_value;
+            if (prev == null && next == null) {
+                return (
+                    <circle
+                        cx={cx}
+                        cy={cy}
+                        r={3}
+                        fill={dotColor}
+                        stroke={dotColor}
+                        strokeWidth={1}
+                    />
+                );
+            }
+            return <g />;
+        },
+        [chartData, dotColor],
+    );
+
     const windowLabel = useMemo(() => {
         if (!isZoomed) return null;
         const s = dayjs(currentWindow.start).format('HH:mm:ss');
@@ -456,13 +549,15 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
             </Group>
 
             {!isReplay && (
-                <SegmentedControl
+                <Select
                     size="xs"
+                    label="Select period"
                     value={selectedPeriod}
-                    onChange={handlePeriodChange}
+                    onChange={(v) => v && handlePeriodChange(v)}
                     data={periodOptions}
+                    allowDeselect={false}
+                    w={180}
                     mb="sm"
-                    fullWidth
                 />
             )}
 
@@ -577,10 +672,11 @@ export default function TrendsPanel({ locomotiveId, replayStart, replayEnd }: Tr
                         <Area
                             type="monotone"
                             dataKey="avg_value"
-                            stroke={`var(--mantine-color-${isReplay ? 'ktzGold' : 'ktzBlue'}-5)`}
+                            stroke={dotColor}
                             fill="url(#trendGrad)"
                             strokeWidth={2}
-                            dot={false}
+                            dot={renderIsolatedDot}
+                            activeDot={{ r: 4 }}
                             isAnimationActive={false}
                             connectNulls={false}
                         />

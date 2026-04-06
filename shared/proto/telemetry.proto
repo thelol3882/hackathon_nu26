@@ -146,6 +146,7 @@ message TelemetryBucketedRequest {
   string end = 4;
   int32 offset = 5;
   int32 limit = 6;            // 0 means server default (500)
+  string bucket_interval = 7; // e.g. "15 seconds"; empty = auto-select
 }
 
 message TelemetryBucketedResponse {

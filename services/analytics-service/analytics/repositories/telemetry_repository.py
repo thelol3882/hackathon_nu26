@@ -48,6 +48,29 @@ _LEVELS = [
     (timedelta(hours=999), _AggregateLevel("telemetry_1hour", "bucket", "1hour aggregate")),
 ]
 
+# Raw-telemetry retention — queries with an explicit bucket_interval fall back
+# to raw_telemetry even for long windows, so they must not reach past this.
+_RAW_RETENTION = timedelta(hours=72)
+
+# Whitelist of bucket interval strings the client may request. Values are
+# interpolated into SQL (time_bucket('<value>', time)), so we must not accept
+# arbitrary text.
+_ALLOWED_BUCKETS: dict[str, timedelta] = {
+    "2 seconds": timedelta(seconds=2),
+    "5 seconds": timedelta(seconds=5),
+    "10 seconds": timedelta(seconds=10),
+    "15 seconds": timedelta(seconds=15),
+    "20 seconds": timedelta(seconds=20),
+    "30 seconds": timedelta(seconds=30),
+    "40 seconds": timedelta(seconds=40),
+    "1 minute": timedelta(minutes=1),
+    "5 minutes": timedelta(minutes=5),
+    "10 minutes": timedelta(minutes=10),
+    "15 minutes": timedelta(minutes=15),
+    "30 minutes": timedelta(minutes=30),
+    "1 hour": timedelta(hours=1),
+}
+
 
 def pick_level(start: datetime | None, end: datetime | None) -> _AggregateLevel:
     if start is None or end is None:
@@ -72,6 +95,17 @@ def _raw_bucket_size(span: timedelta) -> str:
     if minutes <= 10:
         return "10 seconds"  # 60 rows
     return "15 seconds"      # ~60 rows for a 15-min window
+
+
+def _validate_bucket_interval(value: str | None) -> str | None:
+    """Return a sanitized bucket_interval or None if not provided/invalid."""
+    if not value:
+        return None
+    v = value.strip()
+    if v in _ALLOWED_BUCKETS:
+        return v
+    logger.warning("Ignoring unsupported bucket_interval=%r", value)
+    return None
 
 
 # -- WHERE clause builder -------------------------------------------------
@@ -114,8 +148,32 @@ async def query_bucketed(
     end: datetime | None = None,
     offset: int = 0,
     limit: int = 500,
+    bucket_interval: str | None = None,
 ) -> tuple[list[dict], str]:
-    level = pick_level(start, end)
+    requested_bucket = _validate_bucket_interval(bucket_interval)
+
+    # When the client asks for an explicit bucket size we honor it by going
+    # straight to raw_telemetry (bypassing the span-based CAgg picker). This
+    # is what lets the frontend render DigitalOcean-style high-resolution
+    # charts — e.g. 15 s buckets for a 1 h window, 20 s for 6 h — regardless
+    # of what the auto-aggregate level would otherwise be.
+    use_raw = False
+    bucket_size: str | None = None
+    if requested_bucket is not None:
+        # Guard against hitting expired raw chunks: if the window starts
+        # before raw retention we can't fulfil the request from raw data,
+        # so we silently fall back to the normal CAgg level.
+        within_retention = start is None or (
+            datetime.now(start.tzinfo) - start <= _RAW_RETENTION
+        )
+        if within_retention:
+            use_raw = True
+            bucket_size = requested_bucket
+
+    if use_raw:
+        level = _AggregateLevel("raw_telemetry", "time", f"raw ({bucket_size})")
+    else:
+        level = pick_level(start, end)
     time_col = level.bucket_column
 
     params: dict = {"off": offset, "lim": limit}
@@ -130,10 +188,11 @@ async def query_bucketed(
 
     if level.source_table == "raw_telemetry":
         # Bucket raw data live so the client gets honest min/max/avg and
-        # a bounded row count. Bucket size is picked from the window span,
-        # or defaults to 15 s when no range is supplied.
-        span = (end - start) if (start and end) else timedelta(minutes=15)
-        bucket_size = _raw_bucket_size(span)
+        # a bounded row count. Bucket size is picked from the explicit
+        # request, or from the window span as a fallback.
+        if bucket_size is None:
+            span = (end - start) if (start and end) else timedelta(minutes=15)
+            bucket_size = _raw_bucket_size(span)
         query = text(f"""
             SELECT time_bucket('{bucket_size}', time) AS bucket,
                    CAST(locomotive_id AS text) AS locomotive_id,
