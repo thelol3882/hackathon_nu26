@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class TelemetryPoint(_message.Message):
-    __slots__ = ("bucket", "locomotive_id", "sensor_type", "avg_value", "min_value", "max_value", "last_value", "unit")
+    __slots__ = ("bucket", "locomotive_id", "sensor_type", "avg_value", "min_value", "max_value", "last_value", "unit", "is_gap")
     BUCKET_FIELD_NUMBER: _ClassVar[int]
     LOCOMOTIVE_ID_FIELD_NUMBER: _ClassVar[int]
     SENSOR_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -16,6 +16,7 @@ class TelemetryPoint(_message.Message):
     MAX_VALUE_FIELD_NUMBER: _ClassVar[int]
     LAST_VALUE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
+    IS_GAP_FIELD_NUMBER: _ClassVar[int]
     bucket: str
     locomotive_id: str
     sensor_type: str
@@ -24,7 +25,8 @@ class TelemetryPoint(_message.Message):
     max_value: float
     last_value: float
     unit: str
-    def __init__(self, bucket: _Optional[str] = ..., locomotive_id: _Optional[str] = ..., sensor_type: _Optional[str] = ..., avg_value: _Optional[float] = ..., min_value: _Optional[float] = ..., max_value: _Optional[float] = ..., last_value: _Optional[float] = ..., unit: _Optional[str] = ...) -> None: ...
+    is_gap: bool
+    def __init__(self, bucket: _Optional[str] = ..., locomotive_id: _Optional[str] = ..., sensor_type: _Optional[str] = ..., avg_value: _Optional[float] = ..., min_value: _Optional[float] = ..., max_value: _Optional[float] = ..., last_value: _Optional[float] = ..., unit: _Optional[str] = ..., is_gap: bool = ...) -> None: ...
 
 class TelemetryRawPoint(_message.Message):
     __slots__ = ("time", "locomotive_id", "locomotive_type", "sensor_type", "value", "filtered_value", "unit", "latitude", "longitude")
@@ -179,7 +181,7 @@ class WorstLocomotive(_message.Message):
     def __init__(self, locomotive_id: _Optional[str] = ..., locomotive_type: _Optional[str] = ..., serial_number: _Optional[str] = ..., avg_score: _Optional[float] = ..., min_score: _Optional[float] = ..., max_score: _Optional[float] = ...) -> None: ...
 
 class TelemetryBucketedRequest(_message.Message):
-    __slots__ = ("locomotive_id", "sensor_type", "start", "end", "offset", "limit", "bucket_interval")
+    __slots__ = ("locomotive_id", "sensor_type", "start", "end", "offset", "limit", "bucket_interval", "max_points")
     LOCOMOTIVE_ID_FIELD_NUMBER: _ClassVar[int]
     SENSOR_TYPE_FIELD_NUMBER: _ClassVar[int]
     START_FIELD_NUMBER: _ClassVar[int]
@@ -187,6 +189,7 @@ class TelemetryBucketedRequest(_message.Message):
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
     BUCKET_INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    MAX_POINTS_FIELD_NUMBER: _ClassVar[int]
     locomotive_id: str
     sensor_type: str
     start: str
@@ -194,7 +197,8 @@ class TelemetryBucketedRequest(_message.Message):
     offset: int
     limit: int
     bucket_interval: str
-    def __init__(self, locomotive_id: _Optional[str] = ..., sensor_type: _Optional[str] = ..., start: _Optional[str] = ..., end: _Optional[str] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ..., bucket_interval: _Optional[str] = ...) -> None: ...
+    max_points: int
+    def __init__(self, locomotive_id: _Optional[str] = ..., sensor_type: _Optional[str] = ..., start: _Optional[str] = ..., end: _Optional[str] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ..., bucket_interval: _Optional[str] = ..., max_points: _Optional[int] = ...) -> None: ...
 
 class TelemetryBucketedResponse(_message.Message):
     __slots__ = ("points", "data_source", "total_points")

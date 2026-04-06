@@ -18,6 +18,7 @@ class TelemetryBucket(BaseModel):
     max_value: float | None = None
     last_value: float | None = None
     unit: str
+    is_gap: bool = False
 
 
 @router.get("/", response_model=list[TelemetryBucket])
@@ -33,6 +34,10 @@ async def get_telemetry(
         None,
         description="Explicit bucket size (e.g. '15 seconds'); empty = auto",
     ),
+    max_points: int = Query(
+        0,
+        description="LTTB downsample target. 0 disables downsampling.",
+    ),
 ):
     """Query historical telemetry. Resolution is selected automatically
     based on the requested time range, unless bucket_interval is given."""
@@ -44,6 +49,7 @@ async def get_telemetry(
         offset=offset,
         limit=limit,
         bucket_interval=bucket_interval or "",
+        max_points=max_points,
     )
     return JSONResponse(
         content=result["points"],

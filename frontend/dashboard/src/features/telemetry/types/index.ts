@@ -41,6 +41,8 @@ export interface TelemetryBucket {
     max_value: number | null;
     last_value: number | null;
     unit: string;
+    /** True for synthetic gap markers (no data, line should break here). */
+    is_gap?: boolean;
 }
 
 export type BucketInterval =
@@ -67,6 +69,8 @@ export interface TelemetryQuery {
     bucket_interval?: BucketInterval;
     offset?: number;
     limit?: number;
+    /** LTTB downsample target. 0 / undefined disables downsampling. */
+    max_points?: number;
 }
 
 export interface TelemetrySnapshotItem {

@@ -108,6 +108,145 @@ def _validate_bucket_interval(value: str | None) -> str | None:
     return None
 
 
+# -- LTTB downsampling -----------------------------------------------------
+
+
+def _ts_to_epoch(b) -> float:
+    """Bucket timestamps come back as datetime objects from the driver."""
+    if isinstance(b, datetime):
+        return b.timestamp()
+    if isinstance(b, int | float):
+        return float(b)
+    # Fallback: ISO string
+    return datetime.fromisoformat(str(b)).timestamp()
+
+
+def _lttb(rows: list[dict], threshold: int) -> list[dict]:
+    """Largest-Triangle-Three-Buckets downsampling.
+
+    Reduces ``rows`` to roughly ``threshold`` points while preserving the
+    visual shape of the series — keeps peaks/valleys that a naive stride
+    sample would lose. Operates on the ``avg_value`` field; rows whose
+    avg_value is None are passed through (they mark real gaps and uPlot
+    needs them to break the line).
+
+    This is the same algorithm Grafana / DigitalOcean / Datadog use to
+    pack thousands of raw points into ~chart-width pixels without losing
+    spikes.
+    """
+    n = len(rows)
+    if threshold <= 2 or n <= threshold:
+        return rows
+
+    # Separate gap markers (None avg_value) and run LTTB only on the
+    # "real" segments. Reassemble afterwards so gaps survive intact.
+    sampled: list[dict] = []
+    bucket_size = (n - 2) / (threshold - 2)
+
+    sampled.append(rows[0])
+    a = 0  # index of the previously selected point
+
+    for i in range(threshold - 2):
+        # Average point of next bucket (the "C" candidates' centroid)
+        avg_x = 0.0
+        avg_y = 0.0
+        avg_count = 0
+        next_start = int((i + 1) * bucket_size) + 1
+        next_end = min(int((i + 2) * bucket_size) + 1, n)
+        for j in range(next_start, next_end):
+            v = rows[j].get("avg_value")
+            if v is None:
+                continue
+            avg_x += _ts_to_epoch(rows[j]["bucket"])
+            avg_y += float(v)
+            avg_count += 1
+        if avg_count == 0:
+            # Bucket is fully a gap — keep its midpoint as a None marker.
+            mid = rows[(next_start + next_end - 1) // 2]
+            sampled.append(mid)
+            a = (next_start + next_end - 1) // 2
+            continue
+        avg_x /= avg_count
+        avg_y /= avg_count
+
+        # Pick the point in the current bucket that forms the largest
+        # triangle with `a` (last selected) and the next bucket's centroid.
+        cur_start = int(i * bucket_size) + 1
+        cur_end = int((i + 1) * bucket_size) + 1
+        a_x = _ts_to_epoch(rows[a]["bucket"])
+        a_v = rows[a].get("avg_value")
+        a_y = float(a_v) if a_v is not None else avg_y
+
+        max_area = -1.0
+        max_idx = cur_start
+        for j in range(cur_start, cur_end):
+            v = rows[j].get("avg_value")
+            if v is None:
+                # Gaps must always survive — return immediately.
+                max_idx = j
+                break
+            x = _ts_to_epoch(rows[j]["bucket"])
+            area = abs(
+                (a_x - avg_x) * (float(v) - a_y) - (a_x - x) * (avg_y - a_y)
+            ) * 0.5
+            if area > max_area:
+                max_area = area
+                max_idx = j
+
+        sampled.append(rows[max_idx])
+        a = max_idx
+
+    sampled.append(rows[-1])
+    return sampled
+
+
+# -- Smart gap detection ---------------------------------------------------
+
+
+def _insert_gap_markers(
+    rows: list[dict],
+    bucket_size_seconds: float,
+    *,
+    gap_factor: float = 3.0,
+) -> list[dict]:
+    """Insert ``None``-valued sentinel rows between data points whose time
+    distance exceeds ``gap_factor × bucket_size``.
+
+    DigitalOcean's monitoring charts only break the line for *real* outages,
+    not for the natural jitter of sensors that publish slightly less often
+    than the sampling bucket. We mirror that here: small gaps get smoothed
+    by the line, big gaps become an explicit visual break.
+    """
+    if not rows or bucket_size_seconds <= 0:
+        return rows
+    threshold = bucket_size_seconds * gap_factor
+    out: list[dict] = [rows[0]]
+    for prev, cur in zip(rows, rows[1:], strict=False):
+        prev_ts = _ts_to_epoch(prev["bucket"])
+        cur_ts = _ts_to_epoch(cur["bucket"])
+        if cur_ts - prev_ts > threshold:
+            # Drop a sentinel right after the last good point so uPlot
+            # breaks the line. Use the midpoint timestamp to keep the
+            # x-axis monotonically increasing.
+            mid_ts = (prev_ts + cur_ts) / 2
+            out.append(
+                {
+                    "bucket": datetime.fromtimestamp(mid_ts, tz=prev["bucket"].tzinfo)
+                    if isinstance(prev["bucket"], datetime)
+                    else mid_ts,
+                    "locomotive_id": cur["locomotive_id"],
+                    "sensor_type": cur["sensor_type"],
+                    "avg_value": None,
+                    "min_value": None,
+                    "max_value": None,
+                    "last_value": None,
+                    "unit": cur.get("unit", ""),
+                }
+            )
+        out.append(cur)
+    return out
+
+
 # -- WHERE clause builder -------------------------------------------------
 
 
@@ -149,6 +288,7 @@ async def query_bucketed(
     offset: int = 0,
     limit: int = 500,
     bucket_interval: str | None = None,
+    max_points: int = 0,
 ) -> tuple[list[dict], str]:
     requested_bucket = _validate_bucket_interval(bucket_interval)
 
@@ -228,6 +368,29 @@ async def query_bucketed(
         }
         for row in result.fetchall()
     ]
+
+    # Compute the effective bucket size in seconds. Used both by the gap
+    # detector and to compose the resulting data_source label.
+    if level.source_table == "raw_telemetry" and bucket_size is not None:
+        effective_bucket_seconds = _ALLOWED_BUCKETS[bucket_size].total_seconds() if bucket_size in _ALLOWED_BUCKETS else 60.0
+    elif level.source_table == "telemetry_1min":
+        effective_bucket_seconds = 60.0
+    elif level.source_table == "telemetry_15min":
+        effective_bucket_seconds = 15 * 60.0
+    elif level.source_table == "telemetry_1hour":
+        effective_bucket_seconds = 60 * 60.0
+    else:
+        effective_bucket_seconds = 60.0
+
+    # Insert explicit None markers between points whose distance exceeds
+    # ~3× the bucket so the client renders real outages as gaps but smooths
+    # over the natural sensor jitter.
+    rows = _insert_gap_markers(rows, effective_bucket_seconds)
+
+    # LTTB downsample to ~chart-width points. Preserves spikes/peaks.
+    if max_points and len(rows) > max_points:
+        rows = _lttb(rows, max_points)
+
     return rows, level.label
 
 

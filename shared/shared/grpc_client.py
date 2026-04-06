@@ -121,6 +121,7 @@ class AnalyticsClient:
         offset: int = 0,
         limit: int = 500,
         bucket_interval: str = "",
+        max_points: int = 0,
     ) -> dict:
         """Query bucketed telemetry with auto-resolution.
 
@@ -135,6 +136,7 @@ class AnalyticsClient:
                 offset=offset,
                 limit=limit,
                 bucket_interval=bucket_interval,
+                max_points=max_points,
             ),
             timeout=self._timeout,
         )
@@ -144,11 +146,15 @@ class AnalyticsClient:
                     "bucket": p.bucket,
                     "locomotive_id": p.locomotive_id,
                     "sensor_type": p.sensor_type,
-                    "avg_value": p.avg_value or None,
-                    "min_value": p.min_value or None,
-                    "max_value": p.max_value or None,
-                    "last_value": p.last_value or None,
+                    # `is_gap` carries the True-null intent across the wire,
+                    # since proto3 doubles cannot be nullable. A real reading
+                    # of 0.0 stays 0.0; a missing reading becomes None here.
+                    "avg_value": None if p.is_gap else p.avg_value,
+                    "min_value": None if p.is_gap else p.min_value,
+                    "max_value": None if p.is_gap else p.max_value,
+                    "last_value": None if p.is_gap else p.last_value,
                     "unit": p.unit,
+                    "is_gap": p.is_gap,
                 }
                 for p in resp.points
             ],

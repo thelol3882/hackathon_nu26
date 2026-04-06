@@ -62,17 +62,19 @@ class AnalyticsServicer(telemetry_pb2_grpc.AnalyticsServiceServicer):
                 offset=request.offset,
                 limit=request.limit or 500,
                 bucket_interval=request.bucket_interval or None,
+                max_points=request.max_points or 0,
             )
         points = [
             telemetry_pb2.TelemetryPoint(
                 bucket=str(r["bucket"]),
                 locomotive_id=str(r["locomotive_id"]),
                 sensor_type=r["sensor_type"],
-                avg_value=float(r["avg_value"] or 0),
-                min_value=float(r["min_value"] or 0),
-                max_value=float(r["max_value"] or 0),
-                last_value=float(r["last_value"] or 0),
-                unit=r.get("unit", ""),
+                avg_value=float(r["avg_value"]) if r["avg_value"] is not None else 0.0,
+                min_value=float(r["min_value"]) if r["min_value"] is not None else 0.0,
+                max_value=float(r["max_value"]) if r["max_value"] is not None else 0.0,
+                last_value=float(r["last_value"]) if r["last_value"] is not None else 0.0,
+                unit=r.get("unit", "") or "",
+                is_gap=r["avg_value"] is None,
             )
             for r in rows
         ]

@@ -39,6 +39,10 @@ message TelemetryPoint {
   double max_value = 6;
   double last_value = 7;      // Last recorded value in this bucket
   string unit = 8;
+  // Marks a synthetic gap sentinel where the source had no data.
+  // When true, value fields are meaningless and the client should break
+  // the line at this point instead of plotting the zeros.
+  bool is_gap = 9;
 }
 
 // Raw telemetry point (not aggregated, per-second resolution).
@@ -147,6 +151,7 @@ message TelemetryBucketedRequest {
   int32 offset = 5;
   int32 limit = 6;            // 0 means server default (500)
   string bucket_interval = 7; // e.g. "15 seconds"; empty = auto-select
+  int32 max_points = 8;       // LTTB downsample target; 0 = no downsampling
 }
 
 message TelemetryBucketedResponse {
