@@ -5,6 +5,7 @@ import type { SensorType, TelemetryReading } from '../types';
 interface Position {
     latitude: number;
     longitude: number;
+    bearing_deg: number | null;
 }
 
 /**
@@ -15,6 +16,7 @@ export function useLiveTelemetry(locomotiveId: string | null) {
     const sensorsRecord = useAppSelector((state) => state.telemetry.sensors);
     const gps = useAppSelector((state) => state.telemetry.gps);
     const locomotiveType = useAppSelector((state) => state.telemetry.locomotiveType);
+    const routeName = useAppSelector((state) => state.telemetry.routeName);
     const lastUpdated = useAppSelector((state) => state.telemetry.lastUpdated);
 
     // Build a Map for backward compat with existing components
@@ -38,5 +40,5 @@ export function useLiveTelemetry(locomotiveId: string | null) {
 
     const position: Position | null = gps;
 
-    return { sensors, position };
+    return { sensors, position, routeName };
 }

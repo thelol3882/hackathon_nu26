@@ -47,3 +47,10 @@ htmlcov/
 .pytest_cache/
 .coverage
 .coverage.*
+
+# --- One-shot dev tools ---
+# tools/.cache/ stores downloaded artefacts (e.g. the ~200 MB
+# Geofabrik PBF used by tools/import_osm_railways.py). Never check
+# in — the resulting GeoJSON under shared/data/routes/ is what we
+# version, not the source dump.
+tools/.cache/

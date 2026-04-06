@@ -44,6 +44,13 @@ class GatewaySettings(BaseSettings):
     report_grpc_target: str = "report-service:50052"
     report_grpc_timeout: float = 10.0
 
+    # --- Simulator (HTTP) ---
+    # The dashboard's "Operator" controls (create / update / delete
+    # locomotives in the running simulation) are proxied through this
+    # gateway via plain HTTP. Simulator itself is internal-only.
+    simulator_http_url: str = "http://simulator:8000"
+    simulator_http_timeout: float = 5.0
+
     # --- Redis ---
     redis_host: str = "localhost"
     redis_port: int = 6379
