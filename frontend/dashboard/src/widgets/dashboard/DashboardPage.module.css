@@ -34,6 +34,7 @@
     gap: var(--mantine-spacing-sm);
     grid-template-columns: 1fr;
     grid-template-areas:
+        "control"
         "health"
         "speed"
         "fuel"
@@ -80,11 +81,16 @@
     grid-area: map;
 }
 
+.control {
+    grid-area: control;
+}
+
 /* Medium: 2 columns */
 @media (min-width: 768px) {
     .grid {
         grid-template-columns: 1fr 1fr;
         grid-template-areas:
+            "control control"
             "health  health"
             "speed   fuel"
             "press   elec"
@@ -99,6 +105,7 @@
     .grid {
         grid-template-columns: 1fr 1fr 1fr;
         grid-template-areas:
+            "control control control"
             "health  health  health"
             "speed   fuel    alerts"
             "press   elec    alerts"
@@ -112,6 +119,7 @@
     .grid {
         grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
         grid-template-areas:
+            "control control control control"
             "health  health  speed   fuel"
             "alerts  alerts  press   elec"
             "map     map     map     map"

@@ -23,6 +23,7 @@ import ElectricalPanel from './components/ElectricalPanel/ElectricalPanel';
 import AlertsPanel from './components/AlertsPanel/AlertsPanel';
 import TrendsPanel from './components/TrendsPanel/TrendsPanel';
 import { RouteMap } from './components/RouteMap/RouteMap';
+import { SimulationControlPanel } from './components/SimulationControlPanel/SimulationControlPanel';
 
 import styles from './DashboardPage.module.css';
 
@@ -464,6 +465,11 @@ function DashboardGrid({
 }: DashboardGridProps) {
     return (
         <Box className={styles.grid}>
+            {!isReplay && (
+                <Box className={styles.control}>
+                    <SimulationControlPanel locomotiveId={locomotiveId} />
+                </Box>
+            )}
             <Box className={styles.health}>
                 <HealthIndexGauge health={health} isLoading={healthLoading} />
             </Box>

@@ -41,6 +41,12 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy service source (for main.py entrypoint)
 COPY --chown=app:app services/simulator/ /app/
 
+# Copy the OSM-imported route GeoJSON files. They live outside the
+# `shared` Python package so they aren't bundled into the wheel; we
+# bring them along explicitly so `shared.route_geometry._find_geojson_dir`
+# finds them at /app/shared/data/routes/ at runtime.
+COPY --chown=app:app shared/data/ /app/shared/data/
+
 USER app
 
 EXPOSE 8000
